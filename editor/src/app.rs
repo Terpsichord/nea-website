@@ -1,9 +1,12 @@
-use crate::buffer::{Buffer, BufferError, Buffers, FileData};
+use crate::{
+    buffer::{Buffer, BufferError, Buffers, FileData},
+    explorer::Explorer,
+};
 
 use core::f32;
 use std::{
     fmt::Debug,
-    ops::{Deref, DerefMut},
+    ops::{Deref, DerefMut}, path::PathBuf,
 };
 
 use eframe::egui;
@@ -96,25 +99,37 @@ impl eframe::App for App {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // TODO: move this to a settings menu
-            ui.checkbox(&mut self.settings.auto_save, "Auto save");
-            StripBuilder::new(ui)
-                .size(Size::relative(0.5))
-                .size(Size::relative(0.5))
-                .vertical(|mut strip| {
-                    strip.cell(|ui| {
-                        if let Some(action) =
-                            self.buffers.show(&self.settings, ui).save_modal_action
-                        {
-                            self.save_modal_state = SaveModalState::SaveFileOpen;
-                            self.modal_action = Some(action);
-                        }
+            ui.horizontal(|ui| {
+                // TODO: make the explorer fixed width, and full-screen height
+                let explorer = Explorer::new(
+                    // TODO: the directory should be set when the user uses "Open folder"
+                    std::env::current_dir().expect("Unable to get current directory"),
+                ).ui(ui);
+                
+                if let Some(path) = explorer.open_file {
+                    self.open_file(Some(path));
+                }
+
+                StripBuilder::new(ui)
+                    .size(Size::relative(0.5))
+                    .size(Size::relative(0.5))
+                    .vertical(|mut strip| {
+                        strip.cell(|ui| {
+                            ui.vertical(|ui| {
+                                if let Some(action) =
+                                    self.buffers.show(&self.settings, ui).save_modal_action
+                                {
+                                    self.save_modal_state = SaveModalState::SaveFileOpen;
+                                    self.modal_action = Some(action);
+                                }
+                            });
+                        });
+                        strip.cell(|ui| {
+                            let size = ui.available_size();
+                            self.output(ui, size);
+                        })
                     });
-                    strip.cell(|ui| {
-                        let size = ui.available_size();
-                        self.output(ui, size);
-                    })
-                });
+            });
         });
 
         match self.save_modal_state {
@@ -138,7 +153,7 @@ impl App {
                 }
                 ui.separator();
                 if ui.button("Open file").clicked() {
-                    self.open_file();
+                    self.open_file(None);
                 }
                 ui.separator();
                 if ui.button("Save file").clicked() {
@@ -192,6 +207,10 @@ impl App {
                 }
             });
             ui.menu_button("Help", |_ui| {});
+
+            // TODO: move this to a settings menu
+            ui.checkbox(&mut self.settings.auto_save, "Auto save");
+
         });
     }
 
@@ -279,7 +298,7 @@ impl App {
         }
     }
 
-    fn open_file(&mut self) {
+    fn open_file(&mut self, path: Option<PathBuf>) {
         // TODO: move this to open folder/project
         // if !self.ignore_dirty && self.is_dirty() {
         //     self.save_modal_state = SaveModalState::SaveAllOpen;
@@ -287,7 +306,7 @@ impl App {
         //     return;
         // }
 
-        let Some(path) = rfd::FileDialog::new().pick_file() else {
+        let Some(path) = path.or_else(|| rfd::FileDialog::new().pick_file()) else {
             log::info!("no file selected to open");
             return;
         };
@@ -307,7 +326,7 @@ impl App {
         println!("modal action {action:?}");
         println!("{self:?}");
         match action {
-            ModalAction::OpenFile => self.open_file(),
+            ModalAction::OpenFile => self.open_file(None),
             ModalAction::DeleteBuffer(id) => self.buffers.delete_buffer(id),
             ModalAction::Close => todo!(),
         }

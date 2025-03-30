@@ -2,6 +2,7 @@
 
 mod app;
 mod buffer;
+mod explorer;
 
 fn main() -> eframe::Result {
     env_logger::init();
