@@ -79,6 +79,7 @@ enum SaveModalState {
 pub struct App {
     settings: Settings,
     buffers: Buffers,
+    explorer: Explorer,
     output: String,
     #[serde(skip)]
     save_modal_state: SaveModalState,
@@ -101,12 +102,7 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 // TODO: make the explorer fixed width, and full-screen height
-                let explorer = Explorer::new(
-                    // TODO: the directory should be set when the user uses "Open folder"
-                    std::env::current_dir().expect("Unable to get current directory"),
-                ).ui(ui);
-                
-                if let Some(path) = explorer.open_file {
+                if let Some(path) = self.explorer.show(ui).open_file {
                     self.open_file(Some(path));
                 }
 
@@ -288,11 +284,12 @@ impl App {
             .collect();
 
         for id in dirty_buffers {
+            // unwrap is safe here as `id` is guaranteed to be associated with a buffer
             let buffer = self.buffers.get_mut_by_id(id).unwrap();
             if let Err(BufferError::NoAssociatedFile) = buffer.save() {
                 self.buffers.select(id);
                 // if no file is selected, ignore it and continue saving all
-                // TODO: make it so the ui updates which tab is selected inbetween individual calls to `save_as`
+                // TODO: make it so the ui updates (to show which tab is selected) in between individual calls to `save_as`
                 let _ = self.save_as();
             }
         }
