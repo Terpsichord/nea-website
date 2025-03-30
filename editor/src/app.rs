@@ -6,7 +6,8 @@ use crate::{
 use core::f32;
 use std::{
     fmt::Debug,
-    ops::{Deref, DerefMut}, path::PathBuf,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
 };
 
 use eframe::egui;
@@ -206,7 +207,6 @@ impl App {
 
             // TODO: move this to a settings menu
             ui.checkbox(&mut self.settings.auto_save, "Auto save");
-
         });
     }
 
@@ -364,4 +364,41 @@ impl App {
     fn run(&mut self) {
         self.output += "\nHello, world!";
     }
+}
+
+mod tests {
+    // edge cases to test:
+    //
+    // * open a file
+    // * open a file that is already open
+    // * open a file that does not exist
+    // * open a file that is a directory
+    // * open a file that is not a file
+    //
+    // * save a file
+    // * save a file that is not open
+    // * save a file that is already saved
+    // * save a file that has not been modified
+    // * save a file that has been modified
+    // * save a file that has been deleted
+    // * save a file that does not exist
+    // * save a file that is a directory
+    // * save a file that is not a file
+    // * save a file with an invalid character in the name
+    //
+    // * open and save a file that is not a UTF-8 file
+    // * open and save a file that is not a text file (e.g. an image)
+    //
+    // * close a file
+    // * close a file that is not open
+    //
+    // * close all files
+    // * close all files when there are no open files
+    //
+    // * delete a file
+    // * delete a file that is not open
+    // * delete a file that is open
+    // * delete a file that does not exist
+    // * delete a file that is a directory
+    // * delete a file that is not a file
 }
