@@ -11,7 +11,7 @@ use std::{
 };
 
 use eframe::egui;
-use egui::{containers::modal::Modal, text_edit::TextEditState, Button, Id};
+use egui::{containers::modal::Modal, text_edit::TextEditState, Button, Id, ViewportCommand};
 use egui_extras::{Size, StripBuilder};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -96,6 +96,15 @@ pub struct App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if ctx.input(|i| i.viewport().close_requested())
+            && !self.ignore_dirty
+            && self.buffers.is_dirty()
+        {
+            self.save_modal_state = SaveModalState::SaveAllOpen;
+            self.modal_action = Some(ModalAction::Close);
+            ctx.send_viewport_cmd(ViewportCommand::CancelClose);
+        }
+
         egui::TopBottomPanel::top("top_menu_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.visuals_mut().button_frame = false;
@@ -145,7 +154,7 @@ impl eframe::App for App {
             }
             SaveModalState::Closed => {
                 if let Some(action) = self.modal_action.take() {
-                    self.modal_action(action);
+                    self.modal_action(action, ctx);
                 }
             }
         }
@@ -353,14 +362,12 @@ impl App {
         self.buffers = Buffers::default();
     }
 
-    fn modal_action(&mut self, action: ModalAction) {
-        println!("modal action {action:?}");
-        println!("{self:?}");
+    fn modal_action(&mut self, action: ModalAction, ctx: &egui::Context) {
         match action {
             ModalAction::OpenFile => self.open_file(None),
             ModalAction::OpenFolder => self.open_folder(),
             ModalAction::DeleteBuffer(id) => self.buffers.delete_buffer(id),
-            ModalAction::Close => todo!(),
+            ModalAction::Close => ctx.send_viewport_cmd(ViewportCommand::Close),
         }
         self.ignore_dirty = false;
         self.modal_action = None;

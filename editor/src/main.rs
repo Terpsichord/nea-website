@@ -13,6 +13,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "My IDE",
         options,
-        Box::new(|_| Ok(Box::<app::App>::default()) ),
+        Box::new(|_| Ok(Box::<app::App>::default())),
     )
 }

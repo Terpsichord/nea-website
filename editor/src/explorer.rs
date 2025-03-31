@@ -1,4 +1,7 @@
-use std::{cmp::Ordering, path::{Path, PathBuf}};
+use std::{
+    cmp::Ordering,
+    path::{Path, PathBuf},
+};
 
 use egui::{CollapsingHeader, Response};
 use serde::{Deserialize, Serialize};
@@ -45,7 +48,10 @@ impl TreeNode {
 
     fn name_from_path(path: &Path) -> &str {
         // TODO: error handling
-        path.file_name().expect("failed to get file name").to_str().expect("failed to get file name")
+        path.file_name()
+            .expect("failed to get file name")
+            .to_str()
+            .expect("failed to get file name")
     }
 
     fn name(&self) -> &str {
@@ -55,14 +61,20 @@ impl TreeNode {
     fn read_children(path: &Path, max_depth: usize) -> Vec<TreeNode> {
         let mut children: Vec<_> = std::fs::read_dir(path)
             .expect("failed to read directory")
-            .map(|entry| Self::new_recursive(entry.expect("failed to get entry").path(), max_depth - 1))
+            .map(|entry| {
+                Self::new_recursive(entry.expect("failed to get entry").path(), max_depth - 1)
+            })
             .collect();
-        children.sort_by(|a, b| {
-            match (a, b) {
-                (TreeNode::ExploredDir { .. } | TreeNode::UnexploredDir { .. }, TreeNode::File { .. }) => Ordering::Less,
-                (TreeNode::File { .. }, TreeNode::ExploredDir { .. } | TreeNode::UnexploredDir { .. }) => Ordering::Greater,
-                _ => a.name().cmp(b.name()),
-            }
+        children.sort_by(|a, b| match (a, b) {
+            (
+                TreeNode::ExploredDir { .. } | TreeNode::UnexploredDir { .. },
+                TreeNode::File { .. },
+            ) => Ordering::Less,
+            (
+                TreeNode::File { .. },
+                TreeNode::ExploredDir { .. } | TreeNode::UnexploredDir { .. },
+            ) => Ordering::Greater,
+            _ => a.name().cmp(b.name()),
         });
         children
     }
@@ -90,11 +102,7 @@ impl TreeNode {
         }
     }
 
-    fn directory_ui(
-        ui: &mut egui::Ui,
-        name: &str,
-        children: &mut [TreeNode],
-    ) -> ExplorerResponse {
+    fn directory_ui(ui: &mut egui::Ui, name: &str, children: &mut [TreeNode]) -> ExplorerResponse {
         let mut child_open_file = None;
         let response = CollapsingHeader::new(name)
             .show(ui, |ui| {
@@ -150,15 +158,7 @@ impl Explorer {
             ui.separator();
 
             response
-        }).inner
-    }
-}
-
-impl Default for Explorer {
-    fn default() -> Self {
-        Explorer::new(
-            // TODO: the directory should be set when the user uses "Open folder"
-            std::env::current_dir().expect("Unable to get current directory"),
-        )
+        })
+        .inner
     }
 }
