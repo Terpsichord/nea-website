@@ -19,6 +19,7 @@ use uuid::Uuid;
 #[derive(PartialEq, Debug, Serialize, Deserialize)]
 pub enum ModalAction {
     OpenFile,
+    OpenFolder,
     DeleteBuffer(Uuid),
     Close,
 }
@@ -70,17 +71,18 @@ enum SaveError {
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 enum SaveModalState {
-    #[default]
-    Closed,
     SaveAllOpen,
     SaveFileOpen,
+    Closing,
+    #[default]
+    Closed,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct App {
     settings: Settings,
     buffers: Buffers,
-    explorer: Explorer,
+    explorer: Option<Explorer>,
     output: String,
     #[serde(skip)]
     save_modal_state: SaveModalState,
@@ -103,7 +105,7 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 // TODO: make the explorer fixed width, and full-screen height
-                if let Some(path) = self.explorer.show(ui).open_file {
+                if let Some(path) = self.explorer.as_mut().and_then(|explorer| explorer.show(ui).open_file) {
                     self.open_file(Some(path));
                 }
 
@@ -130,13 +132,17 @@ impl eframe::App for App {
         });
 
         match self.save_modal_state {
+            SaveModalState::SaveAllOpen => self.show_save_modal(ctx, true),
+            SaveModalState::SaveFileOpen => self.show_save_modal(ctx, false),
+            // Separate `Closing` variant needed to close the modal before performing the action
+            SaveModalState::Closing => {
+                self.save_modal_state = SaveModalState::Closed;
+            }
             SaveModalState::Closed => {
                 if let Some(action) = self.modal_action.take() {
                     self.modal_action(action);
                 }
-            }
-            SaveModalState::SaveAllOpen => self.show_save_modal(ctx, true),
-            SaveModalState::SaveFileOpen => self.show_save_modal(ctx, false),
+            },
         }
     }
 }
@@ -151,6 +157,9 @@ impl App {
                 ui.separator();
                 if ui.button("Open file").clicked() {
                     self.open_file(None);
+                }
+                if ui.button("Open folder").clicked() {
+                    self.open_folder();
                 }
                 ui.separator();
                 if ui.button("Save file").clicked() {
@@ -296,13 +305,6 @@ impl App {
     }
 
     fn open_file(&mut self, path: Option<PathBuf>) {
-        // TODO: move this to open folder/project
-        // if !self.ignore_dirty && self.is_dirty() {
-        //     self.save_modal_state = SaveModalState::SaveAllOpen;
-        //     self.modal_action = Some(ModalAction::OpenFile);
-        //     return;
-        // }
-
         let Some(path) = path.or_else(|| rfd::FileDialog::new().pick_file()) else {
             log::info!("no file selected to open");
             return;
@@ -319,11 +321,28 @@ impl App {
         self.buffers.add(buffer);
     }
 
+    fn open_folder(&mut self) {
+        if !self.ignore_dirty && self.buffers.is_dirty() {
+            self.save_modal_state = SaveModalState::SaveAllOpen;
+            self.modal_action = Some(ModalAction::OpenFolder);
+            return;
+        }
+
+        let Some(path) = rfd::FileDialog::new().pick_folder() else {
+            log::info!("no folder selected to open");
+            return;
+        };
+
+        self.explorer = Some(Explorer::new(path));
+        self.buffers = Buffers::default();
+    }
+
     fn modal_action(&mut self, action: ModalAction) {
         println!("modal action {action:?}");
         println!("{self:?}");
         match action {
             ModalAction::OpenFile => self.open_file(None),
+            ModalAction::OpenFolder => self.open_folder(),
             ModalAction::DeleteBuffer(id) => self.buffers.delete_buffer(id),
             ModalAction::Close => todo!(),
         }
@@ -341,21 +360,21 @@ impl App {
                 if ui.button("Save").clicked() {
                     if save_all {
                         self.save_all();
-                        self.save_modal_state = SaveModalState::Closed;
+                        self.save_modal_state = SaveModalState::Closing;
                     } else {
                         match self.save_file() {
                             Err(SaveError::NoFileSelected) => {}
-                            _ => self.save_modal_state = SaveModalState::Closed,
+                            _ => self.save_modal_state = SaveModalState::Closing,
                         }
                     }
                 }
                 if ui.button("Don't save").clicked() {
                     self.ignore_dirty = true;
-                    self.save_modal_state = SaveModalState::Closed;
+                    self.save_modal_state = SaveModalState::Closing;
                 }
                 if ui.button("Cancel").clicked() {
                     self.modal_action = None;
-                    self.save_modal_state = SaveModalState::Closed;
+                    self.save_modal_state = SaveModalState::Closing;
                 }
             })
         });
@@ -364,41 +383,4 @@ impl App {
     fn run(&mut self) {
         self.output += "\nHello, world!";
     }
-}
-
-mod tests {
-    // edge cases to test:
-    //
-    // * open a file
-    // * open a file that is already open
-    // * open a file that does not exist
-    // * open a file that is a directory
-    // * open a file that is not a file
-    //
-    // * save a file
-    // * save a file that is not open
-    // * save a file that is already saved
-    // * save a file that has not been modified
-    // * save a file that has been modified
-    // * save a file that has been deleted
-    // * save a file that does not exist
-    // * save a file that is a directory
-    // * save a file that is not a file
-    // * save a file with an invalid character in the name
-    //
-    // * open and save a file that is not a UTF-8 file
-    // * open and save a file that is not a text file (e.g. an image)
-    //
-    // * close a file
-    // * close a file that is not open
-    //
-    // * close all files
-    // * close all files when there are no open files
-    //
-    // * delete a file
-    // * delete a file that is not open
-    // * delete a file that is open
-    // * delete a file that does not exist
-    // * delete a file that is a directory
-    // * delete a file that is not a file
 }
