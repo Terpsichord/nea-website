@@ -64,6 +64,7 @@ impl Debug for EditorState {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 enum SaveError {
     NoFileSelected,
     NoBufferSelected,
@@ -105,7 +106,11 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 // TODO: make the explorer fixed width, and full-screen height
-                if let Some(path) = self.explorer.as_mut().and_then(|explorer| explorer.show(ui).open_file) {
+                if let Some(path) = self
+                    .explorer
+                    .as_mut()
+                    .and_then(|explorer| explorer.show(ui).open_file)
+                {
                     self.open_file(Some(path));
                 }
 
@@ -142,7 +147,7 @@ impl eframe::App for App {
                 if let Some(action) = self.modal_action.take() {
                     self.modal_action(action);
                 }
-            },
+            }
         }
     }
 }
@@ -162,17 +167,28 @@ impl App {
                     self.open_folder();
                 }
                 ui.separator();
-                if ui.button("Save file").clicked() {
-                    // TODO: we ignore this for now
-                    // in future, this button should be greyed out if no buffer is selected, so we should be able to unwrap here
-                    let _ = self.save_file();
+
+                let show_save = self.buffers.current_buffer().is_some();
+                if ui
+                    .add_enabled(show_save, Button::new("Save file"))
+                    .clicked()
+                {
+                    // this button should be greyed out if no buffer is selected, so we should be able to unwrap here
+                    self.save_file().unwrap();
                 }
-                if ui.button("Save as...").clicked() {
-                    // TODO: same as above
-                    // if the error is `SaveError::NoFileSelected`, we should just ignore this anyway
-                    let _ = self.save_as();
+                if ui
+                    .add_enabled(show_save, Button::new("Save as..."))
+                    .clicked()
+                {
+                    if let Err(SaveError::NoBufferSelected) = self.save_as() {
+                        unreachable!()
+                    }
                 }
-                if ui.button("Save all changes").clicked() {
+                let show_save_all = self.buffers.is_dirty();
+                if ui
+                    .add_enabled(show_save_all, Button::new("Save all changes"))
+                    .clicked()
+                {
                     self.save_all();
                 }
             });
