@@ -6,13 +6,12 @@ use crate::{
 use core::f32;
 use std::{
     fmt::Debug,
-    ops::{Deref, DerefMut},
     path::PathBuf,
 };
 
 use eframe::egui;
 use egui::{
-    containers::modal::Modal, text_edit::TextEditState, Button, CentralPanel, Id, SidePanel,
+    containers::modal::Modal, Button, CentralPanel, Id, SidePanel,
     TopBottomPanel, ViewportCommand,
 };
 use serde::{Deserialize, Serialize};
@@ -50,35 +49,6 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self { auto_save: true }
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-struct EditorState(TextEditState);
-
-impl From<TextEditState> for EditorState {
-    fn from(state: TextEditState) -> Self {
-        Self(state)
-    }
-}
-
-impl Deref for EditorState {
-    type Target = TextEditState;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for EditorState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl Debug for EditorState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("EditorState").finish()
     }
 }
 
@@ -216,31 +186,11 @@ impl App {
                 }
             });
             ui.menu_button("Edit", |ui| {
-                if ui
-                    .add_enabled(
-                        true, /* self.text_edit.is_some() */
-                        Button::new("Undo"),
-                    )
-                    .clicked()
-                {
-                    println!("undo");
-                    // TODO: come back to undo/redo buttons
-                    // if let Some(text_edit) = self.text_edit.as_mut() {
-                    //     println!("actually undo (has undo: {}", text_edit.undoer().has_undo(&(text_edit.cursor.char_range().unwrap_or_default(), self.code_buffer.clone())));
-                    //     if let Some((ccursor_range, contents)) = text_edit.undoer().undo(&(text_edit.cursor.char_range().unwrap_or_default(), self.code_buffer.clone())) {
-                    //         text_edit.cursor.set_char_range(Some(ccursor_range.clone()));
-                    //         self.code_buffer = contents.clone();
-                    //     }
-                    // }
+                if ui.button("Undo").clicked() {
+                    todo!("undo");
                 }
-                if ui
-                    .add_enabled(
-                        true, /* self.text_edit.is_some() */
-                        Button::new("Redo"),
-                    )
-                    .clicked()
-                {
-                    log::debug!("redo");
+                if ui.button("Redo").clicked() {
+                    todo!("redo");
                 }
                 ui.separator();
                 if ui.button("Settings").clicked() {}
