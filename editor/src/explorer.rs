@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use egui::{CollapsingHeader, Response};
+use egui::{CollapsingHeader, Response, ScrollArea};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -151,14 +151,11 @@ impl Explorer {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> ExplorerResponse {
-        ui.scope(|ui| {
-            ui.style_mut().visuals.button_frame = false;
-
-            let response = self.root_node.ui(ui);
-            ui.separator();
-
-            response
-        })
-        .inner
+        ScrollArea::vertical()
+            .show(ui, |ui| {
+                ui.style_mut().visuals.button_frame = false;
+                self.root_node.ui(ui)
+            })
+            .inner
     }
 }

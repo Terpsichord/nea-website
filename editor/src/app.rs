@@ -11,10 +11,28 @@ use std::{
 };
 
 use eframe::egui;
-use egui::{containers::modal::Modal, text_edit::TextEditState, Button, Id, ViewportCommand};
-use egui_extras::{Size, StripBuilder};
+use egui::{
+    containers::modal::Modal, text_edit::TextEditState, Button, CentralPanel, Id, SidePanel,
+    TopBottomPanel, ViewportCommand,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+#[macro_export]
+macro_rules! dbg_frame {
+    ($body:expr) => {
+        |ui| dbg_frame!(ui, $body)
+    };
+    ($ui:expr, $body:expr) => {
+        dbg_frame!($ui, egui::Color32::ORANGE, $body)
+    };
+    ($ui:expr, $color:expr, $body:expr) => {{
+        egui::containers::Frame::new()
+            .stroke((1.0, $color))
+            .show($ui, $body)
+            .inner
+    }};
+}
 
 #[derive(PartialEq, Debug, Serialize, Deserialize)]
 pub enum ModalAction {
@@ -105,50 +123,46 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
         }
 
-        egui::TopBottomPanel::top("top_menu_panel").show(ctx, |ui| {
+        TopBottomPanel::top("top_menu_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.visuals_mut().button_frame = false;
                 self.menu_bar(ui);
             });
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                // TODO: make the explorer fixed width, and full-screen height
-                if let Some(path) = self
-                    .explorer
-                    .as_mut()
-                    .and_then(|explorer| explorer.show(ui).open_file)
-                {
-                    self.open_file(Some(path));
-                }
+        let max_left_panel_width = 0.8;
+        if let Some(explorer) = self.explorer.as_mut() {
+            let explorer_response = SidePanel::left("explorer_panel")
+                .resizable(true)
+                .max_width(max_left_panel_width * ctx.available_rect().width())
+                .show(ctx, |ui| explorer.show(ui))
+                .inner;
+            if let Some(path) = explorer_response.open_file {
+                self.open_file(Some(path));
+            }
+        }
 
-                StripBuilder::new(ui)
-                    .size(Size::relative(0.5))
-                    .size(Size::relative(0.5))
-                    .vertical(|mut strip| {
-                        strip.cell(|ui| {
-                            ui.vertical(|ui| {
-                                if let Some(action) =
-                                    self.buffers.show(&self.settings, ui).save_modal_action
-                                {
-                                    self.save_modal_state = SaveModalState::SaveFileOpen;
-                                    self.modal_action = Some(action);
-                                }
-                            });
-                        });
-                        strip.cell(|ui| {
-                            let size = ui.available_size();
-                            self.output(ui, size);
-                        })
-                    });
+        let max_bottom_panel_height = 0.8;
+        TopBottomPanel::bottom("output_panel")
+            .resizable(true)
+            .max_height(max_bottom_panel_height * ctx.available_rect().height())
+            .show(ctx, |ui| {
+                let size = ui.available_size();
+                self.output(ui, size);
             });
-        });
+
+        let buffers_response = CentralPanel::default()
+            .show(ctx, |ui| self.buffers.show(&self.settings, ui))
+            .inner;
+        if let Some(action) = buffers_response.save_modal_action {
+            self.save_modal_state = SaveModalState::SaveFileOpen;
+            self.modal_action = Some(action);
+        }
 
         match self.save_modal_state {
             SaveModalState::SaveAllOpen => self.show_save_modal(ctx, true),
             SaveModalState::SaveFileOpen => self.show_save_modal(ctx, false),
-            // Separate `Closing` variant needed to close the modal before performing the action
+            // Separate `Closing` variant needed to visably close the modal before performing the action
             SaveModalState::Closing => {
                 self.save_modal_state = SaveModalState::Closed;
             }
@@ -363,14 +377,17 @@ impl App {
     }
 
     fn modal_action(&mut self, action: ModalAction, ctx: &egui::Context) {
+        self.ignore_dirty = false;
+        self.modal_action = None;
         match action {
             ModalAction::OpenFile => self.open_file(None),
             ModalAction::OpenFolder => self.open_folder(),
             ModalAction::DeleteBuffer(id) => self.buffers.delete_buffer(id),
-            ModalAction::Close => ctx.send_viewport_cmd(ViewportCommand::Close),
+            ModalAction::Close => {
+                self.ignore_dirty = true;
+                ctx.send_viewport_cmd(ViewportCommand::Close);
+            }
         }
-        self.ignore_dirty = false;
-        self.modal_action = None;
     }
 
     /// Shows a modal prompting the user to save any unsaved changes.

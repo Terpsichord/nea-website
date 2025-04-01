@@ -1,7 +1,7 @@
 use std::{fmt::Debug, path::PathBuf};
 
 use crate::app::{ModalAction, Settings};
-use egui::{Response, RichText, Ui, Widget};
+use egui::{Response, RichText, ScrollArea, Ui, Widget};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -53,7 +53,8 @@ impl Buffers {
         });
 
         if let Some(buffer) = self.current_buffer_mut() {
-            if ui.add(&mut *buffer).clicked_elsewhere() && settings.auto_save && self.is_dirty() {
+            let buffer_view = ScrollArea::vertical().show(ui, |ui| ui.add(&mut *buffer));
+            if buffer_view.inner.clicked_elsewhere() && settings.auto_save && self.is_dirty() {
                 for buf in self.buffers.iter_mut() {
                     // Ignore buffers that don't have files in auto save
                     let _ = buf.save();
