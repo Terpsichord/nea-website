@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use eyre::WrapErr;
 use egui::{CollapsingHeader, Response, ScrollArea};
 use serde::{Deserialize, Serialize};
 
@@ -23,19 +24,19 @@ pub enum TreeNode {
 impl TreeNode {
     const INITIAL_DEPTH: usize = 2;
 
-    fn new(path: PathBuf) -> Self {
+    fn new(path: PathBuf) -> eyre::Result<Self> {
         Self::new_recursive(path, Self::INITIAL_DEPTH)
     }
 
-    fn new_recursive(path: PathBuf, max_depth: usize) -> Self {
-        if path.is_file() {
+    fn new_recursive(path: PathBuf, max_depth: usize) -> eyre::Result<Self> {
+        Ok(if path.is_file() {
             TreeNode::File { path }
         } else if max_depth == 0 {
             TreeNode::UnexploredDir { path }
         } else {
-            let children = Self::read_children(&path, max_depth);
+            let children = Self::read_children(&path, max_depth)?;
             TreeNode::ExploredDir { path, children }
-        }
+        })
     }
 
     fn path(&self) -> &PathBuf {
@@ -47,24 +48,23 @@ impl TreeNode {
     }
 
     fn name_from_path(path: &Path) -> &str {
-        // TODO: error handling
         path.file_name()
-            .expect("failed to get file name")
-            .to_str()
-            .expect("failed to get file name")
+            .and_then(|name| name.to_str())
+            .unwrap_or_default()
     }
 
     fn name(&self) -> &str {
         Self::name_from_path(self.path())
     }
 
-    fn read_children(path: &Path, max_depth: usize) -> Vec<TreeNode> {
-        let mut children: Vec<_> = std::fs::read_dir(path)
-            .expect("failed to read directory")
-            .map(|entry| {
-                Self::new_recursive(entry.expect("failed to get entry").path(), max_depth - 1)
-            })
-            .collect();
+    fn read_children(path: &Path, max_depth: usize) -> eyre::Result<Vec<TreeNode>> {
+        let error_msg = || format!("Failed to read directory: {}", path.to_string_lossy());
+
+        let mut children = vec![];
+        let dir_entries = std::fs::read_dir(path).wrap_err_with(error_msg)?;
+        for entry in dir_entries {
+            children.push(Self::new_recursive(entry.wrap_err_with(error_msg)?.path(), max_depth - 1)?);
+        }
         children.sort_by(|a, b| match (a, b) {
             (
                 TreeNode::ExploredDir { .. } | TreeNode::UnexploredDir { .. },
@@ -76,51 +76,60 @@ impl TreeNode {
             ) => Ordering::Greater,
             _ => a.name().cmp(b.name()),
         });
-        children
+        Ok(children)
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui) -> ExplorerResponse {
-        match self {
+    fn ui(&mut self, ui: &mut egui::Ui) -> eyre::Result<ExplorerResponse> {
+        Ok(match self {
             TreeNode::UnexploredDir { .. } => {
                 unreachable!(); // hopefully
             }
             TreeNode::ExploredDir { children, path } => {
-                Self::directory_ui(ui, Self::name_from_path(path), children)
+                Self::directory_ui(ui, Self::name_from_path(path), children)?
             }
             TreeNode::File { path } => Self::file_ui(ui, Self::name_from_path(path), path),
-        }
+        })
     }
 
-    fn explore(&mut self) {
+    fn explore(&mut self) -> eyre::Result<()> {
         if let TreeNode::UnexploredDir { path } = self {
             // TODO: only read children when the header is clicked
-            let children = TreeNode::read_children(path, 1);
+            let children = TreeNode::read_children(path, 1)?;
             *self = TreeNode::ExploredDir {
                 path: std::mem::take(path),
                 children,
             };
         }
+
+        Ok(())
     }
 
-    fn directory_ui(ui: &mut egui::Ui, name: &str, children: &mut [TreeNode]) -> ExplorerResponse {
+    fn directory_ui(
+        ui: &mut egui::Ui,
+        name: &str,
+        children: &mut [TreeNode],
+    ) -> eyre::Result<ExplorerResponse> {
         let mut child_open_file = None;
-        let response = CollapsingHeader::new(name)
-            .show(ui, |ui| {
-                for child in children {
-                    child.explore();
-                    let response = child.ui(ui);
+        let response = CollapsingHeader::new(name).show(ui, |ui| {
+            for child in children {
+                child.explore()?;
+                let response = child.ui(ui)?;
 
-                    if let Some(open_file) = response.open_file {
-                        child_open_file = Some(open_file);
-                    }
+                if let Some(open_file) = response.open_file {
+                    child_open_file = Some(open_file);
                 }
-            })
-            .header_response;
+            }
+            Ok(())
+        });
 
-        ExplorerResponse {
-            open_file: child_open_file,
-            response,
+        if let Some(Err(err)) = response.body_returned {
+            return Err(err);
         }
+
+        Ok(ExplorerResponse {
+            open_file: child_open_file,
+            response: response.header_response,
+        })
     }
 
     fn file_ui(ui: &mut egui::Ui, name: &str, path: &Path) -> ExplorerResponse {
@@ -144,13 +153,13 @@ pub struct Explorer {
 }
 
 impl Explorer {
-    pub fn new(path: PathBuf) -> Self {
-        Self {
-            root_node: TreeNode::new(path),
-        }
+    pub fn new(path: PathBuf) -> eyre::Result<Self> {
+        Ok(Self {
+            root_node: TreeNode::new(path)?,
+        })
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui) -> ExplorerResponse {
+    pub fn show(&mut self, ui: &mut egui::Ui) -> eyre::Result<ExplorerResponse> {
         ScrollArea::vertical()
             .show(ui, |ui| {
                 ui.style_mut().visuals.button_frame = false;

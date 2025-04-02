@@ -1,7 +1,10 @@
-use std::{fmt::Debug, path::PathBuf};
+use std::{fmt::Debug, io, path::PathBuf};
 
 use crate::app::{ModalAction, Settings};
 use egui::{Response, RichText, ScrollArea, Ui, Widget};
+use eyre::{eyre, Context};
+use color_eyre::Section;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -14,10 +17,12 @@ pub struct FileData {
 pub enum BufferError {
     /// The buffer doesn't have a file associated with it.
     NoAssociatedFile,
+    IoError(io::Error),
 }
 
 pub struct BuffersOutput {
     pub save_modal_action: Option<ModalAction>,
+    pub error_message: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -52,13 +57,18 @@ impl Buffers {
             }
         });
 
+        let mut error_message = None;
         if let Some(buffer) = self.current_buffer_mut() {
             let buffer_view = ScrollArea::vertical().show(ui, |ui| ui.add(&mut *buffer));
             if buffer_view.inner.clicked_elsewhere() && settings.auto_save && self.is_dirty() {
+                let mut failed_to_save = vec![];
                 for buf in self.buffers.iter_mut() {
                     // Ignore buffers that don't have files in auto save
-                    let _ = buf.save();
+                    if let Err(BufferError::IoError(err)) = buf.save() {
+                        failed_to_save.push((err, &*buf));
+                    }
                 }
+                error_message = Some(Self::join_save_errors(failed_to_save));
             }
         } else {
             ui.label("No file open...");
@@ -86,7 +96,27 @@ impl Buffers {
             save_modal_action
         });
 
-        BuffersOutput { save_modal_action }
+        BuffersOutput {
+            save_modal_action,
+            error_message,
+        }
+    }
+
+    fn join_save_errors(errors: Vec<(io::Error, &Buffer)>) -> String {
+        let main_message = eyre!(
+            "Failed to save file{}: {}",
+            if errors.len() > 1 { "s" } else { "" },
+            errors
+                .iter()
+                .map(|(_, buf)| buf.file_display_name().text().to_string())
+                .join(", ")
+        );
+        errors
+            .into_iter()
+            .fold(Err(main_message), |acc: Result<(), _>, (err, _)| acc.error(err))
+            .unwrap_err()
+            .to_string()
+
     }
 
     pub fn add(&mut self, buffer: Buffer) {
@@ -149,14 +179,14 @@ impl Buffer {
         }
     }
 
-    pub fn from_path(path: PathBuf) -> Self {
-        let contents = std::fs::read_to_string(&path).expect("Unable to read file");
+    pub fn from_path(path: PathBuf) -> eyre::Result<Self> {
+        let contents = std::fs::read_to_string(&path).wrap_err("Failed to read file")?;
 
-        Self {
+        Ok(Self {
             id: Uuid::new_v4(),
             contents: contents.clone(),
             file_data: Some(FileData { contents, path }),
-        }
+        })
     }
 
     pub fn empty() -> Self {
@@ -221,7 +251,7 @@ impl Buffer {
             .as_mut()
             .ok_or(BufferError::NoAssociatedFile)?;
 
-        std::fs::write(&file.path, &self.contents).expect("Unable to write file");
+        std::fs::write(&file.path, &self.contents).map_err(BufferError::IoError)?;
         file.contents = self.contents.clone();
 
         Ok(())
@@ -244,5 +274,27 @@ impl Widget for &mut Buffer {
                 .code_editor()
                 .desired_width(f32::INFINITY),
         )
+    }
+}
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_join_save_errors() {
+        let buffer1 = Buffer::new("content1".to_string(), Some(FileData { path: PathBuf::from("file1.txt"), contents: "content1".to_string() }));
+        let buffer2 = Buffer::new("content2".to_string(), Some(FileData { path: PathBuf::from("file2.txt"), contents: "content2".to_string() }));
+
+        let error1 = io::Error::new(io::ErrorKind::Other, "error1");
+        let error2 = io::Error::new(io::ErrorKind::Other, "error2");
+
+        let errors = vec![(error1, &buffer1), (error2, &buffer2)];
+        
+        let result = Buffers::join_save_errors(errors);
+        
+        eprintln!("Result: {}", result);
+        assert!(result.contains("Failed to save files: file1.txt, file2.txt"));
+        assert!(result.contains("error1"));
+        assert!(result.contains("error2"));
     }
 }

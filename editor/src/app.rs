@@ -4,15 +4,11 @@ use crate::{
 };
 
 use core::f32;
-use std::{
-    fmt::Debug,
-    path::PathBuf,
-};
+use std::{fmt::Debug, path::PathBuf};
 
 use eframe::egui;
 use egui::{
-    containers::modal::Modal, Button, CentralPanel, Id, SidePanel,
-    TopBottomPanel, ViewportCommand,
+    containers::modal::Modal, Button, CentralPanel, Id, SidePanel, TopBottomPanel, ViewportCommand,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -74,6 +70,8 @@ pub struct App {
     explorer: Option<Explorer>,
     output: String,
     #[serde(skip)]
+    error_message: Option<String>,
+    #[serde(skip)]
     save_modal_state: SaveModalState,
     // The action to be completed once the current modal is closed
     #[serde(skip)]
@@ -107,8 +105,14 @@ impl eframe::App for App {
                 .max_width(max_left_panel_width * ctx.available_rect().width())
                 .show(ctx, |ui| explorer.show(ui))
                 .inner;
-            if let Some(path) = explorer_response.open_file {
-                self.open_file(Some(path));
+
+            match explorer_response {
+                Ok(explorer_response) => {
+                    if let Some(path) = explorer_response.open_file {
+                        self.open_file(Some(path));
+                    }
+                }
+                Err(err) => self.error_message = Some(err.to_string()),
             }
         }
 
@@ -128,6 +132,7 @@ impl eframe::App for App {
             self.save_modal_state = SaveModalState::SaveFileOpen;
             self.modal_action = Some(action);
         }
+        self.error_message = buffers_response.error_message;
 
         match self.save_modal_state {
             SaveModalState::SaveAllOpen => self.show_save_modal(ctx, true),
@@ -141,6 +146,10 @@ impl eframe::App for App {
                     self.modal_action(action, ctx);
                 }
             }
+        }
+
+        if self.error_message.is_some() {
+            self.show_error_modal(ctx);
         }
     }
 }
@@ -305,9 +314,10 @@ impl App {
             return;
         }
 
-        let buffer = Buffer::from_path(path);
-
-        self.buffers.add(buffer);
+        match Buffer::from_path(path) {
+            Ok(buffer) => self.buffers.add(buffer),
+            Err(err) => self.error_message = Some(err.to_string()),
+        }
     }
 
     fn open_folder(&mut self) {
@@ -322,8 +332,13 @@ impl App {
             return;
         };
 
-        self.explorer = Some(Explorer::new(path));
-        self.buffers = Buffers::default();
+        match Explorer::new(path) {
+            Ok(explorer) => {
+                self.explorer = Some(explorer);
+                self.buffers = Buffers::default();
+            }
+            Err(err) => self.error_message = Some(err.to_string()),
+        }
     }
 
     fn modal_action(&mut self, action: ModalAction, ctx: &egui::Context) {
@@ -368,6 +383,19 @@ impl App {
                 }
             })
         });
+    }
+
+    fn show_error_modal(&mut self, ctx: &egui::Context) {
+        let modal = Modal::new(Id::new("error_modal")).show(ctx, |ui| {
+            ui.label(self.error_message.as_deref().unwrap_or("An error occurred"));
+            if ui.button("OK").clicked() {
+                self.error_message = None;
+            }
+        });
+
+        if modal.should_close() {
+            self.error_message = None;
+        }
     }
 
     fn run(&mut self) {
