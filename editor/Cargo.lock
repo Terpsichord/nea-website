@@ -850,6 +850,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-channel"
+version = "0.5.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06ba6d68e24814cb8de6bb986db8222d3a027d15872cabc0d18817bc3c0e4471"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-utils"
 version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2033,6 +2042,7 @@ name = "my-ide"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
+ "crossbeam-channel",
  "eframe",
  "egui",
  "egui_extras",
@@ -2042,6 +2052,7 @@ dependencies = [
  "log",
  "rfd",
  "serde",
+ "shell-words",
  "uuid",
 ]
 
@@ -2947,6 +2958,12 @@ dependencies = [
  "cpufeatures",
  "digest",
 ]
+
+[[package]]
+name = "shell-words"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shlex"

@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 color-eyre = { version = "0.6.3", default-features = false }
+crossbeam-channel = "0.5.14"
 eframe = { version = "0.31.1", features = ["serde"] }
 egui = { version = "0.31.1", features = ["persistence"] }
 egui_extras = { version = "0.31.1", default-features = false, features = ["serde"] }
@@ -14,6 +15,7 @@ itertools = "0.14.0"
 log = "0.4.27"
 rfd = "0.15.3"
 serde = "1.0.219"
+shell-words = "1.1.0"
 uuid = { version = "1.16.0", features = ["v4", "serde"] }
 
 [profile.dev.package."*"]

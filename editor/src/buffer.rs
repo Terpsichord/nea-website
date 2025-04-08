@@ -1,6 +1,6 @@
 use std::{fmt::Debug, io, path::PathBuf};
 
-use crate::app::{ModalAction, Settings};
+use crate::app::{ModalAction, EditorSettings};
 use egui::{Response, RichText, ScrollArea, Ui, Widget};
 use eyre::{eyre, Context};
 use color_eyre::Section;
@@ -32,7 +32,7 @@ pub struct Buffers {
 }
 
 impl Buffers {
-    pub fn show(&mut self, settings: &Settings, ui: &mut Ui) -> BuffersOutput {
+    pub fn show(&mut self, settings: &EditorSettings, ui: &mut Ui) -> BuffersOutput {
         let mut to_delete = None;
 
         ui.horizontal(|ui| {
@@ -277,6 +277,7 @@ impl Widget for &mut Buffer {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 

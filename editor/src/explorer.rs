@@ -39,7 +39,7 @@ impl TreeNode {
         })
     }
 
-    fn path(&self) -> &PathBuf {
+    pub fn path(&self) -> &PathBuf {
         match self {
             TreeNode::UnexploredDir { path } => path,
             TreeNode::ExploredDir { path, .. } => path,

@@ -1,14 +1,23 @@
 use crate::{
     buffer::{Buffer, BufferError, Buffers, FileData},
     explorer::Explorer,
+    pipe_reader::{read_piped, PipedLine},
 };
 
 use core::f32;
-use std::{fmt::Debug, path::PathBuf};
+use std::{
+    fmt::Debug,
+    path::PathBuf,
+    process::{Child, Stdio},
+    sync::{Arc, Mutex},
+    thread::{self, JoinHandle},
+};
 
+use crossbeam_channel as crossbeam;
 use eframe::egui;
 use egui::{
-    containers::modal::Modal, Button, CentralPanel, Id, SidePanel, TopBottomPanel, ViewportCommand,
+    containers::modal::Modal, Button, CentralPanel, Color32, Id, RichText, ScrollArea, SidePanel,
+    TopBottomPanel, ViewportCommand,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -38,14 +47,19 @@ pub enum ModalAction {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Settings {
+pub struct EditorSettings {
     pub auto_save: bool,
 }
 
-impl Default for Settings {
+impl Default for EditorSettings {
     fn default() -> Self {
         Self { auto_save: true }
     }
+}
+
+#[derive(Default, Debug, Serialize, Deserialize)]
+pub struct ProjectSettings {
+    pub run_command: String,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -63,12 +77,24 @@ enum SaveModalState {
     Closed,
 }
 
+#[derive(Debug)]
+struct RunningCommand {
+    process: Child,
+    thread: JoinHandle<()>,
+}
+
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct App {
-    settings: Settings,
+    editor_settings: EditorSettings,
+    project_settings: ProjectSettings,
+    #[serde(skip)]
+    invalid_run_command: bool,
+    #[serde(skip)]
+    running_command: Option<RunningCommand>,
     buffers: Buffers,
     explorer: Option<Explorer>,
-    output: String,
+    // must be wrapped in an arc and mutex so that it can be shared to and modified across threads, including the `running_command` thread
+    output: Arc<Mutex<String>>,
     #[serde(skip)]
     error_message: Option<String>,
     #[serde(skip)]
@@ -126,7 +152,7 @@ impl eframe::App for App {
             });
 
         let buffers_response = CentralPanel::default()
-            .show(ctx, |ui| self.buffers.show(&self.settings, ui))
+            .show(ctx, |ui| self.buffers.show(&self.editor_settings, ui))
             .inner;
         if let Some(action) = buffers_response.save_modal_action {
             self.save_modal_state = SaveModalState::SaveFileOpen;
@@ -150,6 +176,10 @@ impl eframe::App for App {
 
         if self.error_message.is_some() {
             self.show_error_modal(ctx);
+        }
+
+        if self.running_command.as_ref().is_some_and(|cmd| cmd.thread.is_finished()) {
+            self.running_command = None;
         }
     }
 }
@@ -212,18 +242,41 @@ impl App {
             });
             ui.menu_button("Help", |_ui| {});
 
-            // TODO: move this to a settings menu
-            ui.checkbox(&mut self.settings.auto_save, "Auto save");
+            // TODO: move these to a settings menu
+            ui.checkbox(&mut self.editor_settings.auto_save, "Auto save");
+            ui.text_edit_singleline(&mut self.project_settings.run_command);
+
+            self.invalid_run_command =
+                shell_words::split(&self.project_settings.run_command).is_err();
+
+            if self.invalid_run_command {
+                ui.label(RichText::new("Invalid run command").color(Color32::RED));
+            }
+
+            self.running_buttons(ui);
+        });
+    }
+
+    fn running_buttons(&mut self, ui: &mut egui::Ui) {
+        ui.scope(|ui| {
+            ui.style_mut().visuals.button_frame = true;
+            if self.running_command.is_some() && ui.button("Stop").clicked() {
+                self.stop();
+            }
         });
     }
 
     fn output(&self, ui: &mut egui::Ui, size: egui::Vec2) {
-        ui.add_sized(
-            size,
-            egui::TextEdit::multiline(&mut self.output.as_str())
+        ScrollArea::vertical().show(ui, |ui| {
+            ui.add_sized(
+                size,
+                egui::TextEdit::multiline(
+                    &mut self.output.lock().expect("failed to get output").as_str(),
+                )
                 .desired_width(f32::INFINITY)
                 .code_editor(),
-        );
+            );
+        });
     }
 
     /// Saves the current contents of the code buffer to a file.
@@ -399,6 +452,79 @@ impl App {
     }
 
     fn run(&mut self) {
-        self.output += "\nHello, world!";
+        self.stop();
+
+        let mut words = match shell_words::split(&self.project_settings.run_command) {
+            Ok(words) => words.into_iter(),
+            Err(_) => {
+                self.invalid_run_command = true;
+                return;
+            }
+        };
+        let Some(command) = words.next() else {
+            self.invalid_run_command = true;
+            return;
+        };
+        let args = words.collect::<Vec<String>>();
+
+        let mut child = std::process::Command::new(command)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .current_dir(
+                self.explorer
+                    .as_ref()
+                    .map(|x| x.root_node.path().clone())
+                    .unwrap_or(std::env::current_dir().unwrap()),
+            )
+            .args(args)
+            .spawn()
+            .expect("failed to start subprocess");
+
+        self.output.lock().expect("failed to lock output").clear();
+        let output = self.output.clone();
+
+        // should be able to unwrap these, as we set stdout and stderr in the Command
+        let out = read_piped(child.stdout.take().unwrap());
+        let err = read_piped(child.stderr.take().unwrap());
+
+        let thread = thread::spawn(move || {
+            loop {
+                // waits to receive the next line from either stdout or stderr, and processes which ever one is received first
+                crossbeam::select! {
+                    recv(out) -> msg => match msg {
+                        Ok(Ok(PipedLine::Line(line))) => {
+                            println!("{:?}", &line);
+                            output.lock().expect("failed to lock output").push_str(&(line));
+                        }
+                        Ok(Ok(PipedLine::Eof)) | Err(_) => break,
+                        // TODO: handle this error
+                        Ok(Err(err)) => eprintln!("Error: {:?}", err),
+                    },
+                    recv(err) -> msg => match msg {
+                        Ok(Ok(PipedLine::Line(line))) => output.lock().expect("failed to lock output").push_str(&format!("** {} **\n", &line)),
+                        Ok(Ok(PipedLine::Eof)) | Err(_) => break,
+                        Ok(Err(err)) => eprintln!("Error: {:?}", err),
+                    },
+                }
+            }
+        });
+
+        self.running_command = Some(RunningCommand {
+            process: child,
+            thread,
+        })
+    }
+
+    fn stop(&mut self) {
+        if let Some(mut running_command) = self.running_command.take() {
+            running_command
+                .process
+                .kill()
+                .expect("failed to kill process");
+            running_command
+                .thread
+                .join()
+                .expect("failed to join thread");
+        }
     }
 }
