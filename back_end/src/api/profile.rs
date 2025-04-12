@@ -33,6 +33,8 @@ struct UserResponse {
     join_date: Date,
 }
 
+// ref is required by serde
+#[allow(clippy::trivially_copy_pass_by_ref)]
 fn serialize_join_date<S: Serializer>(join_date: &Date, serializer: S) -> Result<S::Ok, S::Error> {
     let format = format_description::parse("[year]-[month]-[day]").unwrap();
     join_date.format(&format).expect("failed to format join_date").serialize(serializer)
