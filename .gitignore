@@ -1,0 +1,8 @@
+.vscode/*
+.env
+
+/target
+
+/front_end/node_modules
+/front_end/dist/
+/front_end/package-lock.json

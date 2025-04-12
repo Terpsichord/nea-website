@@ -1,0 +1,14 @@
+@import url("https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600&display=swap");
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  background-color: #0e0f17;
+  font-family: 'Fira Sans', sans-serif;
+}
+
+@theme {
+  --color-light-gray: #d9dfe5;
+  --color-gray: #a5aaae;
+  --color-dark-gray: #18191a;
+}

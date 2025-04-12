@@ -1,0 +1,38 @@
+[package]
+name = "nea-website"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# web server
+axum = { version = "0.8.3", features = ["macros"] }
+axum-extra = { version = "0.10.1", features = ["cookie"] }
+tokio = { version = "1.44.2", features = ["full"] }
+tower = "0.5.2"
+tower-http = { version = "0.6.2", features = ["full"] }
+
+# error handling
+anyhow = "1.0.97"
+
+# database
+sqlx = { version = "0.8.3", features = ["runtime-tokio-native-tls", "mysql", "time"] }
+time = { version = "0.3.41", features = ["serde", "formatting"] }
+
+# http client
+reqwest = { version = "0.12.15", features = ["json"] }
+
+# logging
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+
+# env vars
+dotenv = "0.15.0"
+
+# serialization
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+serde_urlencoded = "0.7.1"
+
+# crypto
+aes-gcm = "0.10.3"
+base64 = "0.22.1"
