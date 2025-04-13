@@ -1,30 +1,13 @@
 import { useNavigate } from "react-router";
 import { useAuth } from "./AuthProvider";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Bio from "./Bio";
 import Loading from "./Loading";
-import { formatDate } from "./utils";
+import { formatDate, useQuery } from "./utils";
+import { User } from "./types";
 
-interface User {
-    username: string
-    joinDate: string,
-    bio: string,
-    pictureUrl: string,
-}
 
 function Profile() {
-    const [loading, setLoading] = useState(true);
-    const [user, setUser] = useState({} as User);
-
-    useEffect(() => {
-        fetch("/api/profile")
-            .then((response) => response.json())
-            .then((data) => {
-                setUser(data);
-                setLoading(false);
-            })
-    }, []);
-
     const auth = useAuth();
     const navigate = useNavigate();
 
@@ -33,6 +16,8 @@ function Profile() {
             navigate("/signin");
         }
     }, [auth]);
+
+    const [user, loading] = useQuery<User>("/api/profile");
 
     if (loading) {
         return <Loading />

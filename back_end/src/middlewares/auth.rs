@@ -14,7 +14,7 @@ use crate::{api::{AppError, AUTH_COOKIE}, crypto};
 pub struct AuthUser {
     pub encrypted_token: String,
     pub token: String,
-    pub id: Option<i64>,
+    pub id: Option<i32>,
 }
 
 pub async fn auth_middleware(
@@ -39,4 +39,4 @@ pub async fn auth_middleware(
     Ok(next.run(req).await)
 }
 
-pub type SharedTokenIds = Arc<RwLock<HashMap<String, i64>>>;
+pub type SharedTokenIds = Arc<RwLock<HashMap<String, i32>>>;

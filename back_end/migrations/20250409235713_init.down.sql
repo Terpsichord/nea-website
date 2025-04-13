@@ -1,19 +1,10 @@
-SET FOREIGN_KEY_CHECKS=0;
-
-DROP TABLE IF EXISTS users;
-
-DROP TABLE IF EXISTS projects;
-
-DROP TABLE IF EXISTS project_tags;
-
-DROP TABLE IF EXISTS follows;
-
-DROP TABLE IF EXISTS comments;
-
-DROP TABLE IF EXISTS likes;
-
-DROP TABLE IF EXISTS color_schemes;
-
-DROP TABLE IF EXISTS editor_configs;
-
-SET FOREIGN_KEY_CHECKS=1;
+DROP TABLE IF EXISTS 
+    users,
+    projects,
+    project_tags,
+    follows,
+    comments,
+    likes,
+    color_schemes,
+    editor_configs
+CASCADE;

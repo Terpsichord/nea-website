@@ -1,10 +1,16 @@
+use axum::{
+    http::{header, HeaderName, StatusCode},
+    response::{IntoResponse, Response},
+    routing::{get, post},
+    Json, Router,
+};
 use axum_extra::extract::CookieJar;
 use serde_json::{json, Value};
-use axum::{http::{header, HeaderName, StatusCode}, response::{IntoResponse, Response}, routing::{get, post}, Json, Router};
 
 use crate::AppState;
 
 mod profile;
+mod user;
 
 pub const AUTH_COOKIE: &str = "access-token";
 
@@ -28,7 +34,11 @@ impl<E: Into<anyhow::Error>> From<E> for AppError {
 }
 
 pub fn api_routes() -> Router<AppState> {
-    Router::new().merge(profile::user_route()).route("/auth", get(auth_handler)).route("/signout", post(sign_out))
+    Router::new()
+        .merge(profile::profile_route())
+        .merge(user::user_route())
+        .route("/auth", get(auth_handler))
+        .route("/signout", post(sign_out))
 }
 
 async fn auth_handler(jar: CookieJar) -> Json<Value> {
@@ -38,6 +48,6 @@ async fn auth_handler(jar: CookieJar) -> Json<Value> {
 async fn sign_out() -> [(HeaderName, String); 1] {
     [(
         header::SET_COOKIE,
-        format!("{AUTH_COOKIE}=; Max-Age=0; Path=/")
+        format!("{AUTH_COOKIE}=; Max-Age=0; Path=/"),
     )]
 }

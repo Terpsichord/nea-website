@@ -10,7 +10,7 @@ use axum::{extract::FromRef, http::HeaderValue, routing::get, Router};
 use base64::{prelude::BASE64_STANDARD, Engine};
 use middlewares::auth::SharedTokenIds;
 use reqwest::header::USER_AGENT;
-use sqlx::{mysql::MySqlPoolOptions, MySqlPool};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::{add_extension::AddExtensionLayer, services::{ServeDir, ServeFile}};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -52,11 +52,11 @@ impl Config {
 #[derive(Clone, FromRef)]
 struct AppState {
     pub client: reqwest::Client,
-    pub db: MySqlPool,
+    pub db: PgPool,
 }
 
 impl AppState {
-    fn with_db(pool: MySqlPool) -> Self {
+    fn with_db(pool: PgPool) -> Self {
         Self {
             client: reqwest::Client::builder()
                 .default_headers(
@@ -80,7 +80,7 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let pool = MySqlPoolOptions::new()
+    let pool = PgPoolOptions::new()
         .max_connections(10)
         .connect(&CONFIG.database_url)
         .await

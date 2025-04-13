@@ -1,0 +1,61 @@
+use axum::{
+    extract::{Path, State},
+    routing::get,
+    Json, Router,
+};
+use serde::Serialize;
+use sqlx::{FromRow, PgPool};
+
+use crate::{user::UserResponse, AppState};
+
+use super::AppError;
+
+pub fn user_route() -> Router<AppState> {
+    Router::new()
+        .route("/user/{username}", get(get_user))
+        .route("/user/{username}/projects", get(get_user_projects))
+}
+
+async fn get_user(
+    Path(username): Path<String>,
+    State(db): State<PgPool>,
+) -> Result<Json<UserResponse>, AppError> {
+    let user = sqlx::query_as!(
+        UserResponse,
+        "SELECT username, picture_url, bio, join_date FROM users WHERE username = $1",
+        username
+    )
+    .fetch_one(&db)
+    .await?;
+
+    Ok(Json(user))
+}
+
+#[derive(Serialize, sqlx::Type)]
+struct ProjectTag {
+    tag: String,
+}
+
+#[derive(Serialize, FromRow)]
+struct ProjectInfo {
+    title: String,
+    readme: String,
+    #[serde(flatten)]
+    tags: Option<Vec<ProjectTag>>,
+}
+
+async fn get_user_projects(
+    Path(username): Path<String>,
+    State(db): State<PgPool>,
+) -> Result<Json<Vec<ProjectInfo>>, AppError> {
+    let projects = sqlx::query_as!(ProjectInfo, r#"
+        SELECT projects.title, projects.readme, ARRAY_AGG(project_tags.tag) AS "tags: Vec<ProjectTag>"
+        FROM projects
+        LEFT JOIN project_tags ON project_id = projects.id
+        INNER JOIN users ON user_id = users.id
+        WHERE users.username = $1
+        GROUP BY projects.id
+    "#, username).fetch_all(&db).await?;
+
+    Ok(Json(projects))
+}

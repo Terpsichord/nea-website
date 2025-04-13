@@ -15,8 +15,7 @@ tower-http = { version = "0.6.2", features = ["full"] }
 anyhow = "1.0.97"
 
 # database
-sqlx = { version = "0.8.3", features = ["runtime-tokio-native-tls", "mysql", "time"] }
-time = { version = "0.3.41", features = ["serde", "formatting"] }
+sqlx = { version = "0.8.3", features = ["runtime-tokio-native-tls", "postgres", "chrono"] }
 
 # http client
 reqwest = { version = "0.12.15", features = ["json"] }
@@ -36,3 +35,4 @@ serde_urlencoded = "0.7.1"
 # crypto
 aes-gcm = "0.10.3"
 base64 = "0.22.1"
+chrono = { version = "0.4.40", features = ["serde"] }
