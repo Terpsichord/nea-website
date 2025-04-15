@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router';
-import { useAuth } from './AuthProvider';
+import { useAuth } from '../auth';
 
 function Navbar() {
     const activeStyle = ({ isActive }: { isActive: boolean }) => isActive ? "underline decoration-1 font-semibold" : "font-semibold";

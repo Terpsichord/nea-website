@@ -20,7 +20,7 @@ CREATE TABLE projects (
 
 CREATE TABLE project_tags (
     project_id INT NOT NULL REFERENCES projects(id),
-    tag VARCHAR(30),
+    tag VARCHAR(30) NOT NULL,
     PRIMARY KEY (project_id, tag)
 );
 
@@ -28,6 +28,7 @@ CREATE TABLE follows (
     follower_id INT NOT NULL REFERENCES users(id),
     followee_id INT NOT NULL REFERENCES users(id),
     PRIMARY KEY (follower_id, followee_id)
+    CHECK (follower_id != followee_id)
 );
 
 CREATE TABLE comments (

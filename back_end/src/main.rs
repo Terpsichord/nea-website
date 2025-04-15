@@ -86,14 +86,16 @@ async fn main() {
         .await
         .expect("failed to connect to database");
 
+    let state = AppState::with_db(pool);
+
     let app = Router::new()
-        .nest("/api", api_routes())
+        .nest("/api", api_routes(state.clone()))
         .route("/callback", get(callback::github_callback))
         .fallback_service(
             ServeDir::new(FRONT_PUBLIC)
                 .fallback(ServeFile::new(format!("{FRONT_PUBLIC}/index.html"))),
         )
-        .with_state(AppState::with_db(pool))
+        .with_state(state)
         .layer(AddExtensionLayer::new(SharedTokenIds::default()));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();

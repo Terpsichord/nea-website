@@ -1,8 +1,9 @@
-import { ProjectInfo } from "./types";
+import { ProjectInfo } from "../types";
 
 function Tag({ contents }: { contents: string }) {
     return (
-        <div className="inline bg-white text-black px-1 py-0.5 mr-1">{contents}</div>
+        // TODO: add triangle tag shape (wip https://jsfiddle.net/zcdLjmsf/)
+        <div className="inline bg-light-gray text-black px-1 py-0.5 mr-1">{contents}</div>
     )
 }
 

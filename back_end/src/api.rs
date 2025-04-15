@@ -1,14 +1,13 @@
 use axum::{
-    http::{header, HeaderName, StatusCode},
-    response::{IntoResponse, Response},
-    routing::{get, post},
-    Json, Router,
+    extract::{Path, State}, http::{header, HeaderName, StatusCode}, middleware, response::{IntoResponse, Response}, routing::{get, post}, Extension, Json, Router
 };
 use axum_extra::extract::CookieJar;
 use serde_json::{json, Value};
+use sqlx::PgPool;
 
-use crate::AppState;
+use crate::{middlewares::auth::{auth_middleware, AuthUser}, AppState};
 
+mod follow;
 mod profile;
 mod user;
 
@@ -33,10 +32,11 @@ impl<E: Into<anyhow::Error>> From<E> for AppError {
     }
 }
 
-pub fn api_routes() -> Router<AppState> {
+pub fn api_routes(state: AppState) -> Router<AppState> {
     Router::new()
-        .merge(profile::profile_route())
+        .merge(profile::profile_route(state.clone()))
         .merge(user::user_route())
+        .merge(follow::follow_route(state))
         .route("/auth", get(auth_handler))
         .route("/signout", post(sign_out))
 }

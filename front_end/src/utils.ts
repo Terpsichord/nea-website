@@ -1,17 +1,14 @@
 import { useEffect, useState } from "react";
 
-export function useQuery<T>(url: string, init?: RequestInit): [T, boolean, any] {
-    const [value, setValue] = useState({} as T);
-    const [loading, setLoading] = useState(true);
+export function useQuery<T>(url: string, init?: RequestInit): [T | undefined, /* boolean, */ any] {
+    const [value, setValue] = useState(undefined);
+    // const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
 
     useEffect(() => {
         async function asyncFetch() {
             const response = await fetch(url, init);
             const data = await response.json();
-
-            console.log(data);
 
             if (response.ok) {
                 setValue(data);
@@ -19,13 +16,13 @@ export function useQuery<T>(url: string, init?: RequestInit): [T, boolean, any] 
                 setError(data);
             }
 
-            setLoading(false);
+            // setLoading(false);
         }
 
         asyncFetch();
     }, []);
 
-    return [value, loading, error];
+    return [value, /* loading, */ error];
 }
 
 export function formatDate(date: Date): string {

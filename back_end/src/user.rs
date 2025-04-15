@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::middlewares::auth::{AuthUser, SharedTokenIds};
+use crate::middlewares::auth::SharedTokenIds;
 use anyhow::{anyhow, bail};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
@@ -71,21 +71,6 @@ pub async fn add_user_from_github(user: GithubUser, database: &PgPool) -> sqlx::
     }
 
     Ok(())
-}
-
-pub async fn auth_user_id(
-    user: &AuthUser,
-    client: &reqwest::Client,
-    token_ids: &SharedTokenIds,
-) -> anyhow::Result<i32> {
-    Ok(match user.id {
-        Some(id) => id,
-        None => {
-            fetch_and_cache_github_user(&user.token, client, &user.encrypted_token, token_ids)
-                .await?
-                .id
-        }
-    })
 }
 
 #[derive(Serialize)]
