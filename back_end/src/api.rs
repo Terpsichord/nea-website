@@ -8,6 +8,7 @@ use sqlx::PgPool;
 use crate::{middlewares::auth::{auth_middleware, AuthUser}, AppState};
 
 mod follow;
+mod project;
 mod profile;
 mod user;
 
@@ -37,6 +38,7 @@ pub fn api_routes(state: AppState) -> Router<AppState> {
         .merge(profile::profile_route(state.clone()))
         .merge(user::user_route())
         .merge(follow::follow_route(state))
+        .merge(project::project_route())
         .route("/auth", get(auth_handler))
         .route("/signout", post(sign_out))
 }

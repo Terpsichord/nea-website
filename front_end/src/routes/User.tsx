@@ -25,7 +25,7 @@ function UserPage() {
 
     const joinDate = formatDate(new Date(user.joinDate));
     return (
-        <div className="pl-24 min-h-screen">
+        <div className="pl-24">
             <div className="flex items-center py-5">
                 <img src={user.pictureUrl} draggable={false} className="size-32 rounded-full mb-4" />
                 <div className={`pl-6 ${showFollow ? "pt-3" : "pb-3"}`}>

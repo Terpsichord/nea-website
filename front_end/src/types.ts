@@ -7,6 +7,14 @@ export interface User {
 
 export interface ProjectInfo {
     title: string,
+    username: string,
+    pictureUrl: string,
+    repoName: string,
     tags: string[],
     readme: string,
+}
+
+export interface Project extends ProjectInfo {
+    githubUrl: string,
+    uploadTime: string,
 }

@@ -4,7 +4,7 @@ use crate::middlewares::auth::SharedTokenIds;
 use anyhow::{anyhow, bail};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::{FromRow, PgPool};
 
 #[derive(Deserialize)]
 pub struct GithubUser {
@@ -73,7 +73,7 @@ pub async fn add_user_from_github(user: GithubUser, database: &PgPool) -> sqlx::
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, FromRow, sqlx::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct UserResponse {
     pub username: String,

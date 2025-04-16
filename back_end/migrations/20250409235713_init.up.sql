@@ -11,11 +11,12 @@ CREATE TABLE projects (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     user_id INT NOT NULL REFERENCES users(id),
-    github_url VARCHAR(255) NOT NULL,
+    repo_name VARCHAR(255) NOT NULL,
     readme TEXT NOT NULL DEFAULT '',
     public BOOLEAN,
-    upload_time TIMESTAMP,
-    last_modified TIMESTAMP
+    upload_time TIMESTAMP NOT NULL,
+    last_modified TIMESTAMP,
+    UNIQUE (user_id, repo_name)
 );
 
 CREATE TABLE project_tags (
@@ -23,6 +24,13 @@ CREATE TABLE project_tags (
     tag VARCHAR(30) NOT NULL,
     PRIMARY KEY (project_id, tag)
 );
+
+CREATE VIEW project_info (id, username, picture_url, github_url, tags) AS 
+    SELECT p.id, u.username, u.picture_url, ('https://github.com/' || u.username || '/' || p.repo_name), ARRAY_REMOVE(ARRAY_AGG(t.tag), NULL) 
+    FROM projects p
+    LEFT JOIN project_tags t ON t.project_id = p.id
+    INNER JOIN users u ON p.user_id = u.id
+    GROUP BY p.id, u.username, u.picture_url;
 
 CREATE TABLE follows (
     follower_id INT NOT NULL REFERENCES users(id),

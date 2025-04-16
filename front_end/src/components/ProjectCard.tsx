@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router";
 import { ProjectInfo } from "../types";
 
 function Tag({ contents }: { contents: string }) {
@@ -7,9 +8,13 @@ function Tag({ contents }: { contents: string }) {
     )
 }
 
+
 function ProjectCard({ project }: { project: ProjectInfo }) {
+    const navigate = useNavigate();
+    const goToProject = () => navigate(`/project/${project.username}/${project.repoName}`)
+
     return (
-        <div className="rounded-lg bg-blue-gray font-light p-5 w-96 h-72">
+        <div onClick={goToProject} className="rounded-lg bg-blue-gray font-light p-5 w-96 h-72">
             <h4 className="text-3xl">{project.title}</h4>
             <div className="my-2">
                 {project.tags.map((tag) => <Tag contents={tag} />)}

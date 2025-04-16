@@ -31,9 +31,13 @@ async fn get_user(
     Ok(Json(user))
 }
 
-#[derive(Serialize, FromRow)]
-struct ProjectInfo {
+#[derive(Serialize, FromRow, sqlx::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectInfo {
     title: String,
+    username: String,
+    picture_url: String,
+    repo_name: String,
     readme: String,
     tags: Vec<String>,
 }
@@ -42,14 +46,18 @@ async fn get_user_projects(
     Path(username): Path<String>,
     State(db): State<PgPool>,
 ) -> Result<Json<Vec<ProjectInfo>>, AppError> {
-    let projects = sqlx::query_as!(ProjectInfo, r#"
-        SELECT p.title, p.readme, ARRAY_REMOVE(ARRAY_AGG(t.tag), NULL) AS "tags!: Vec<String>"
+    let projects = sqlx::query_as!(
+        ProjectInfo,
+        r#"
+        SELECT p.title, pi.username as "username!", pi.picture_url as "picture_url!", p.repo_name, p.readme, pi.tags as "tags!"
         FROM projects p
-        LEFT JOIN project_tags t ON t.project_id = p.id
-        INNER JOIN users u ON p.user_id = u.id
-        WHERE u.username = $1
-        GROUP BY p.id, p.title, p.readme
-    "#, username).fetch_all(&db).await?;
+        INNER JOIN project_info pi ON p.id = pi.id
+        WHERE pi.username = $1
+        "#,
+        username
+    )
+    .fetch_all(&db)
+    .await?;
 
     Ok(Json(projects))
 }
