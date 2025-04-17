@@ -60,6 +60,8 @@ async fn get_project_list(
         SELECT ROW(p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo", pi.github_url as "github_url!", p.upload_time
         FROM projects p
         INNER JOIN project_info pi ON pi.id = p.id
+        WHERE p.public
+        ORDER BY upload_time DESC
     "#).fetch_all(&db).await?;
 
     Ok(Json(projects))
