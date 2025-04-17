@@ -40,6 +40,7 @@ pub struct ProjectInfo {
     repo_name: String,
     readme: String,
     tags: Vec<String>,
+    like_count: i64,
 }
 
 async fn get_user_projects(
@@ -49,7 +50,14 @@ async fn get_user_projects(
     let projects = sqlx::query_as!(
         ProjectInfo,
         r#"
-        SELECT p.title, pi.username as "username!", pi.picture_url as "picture_url!", p.repo_name, p.readme, pi.tags as "tags!"
+        SELECT 
+            p.title,
+            pi.username as "username!",
+            pi.picture_url as "picture_url!",
+            p.repo_name,
+            p.readme,
+            pi.tags as "tags!",
+            pi.like_count as "like_count!"
         FROM projects p
         INNER JOIN project_info pi ON p.id = pi.id
         WHERE pi.username = $1

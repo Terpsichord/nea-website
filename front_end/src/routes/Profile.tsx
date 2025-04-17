@@ -3,7 +3,7 @@ import { useAuth } from "../auth";
 import { useEffect } from "react";
 import Bio from "../components/Bio";
 import Loading from "../components/Loading";
-import { formatDate, useQuery } from "../utils";
+import { formatDate, useApi } from "../utils";
 import { User } from "../types";
 
 function Profile() {
@@ -16,9 +16,9 @@ function Profile() {
         }
     }, [auth]);
 
-    const [user, _error] = useQuery<User>("/api/profile");
+    const [user, _error] = useApi<User>("/profile");
 
-    const [followers, _followrsError] = useQuery<User[]>("/api/followers");
+    const [followers, _followrsError] = useApi<User[]>("/followers");
 
     if (user === undefined) {
         return <Loading />;

@@ -12,6 +12,7 @@ export interface ProjectInfo {
     repoName: string,
     tags: string[],
     readme: string,
+    likeCount: number,
 }
 
 export interface Project extends ProjectInfo {

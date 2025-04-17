@@ -2,13 +2,13 @@ import { Dispatch, useEffect, useState } from "react";
 import { User } from "../types";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCheck, faPlus } from "@fortawesome/free-solid-svg-icons";
-import { useQuery } from "../utils";
+import { useApi } from "../utils";
 
 function Follow({ username, setShow }: { username: string, setShow: Dispatch<boolean> }) {
     const [isFollowed, setIsFollowed] = useState(false);
 
-    const [signedInUser] = useQuery<User>("/api/profile");
-    const [isFollowedInitial] = useQuery<boolean>(`/api/follow/${username}`);
+    const [signedInUser] = useApi<User>("/profile");
+    const [isFollowedInitial] = useApi<boolean>(`/follow/${username}`);
 
     useEffect(() => {
         if (isFollowedInitial !== undefined) {
@@ -20,11 +20,11 @@ function Follow({ username, setShow }: { username: string, setShow: Dispatch<boo
     useEffect(() => setShow(isFollowed || canFollow), [isFollowed, canFollow]);
 
     const follow = () => {
-        fetch(`/api/follow/${username}`, { method: "POST" })
+        fetch(`/follow/${username}`, { method: "POST" })
         setIsFollowed(true);
     };
     const unfollow = () => {
-        fetch(`/api/follow/${username}/unfollow`, { method: "POST" });
+        fetch(`/follow/${username}/unfollow`, { method: "POST" });
         setIsFollowed(false);
     };
 

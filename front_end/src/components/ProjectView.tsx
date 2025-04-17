@@ -1,10 +1,10 @@
 import ProjectCard from "./ProjectCard";
 import { ProjectInfo } from "../types";
-import { useQuery } from "../utils";
+import { useApi } from "../utils";
 import Loading from "./Loading";
 
 function ProjectView({ username, className }: { username: string, className: string }) {
-    const [projects, error] = useQuery<ProjectInfo[]>(`/api/user/${username}/projects`)
+    const [projects, error] = useApi<ProjectInfo[]>(`/user/${username}/projects`)
 
     if (projects === undefined) {
         return <Loading />

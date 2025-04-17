@@ -1,5 +1,6 @@
 import { useContext, createContext, useState, useEffect, Context, ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
+import { fetchApi } from "./utils";
 
 interface AuthContextType {
     isAuth: boolean;
@@ -13,9 +14,10 @@ function AuthProvider({ children }: { children: ReactNode }) {
     const location = useLocation();
 
     useEffect(() => {
-        fetch("/api/auth")
+        fetchApi("/auth")
             .then((resp) => resp.json())
             .then((data) => {
+                console.log({ isAuth: data.isAuth });
                 if (data.isAuth !== isAuth) {
                     setIsAuth(data.isAuth)
                 }
@@ -25,7 +27,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
 
     const navigate = useNavigate();
     async function signOut() {
-        await fetch("/api/signout", { method: "POST" });
+        await fetchApi("/signout", { method: "POST" });
 
         navigate("/");
     }

@@ -25,12 +25,18 @@ CREATE TABLE project_tags (
     PRIMARY KEY (project_id, tag)
 );
 
-CREATE VIEW project_info (id, username, picture_url, github_url, tags) AS 
-    SELECT p.id, u.username, u.picture_url, ('https://github.com/' || u.username || '/' || p.repo_name), ARRAY_REMOVE(ARRAY_AGG(t.tag), NULL) 
-    FROM projects p
-    LEFT JOIN project_tags t ON t.project_id = p.id
-    INNER JOIN users u ON p.user_id = u.id
-    GROUP BY p.id, u.username, u.picture_url;
+CREATE VIEW project_info
+AS SELECT 
+    p.id,
+    u.username,
+    u.picture_url,
+    ('https://github.com/' || u.username || '/' || p.repo_name) as github_url,
+    ARRAY_REMOVE(ARRAY_AGG(t.tag), NULL) as tags,
+    (SELECT COUNT(*) FROM likes WHERE likes.project_id = p.id) as like_count
+FROM projects p
+LEFT JOIN project_tags t ON t.project_id = p.id
+INNER JOIN users u ON p.user_id = u.id
+GROUP BY p.id, u.username, u.picture_url;
 
 CREATE TABLE follows (
     follower_id INT NOT NULL REFERENCES users(id),

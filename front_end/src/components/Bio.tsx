@@ -1,6 +1,7 @@
 import { ChangeEvent, useState } from "react";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPencil } from '@fortawesome/free-solid-svg-icons'
+import { fetchApi } from "../utils";
 
 
 function Bio({ value }: { value: string }) {
@@ -15,7 +16,7 @@ function Bio({ value }: { value: string }) {
     }
 
     function saveChanges() {
-        fetch("/api/profile/bio", {
+        fetchApi("profile/bio", {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json",

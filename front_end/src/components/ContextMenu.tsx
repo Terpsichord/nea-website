@@ -4,12 +4,6 @@ function ContextMenu({ items, parent, setShow }: { items: ReactNode[], parent: R
     // hide the context menu if clicked away from
     useEffect(() => {
         const handleClick = (e: MouseEvent) => {
-            console.log(e.target);
-            if (e.target !== null) {
-                console.log(parent.current);
-                console.log(parent.current?.contains(e.target as HTMLElement))
-            }
-
             if (!parent.current || !parent.current.contains(e.target as HTMLElement)) {
                 setShow(false);
             }

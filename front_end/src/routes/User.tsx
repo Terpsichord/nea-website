@@ -1,5 +1,5 @@
 import { useParams } from "react-router";
-import { formatDate, useQuery } from "../utils";
+import { formatDate, useApi } from "../utils";
 import Loading from "../components/Loading";
 import { User } from "../types";
 import ProjectView from "../components/ProjectView";
@@ -11,7 +11,7 @@ function UserPage() {
     const params = useParams();
 
     const { isAuth } = useAuth();
-    const [user, error] = useQuery<User>("/api/user/" + params.username);
+    const [user, error] = useApi<User>("/user/" + params.username);
 
     const [showFollow, setShowFollow] = useState(false);
 

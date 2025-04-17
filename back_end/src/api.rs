@@ -14,6 +14,7 @@ mod user;
 
 pub const AUTH_COOKIE: &str = "access-token";
 
+
 pub struct AppError(anyhow::Error);
 
 impl IntoResponse for AppError {
@@ -37,8 +38,8 @@ pub fn api_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .merge(profile::profile_route(state.clone()))
         .merge(user::user_route())
-        .merge(follow::follow_route(state))
-        .merge(project::project_route())
+        .merge(follow::follow_route(state.clone()))
+        .merge(project::project_route(state))
         .route("/auth", get(auth_handler))
         .route("/signout", post(sign_out))
 }

@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
 
-export function useQuery<T>(url: string, init?: RequestInit): [T | undefined, /* boolean, */ any] {
+export function useApi<T>(url: null): undefined;
+export function useApi<T>(url: string): [T | undefined, any];
+export function useApi<T>(url: string | null, init?: RequestInit): [T | undefined, any] | undefined;
+export function useApi<T>(url: string | null, init?: RequestInit): [T | undefined, any] | undefined {
     const [value, setValue] = useState(undefined);
-    // const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
         async function asyncFetch() {
-            const response = await fetch(url, init);
+            if (url === null) {
+                return;
+            }
+
+            const response = await fetch(`/api${url}`, init);
             const data = await response.json();
 
             if (response.ok) {
@@ -15,14 +21,17 @@ export function useQuery<T>(url: string, init?: RequestInit): [T | undefined, /*
             } else {
                 setError(data);
             }
-
-            // setLoading(false);
         }
 
         asyncFetch();
     }, []);
 
-    return [value, /* loading, */ error];
+    if (url === null) return undefined;
+    return [value, error];
+}
+
+export async function fetchApi(url: string, init?: RequestInit) {
+    return fetch(`/api${url}`, init);
 }
 
 export function formatDate(date: Date): string {
