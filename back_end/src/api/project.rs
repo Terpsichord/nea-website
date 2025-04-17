@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     middleware,
-    routing::get,
+    routing::{get, post},
     Extension, Json, Router,
 };
 use chrono::NaiveDateTime;
@@ -10,20 +10,22 @@ use sqlx::{FromRow, PgPool};
 
 use crate::{
     middlewares::auth::{auth_middleware, AuthUser},
-    user::UserResponse,
     AppState,
 };
 
 use super::{user::ProjectInfo, AppError};
 
 pub fn project_route(state: AppState) -> Router<AppState> {
-    let liked_router = Router::new()
+    let auth_router = Router::new()
         .route("/project/{username}/{repo_name}/liked", get(get_liked))
+        .route("/project/{username}/{repo_name}/like", post(like))
+        .route("/project/{username}/{repo_name}/unlike", post(unlike))
         .layer(middleware::from_fn_with_state(state, auth_middleware));
 
     Router::new()
         .route("/project/{username}/{repo_name}", get(get_project))
-        .merge(liked_router)
+        .route("/projects", get(get_project_list))
+        .merge(auth_router)
 }
 
 #[derive(Serialize, FromRow)]
@@ -48,6 +50,19 @@ async fn get_project(
     "#, username, repo_name).fetch_one(&db).await?;
 
     Ok(Json(project))
+}
+
+
+async fn get_project_list(
+    State(db): State<PgPool>,
+) -> Result<Json<Vec<ProjectResponse>>, AppError> {
+    let projects = sqlx::query_as!(ProjectResponse, r#"
+        SELECT ROW(p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo", pi.github_url as "github_url!", p.upload_time
+        FROM projects p
+        INNER JOIN project_info pi ON pi.id = p.id
+    "#).fetch_all(&db).await?;
+
+    Ok(Json(projects))
 }
 
 async fn get_liked(
@@ -75,4 +90,46 @@ async fn get_liked(
     .await?;
 
     Ok(Json(liked))
+}
+
+async fn like(Path((username, repo_name)): Path<(String, String)>, State(db): State<PgPool>, Extension(AuthUser { github_id }): Extension<AuthUser>) -> Result<(), AppError> {
+    sqlx::query!(r#"
+        INSERT INTO likes (user_id, project_id)
+        SELECT 
+        (SELECT id FROM users WHERE github_id = $1),
+        (
+            SELECT p.id
+            FROM projects p
+            INNER JOIN users u ON u.id = p.user_id
+            WHERE u.username = $2
+            AND p.repo_name = $3
+        )
+        "#,
+        github_id,
+        username,
+        repo_name
+    ).execute(&db).await?;
+
+    Ok(())
+}
+
+async fn unlike(Path((username, repo_name)): Path<(String, String)>, State(db): State<PgPool>, Extension(AuthUser { github_id }): Extension<AuthUser>) -> Result<(), AppError> {
+    sqlx::query!(r#"
+        DELETE FROM likes
+        WHERE user_id = (SELECT id FROM users WHERE github_id = $1)
+        AND project_id = 
+        (
+            SELECT p.id
+            FROM projects p
+            INNER JOIN users u ON u.id = p.user_id
+            WHERE u.username = $2
+            AND p.repo_name = $3
+        )
+        "#,
+        github_id,
+        username,
+        repo_name
+    ).execute(&db).await?;
+
+    Ok(())
 }

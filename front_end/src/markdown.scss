@@ -1,21 +1,39 @@
+.small-markdown,
 .markdown {
     h1 {
-        font-size: xx-large;
         font-weight: 500;
     }
 
     h2 {
-        font-size: x-large;
         font-weight: 500;
     }
 
     h3 {
-        font-size: large;
         font-weight: 400;
     }
-     
+
     ul {
         list-style-type: circle;
         list-style-position: inside;
+    }
+}
+
+.small-markdown {
+    h1 {
+       font-size: large;
+    }
+}
+
+.markdown {
+    h1 {
+        font-size: xx-large;
+    }
+
+    h2 {
+        font-size: x-large;
+    }
+
+    h3 {
+        font-size: large;
     }
 }

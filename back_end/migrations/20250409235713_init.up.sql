@@ -29,6 +29,7 @@ CREATE VIEW project_info
 AS SELECT 
     p.id,
     u.username,
+    u.github_id,
     u.picture_url,
     ('https://github.com/' || u.username || '/' || p.repo_name) as github_url,
     ARRAY_REMOVE(ARRAY_AGG(t.tag), NULL) as tags,
@@ -36,7 +37,7 @@ AS SELECT
 FROM projects p
 LEFT JOIN project_tags t ON t.project_id = p.id
 INNER JOIN users u ON p.user_id = u.id
-GROUP BY p.id, u.username, u.picture_url;
+GROUP BY p.id, u.username, u.github_id, u.picture_url;
 
 CREATE TABLE follows (
     follower_id INT NOT NULL REFERENCES users(id),

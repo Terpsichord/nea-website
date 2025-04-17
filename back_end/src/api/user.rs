@@ -34,13 +34,13 @@ async fn get_user(
 #[derive(Serialize, FromRow, sqlx::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectInfo {
-    title: String,
-    username: String,
-    picture_url: String,
-    repo_name: String,
-    readme: String,
-    tags: Vec<String>,
-    like_count: i64,
+    pub title: String,
+    pub username: String,
+    pub picture_url: String,
+    pub repo_name: String,
+    pub readme: String,
+    pub tags: Vec<String>,
+    pub like_count: i64,
 }
 
 async fn get_user_projects(

@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { DependencyList, useEffect, useState } from "react";
+
+type Args = RequestInit & { deps?: DependencyList };
 
 export function useApi<T>(url: null): undefined;
 export function useApi<T>(url: string): [T | undefined, any];
-export function useApi<T>(url: string | null, init?: RequestInit): [T | undefined, any] | undefined;
-export function useApi<T>(url: string | null, init?: RequestInit): [T | undefined, any] | undefined {
+export function useApi<T>(url: string | null, args?: Args): [T | undefined, any] | undefined;
+export function useApi<T>(url: string | null, args?: Args): [T | undefined, any] | undefined {
     const [value, setValue] = useState(undefined);
     const [error, setError] = useState(null);
 
@@ -13,7 +15,7 @@ export function useApi<T>(url: string | null, init?: RequestInit): [T | undefine
                 return;
             }
 
-            const response = await fetch(`/api${url}`, init);
+            const response = await fetch(`/api${url}`, args);
             const data = await response.json();
 
             if (response.ok) {
@@ -24,7 +26,7 @@ export function useApi<T>(url: string | null, init?: RequestInit): [T | undefine
         }
 
         asyncFetch();
-    }, []);
+    }, args?.deps || []);
 
     if (url === null) return undefined;
     return [value, error];

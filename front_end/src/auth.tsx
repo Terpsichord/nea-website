@@ -17,7 +17,6 @@ function AuthProvider({ children }: { children: ReactNode }) {
         fetchApi("/auth")
             .then((resp) => resp.json())
             .then((data) => {
-                console.log({ isAuth: data.isAuth });
                 if (data.isAuth !== isAuth) {
                     setIsAuth(data.isAuth)
                 }

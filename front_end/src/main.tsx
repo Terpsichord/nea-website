@@ -9,6 +9,8 @@ import SignIn from './routes/SignIn.tsx';
 import Profile from './routes/Profile.tsx';
 import User from './routes/User.tsx';
 import ProjectPage from './routes/ProjectPage.tsx';
+import Explore from './routes/Explore.tsx';
+import About from './routes/About.tsx';
 
 const root = document.getElementById('root')!;
 
@@ -19,6 +21,8 @@ ReactDOM.createRoot(root).render(
         <Navbar />
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/explore" element={<Explore />} />
+          <Route path="/about" element={<About />} />
           <Route path="/signin" element={<SignIn />} />
           <Route path="/profile" element={ <Profile /> } />
           <Route path="/user/:username" element={<User />} />

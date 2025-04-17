@@ -8,9 +8,7 @@ use serde::Deserialize;
 use sqlx::PgPool;
 
 use crate::{
-    middlewares::auth::{auth_middleware, AuthUser},
-    user::UserResponse,
-    AppState,
+    api::user::ProjectInfo, middlewares::auth::{auth_middleware, AuthUser}, user::UserResponse, AppState
 };
 
 use super::AppError;
@@ -19,6 +17,7 @@ pub fn profile_route(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/profile", get(get_profile))
         .route("/profile/bio", patch(update_bio))
+        .route("/profile/projects", get(get_projects))
         .layer(middleware::from_fn_with_state(state, auth_middleware))
 }
 
@@ -50,4 +49,31 @@ async fn update_bio(
     sqlx::query!("UPDATE users SET bio = $1 WHERE github_id = $2", bio, github_id).execute(&db).await?;
 
     Ok(())
+}
+
+async fn get_projects(
+    Extension(AuthUser { github_id }): Extension<AuthUser>,
+    State(db): State<PgPool>,
+) -> Result<Json<Vec<ProjectInfo>>, AppError> {
+    let projects = sqlx::query_as!(
+        ProjectInfo,
+        r#"
+        SELECT 
+            p.title,
+            pi.username as "username!",
+            pi.picture_url as "picture_url!",
+            p.repo_name,
+            p.readme,
+            pi.tags as "tags!",
+            pi.like_count as "like_count!"
+        FROM projects p
+        INNER JOIN project_info pi ON p.id = pi.id
+        WHERE pi.github_id = $1
+        "#,
+        github_id
+    )
+    .fetch_all(&db)
+    .await?;
+
+    Ok(Json(projects))
 }
