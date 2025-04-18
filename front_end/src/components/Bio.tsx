@@ -15,8 +15,8 @@ function Bio({ value }: { value: string }) {
         setContents(value);
     }
 
-    function saveChanges() {
-        fetchApi("profile/bio", {
+    async function saveChanges() {
+        await fetchApi("/profile/bio", {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json",

@@ -7,18 +7,17 @@ import { formatDate, useApi } from "../utils";
 import { User } from "../types";
 
 function Profile() {
-    const auth = useAuth();
+    const { isAuth, signOut, signedOut } = useAuth();
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (!auth.isAuth) {
+        if (!isAuth && !signedOut) {
             navigate("/signin");
         }
-    }, [auth]);
+    }, [isAuth]);
 
-    const [user, _error] = useApi<User>("/profile");
-
-    const [followers, _followrsError] = useApi<User[]>("/followers");
+    const [user] = useApi<User>(isAuth ? "/profile" : null) ?? [undefined];
+    const [followers] = useApi<User[]>(isAuth ? "/followers" : null) ?? [undefined];
 
     if (user === undefined) {
         return <Loading />;
@@ -37,7 +36,7 @@ function Profile() {
                 <Bio value={user.bio} />
                 <div className="space-y-2">
                     <button className="block bg-light-gray outline-2 rounded-xl px-2" onClick={() => navigate(`/user/${user.username}`)}>Go to user page</button>
-                    <button className="block text-white bg-red-400 outline-2 outline-red-700 rounded-xl px-2" onClick={auth.signOut}>Sign-out</button>
+                    <button className="block text-white bg-red-400 outline-2 outline-red-700 rounded-xl px-2" onClick={signOut}>Sign-out</button>
                 </div>
             </div>
             {followers === undefined ?

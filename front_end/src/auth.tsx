@@ -1,10 +1,12 @@
-import { useContext, createContext, useState, useEffect, Context, ReactNode } from "react";
+import { useContext, createContext, useState, useEffect, Context, ReactNode, Dispatch } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { fetchApi } from "./utils";
 
 interface AuthContextType {
     isAuth: boolean;
     signOut: () => Promise<void>;
+    signedOut: boolean,
+    setSignedOut: Dispatch<boolean>,
 }
 
 const AuthContext: Context<AuthContextType> = createContext({} as AuthContextType);
@@ -25,13 +27,19 @@ function AuthProvider({ children }: { children: ReactNode }) {
     }, [location]);
 
     const navigate = useNavigate();
+
+    // needed to ensure redirect to / on sign-out (and not to /signin)
+    const [signedOut, setSignedOut] = useState(false);
+
     async function signOut() {
         await fetchApi("/signout", { method: "POST" });
 
         navigate("/");
+        setSignedOut(true);
+        setIsAuth(false);
     }
 
-    return <AuthContext.Provider value={{ isAuth, signOut }}>{ children }</AuthContext.Provider>;
+    return <AuthContext.Provider value={{ isAuth, signOut, signedOut, setSignedOut }}>{ children }</AuthContext.Provider>;
 
 };
 
