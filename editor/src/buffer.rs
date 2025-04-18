@@ -1,9 +1,10 @@
 use std::{fmt::Debug, io, path::PathBuf};
 
-use crate::app::{ModalAction, EditorSettings};
-use egui::{Response, RichText, ScrollArea, Ui, Widget};
-use eyre::{eyre, Context};
+use crate::app::{EditorSettings, ModalAction};
 use color_eyre::Section;
+use egui::{Response, RichText, ScrollArea, Ui};
+use egui_extras::syntax_highlighting::{self, CodeTheme};
+use eyre::{eyre, Context};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -32,7 +33,7 @@ pub struct Buffers {
 }
 
 impl Buffers {
-    pub fn show(&mut self, settings: &EditorSettings, ui: &mut Ui) -> BuffersOutput {
+    pub fn show(&mut self, settings: &EditorSettings, ui: &mut Ui, code_theme: &CodeTheme) -> BuffersOutput {
         let mut to_delete = None;
 
         ui.horizontal(|ui| {
@@ -59,8 +60,8 @@ impl Buffers {
 
         let mut error_message = None;
         if let Some(buffer) = self.current_buffer_mut() {
-            let buffer_view = ScrollArea::vertical().show(ui, |ui| ui.add(&mut *buffer));
-            if buffer_view.inner.clicked_elsewhere() && settings.auto_save && self.is_dirty() {
+            let buffer_view = buffer.show(ui, &code_theme);
+            if buffer_view.clicked_elsewhere() && settings.auto_save && self.is_dirty() {
                 let mut failed_to_save = vec![];
                 for buf in self.buffers.iter_mut() {
                     // Ignore buffers that don't have files in auto save
@@ -113,10 +114,11 @@ impl Buffers {
         );
         errors
             .into_iter()
-            .fold(Err(main_message), |acc: Result<(), _>, (err, _)| acc.error(err))
+            .fold(Err(main_message), |acc: Result<(), _>, (err, _)| {
+                acc.error(err)
+            })
             .unwrap_err()
             .to_string()
-
     }
 
     pub fn add(&mut self, buffer: Buffer) {
@@ -256,24 +258,43 @@ impl Buffer {
 
         Ok(())
     }
+
+    fn show(&mut self, ui: &mut Ui, theme: &CodeTheme) -> Response {
+        ScrollArea::vertical()
+            .show(ui, |ui| {
+                let size = ui.available_size();
+
+                let lang = self
+                    .file_data
+                    .as_ref()
+                    .and_then(|f| f.path.extension())
+                    .unwrap_or_default();
+
+                ui.add_sized(
+                    size,
+                    egui::TextEdit::multiline(&mut self.contents)
+                        .code_editor()
+                        .desired_width(f32::INFINITY)
+                        .layouter(&mut |ui: &Ui, contents, wrap_width| {
+                            let mut layout_job = syntax_highlighting::highlight(
+                                ui.ctx(),
+                                ui.style(),
+                                theme,
+                                contents,
+                                &lang.to_string_lossy(),
+                            );
+                            layout_job.wrap.max_width = wrap_width;
+                            ui.fonts(|f| f.layout_job(layout_job))
+                        }),
+                )
+            })
+            .inner
+    }
 }
 
 impl Default for Buffer {
     fn default() -> Self {
         Self::empty()
-    }
-}
-
-impl Widget for &mut Buffer {
-    fn ui(self, ui: &mut Ui) -> Response {
-        let size = ui.available_size();
-
-        ui.add_sized(
-            size,
-            egui::TextEdit::multiline(&mut self.contents)
-                .code_editor()
-                .desired_width(f32::INFINITY),
-        )
     }
 }
 
@@ -283,16 +304,28 @@ mod tests {
 
     #[test]
     fn test_join_save_errors() {
-        let buffer1 = Buffer::new("content1".to_string(), Some(FileData { path: PathBuf::from("file1.txt"), contents: "content1".to_string() }));
-        let buffer2 = Buffer::new("content2".to_string(), Some(FileData { path: PathBuf::from("file2.txt"), contents: "content2".to_string() }));
+        let buffer1 = Buffer::new(
+            "content1".to_string(),
+            Some(FileData {
+                path: PathBuf::from("file1.txt"),
+                contents: "content1".to_string(),
+            }),
+        );
+        let buffer2 = Buffer::new(
+            "content2".to_string(),
+            Some(FileData {
+                path: PathBuf::from("file2.txt"),
+                contents: "content2".to_string(),
+            }),
+        );
 
         let error1 = io::Error::new(io::ErrorKind::Other, "error1");
         let error2 = io::Error::new(io::ErrorKind::Other, "error2");
 
         let errors = vec![(error1, &buffer1), (error2, &buffer2)];
-        
+
         let result = Buffers::join_save_errors(errors);
-        
+
         eprintln!("Result: {}", result);
         assert!(result.contains("Failed to save files: file1.txt, file2.txt"));
         assert!(result.contains("error1"));

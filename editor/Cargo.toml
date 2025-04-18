@@ -8,7 +8,7 @@ color-eyre = { version = "0.6.3", default-features = false }
 crossbeam-channel = "0.5.14"
 eframe = { version = "0.31.1", features = ["serde"] }
 egui = { version = "0.31.1", features = ["persistence"] }
-egui_extras = { version = "0.31.1", default-features = false, features = ["serde"] }
+egui_extras = { version = "0.31.1", default-features = false, features = ["serde", "syntect"] }
 env_logger = "0.11.7"
 eyre = "0.6.12"
 itertools = "0.14.0"

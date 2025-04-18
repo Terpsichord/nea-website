@@ -1,7 +1,5 @@
 use crate::{
-    buffer::{Buffer, BufferError, Buffers, FileData},
-    explorer::Explorer,
-    pipe_reader::{read_piped, PipedLine},
+    buffer::{Buffer, BufferError, Buffers, FileData}, explorer::Explorer, pipe_reader::{read_piped, PipedLine}
 };
 
 use core::f32;
@@ -19,6 +17,7 @@ use egui::{
     containers::modal::Modal, Button, CentralPanel, Color32, Id, RichText, ScrollArea, SidePanel,
     TopBottomPanel, ViewportCommand,
 };
+use egui_extras::syntax_highlighting;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -83,7 +82,8 @@ struct RunningCommand {
     thread: JoinHandle<()>,
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+
+#[derive(Default, Serialize, Deserialize)]
 pub struct App {
     editor_settings: EditorSettings,
     project_settings: ProjectSettings,
@@ -92,6 +92,7 @@ pub struct App {
     #[serde(skip)]
     running_command: Option<RunningCommand>,
     buffers: Buffers,
+    code_theme: syntax_highlighting::CodeTheme,
     explorer: Option<Explorer>,
     // must be wrapped in an arc and mutex so that it can be shared to and modified across threads, including the `running_command` thread
     output: Arc<Mutex<String>>,
@@ -152,7 +153,7 @@ impl eframe::App for App {
             });
 
         let buffers_response = CentralPanel::default()
-            .show(ctx, |ui| self.buffers.show(&self.editor_settings, ui))
+            .show(ctx, |ui| self.buffers.show(&self.editor_settings, ui, &self.code_theme))
             .inner;
         if let Some(action) = buffers_response.save_modal_action {
             self.save_modal_state = SaveModalState::SaveFileOpen;
