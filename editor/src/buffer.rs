@@ -26,45 +26,47 @@ pub struct BuffersOutput {
     pub error_message: Option<String>,
 }
 
+#[derive(Debug)]
+struct Rename {
+    buffer_id: Uuid,
+    name: String,
+    just_started: bool,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Buffers {
     buffers: Vec<Buffer>,
     selected_id: Option<Uuid>,
+    #[serde(skip)]
+    rename: Option<Rename>,
 }
 
 impl Buffers {
-    pub fn show(&mut self, settings: &EditorSettings, ui: &mut Ui, code_theme: &CodeTheme) -> BuffersOutput {
-        let mut to_delete = None;
+    pub fn show(
+        &mut self,
+        settings: &EditorSettings,
+        ui: &mut Ui,
+        code_theme: &CodeTheme,
+    ) -> BuffersOutput {
+        let (to_delete, renamed) = self.show_tabs(ui);
 
-        ui.horizontal(|ui| {
-            ui.visuals_mut().button_frame = false;
-            for buffer in self.buffers.iter() {
-                ui.scope(|ui| {
-                    if let Some(selected_id) = self.selected_id {
-                        if buffer.id == selected_id {
-                            ui.visuals_mut().button_frame = true;
-                        }
-                    }
+        if renamed {
+            // can unwrap as `renamed` is only set to true if `rename` is Some
+            let rename = self.rename.take().unwrap();
+            self.get_mut_by_id(rename.buffer_id)
+                .and_then(|b| b.rename(&rename.name).ok())
+                .expect("failed to rename buffer");
+        }
 
-                    if ui.button(buffer.file_display_name()).clicked() {
-                        self.selected_id = Some(buffer.id);
-                    }
-                });
-
-                if ui.button("x").clicked() {
-                    to_delete = Some(buffer.id);
-                }
-                ui.separator();
-            }
-        });
-
+        // show text edit for current buffer
         let mut error_message = None;
         if let Some(buffer) = self.current_buffer_mut() {
-            let buffer_view = buffer.show(ui, &code_theme);
+            let buffer_view = buffer.show(ui, code_theme);
+
             if buffer_view.clicked_elsewhere() && settings.auto_save && self.is_dirty() {
                 let mut failed_to_save = vec![];
                 for buf in self.buffers.iter_mut() {
-                    // Ignore buffers that don't have files in auto save
+                    // Ignore `BufferError::NoAssociatedFile` as we ignore buffers that don't have files in auto save
                     if let Err(BufferError::IoError(err)) = buf.save() {
                         failed_to_save.push((err, &*buf));
                     }
@@ -101,6 +103,67 @@ impl Buffers {
             save_modal_action,
             error_message,
         }
+    }
+
+    fn show_tabs(&mut self, ui: &mut Ui) -> (Option<Uuid>, bool) {
+        let mut to_delete = None;
+        let mut renamed = false;
+
+        ui.horizontal(|ui| {
+            ui.visuals_mut().button_frame = false;
+            for buffer in self.buffers.iter() {
+                if let Some(rename) = self
+                    .rename
+                    .as_mut()
+                    .filter(|rename| buffer.id == rename.buffer_id)
+                {
+                    let text_edit = ui.text_edit_singleline(&mut rename.name);
+
+                    if rename.just_started {
+                        ui.memory_mut(|mem| mem.request_focus(text_edit.id));
+                        rename.just_started = false;
+                    }
+
+                    if text_edit.lost_focus() {
+                        renamed = true;
+                    }
+                } else {
+                    ui.scope(|ui| {
+                        if let Some(selected_id) = self.selected_id {
+                            if buffer.id == selected_id {
+                                ui.visuals_mut().button_frame = true;
+                            }
+                        }
+
+                        let tab = ui.button(buffer.file_display_name());
+
+                        if tab.clicked() {
+                            self.selected_id = Some(buffer.id);
+                        }
+
+                        if tab.double_clicked() && buffer.file_data.is_some() {
+                            self.rename = Some(Rename {
+                                buffer_id: buffer.id,
+                                name: buffer
+                                    .file_data()
+                                    .and_then(|f| f.path.file_name())
+                                    .unwrap_or_default()
+                                    .to_string_lossy()
+                                    .into_owned(),
+                                just_started: true,
+                            });
+                        }
+                    });
+
+                    if ui.button("x").clicked() {
+                        to_delete = Some(buffer.id);
+                    }
+                }
+                ui.separator();
+            }
+        });
+
+        (to_delete, renamed)
     }
 
     fn join_save_errors(errors: Vec<(io::Error, &Buffer)>) -> String {
@@ -255,6 +318,23 @@ impl Buffer {
 
         std::fs::write(&file.path, &self.contents).map_err(BufferError::IoError)?;
         file.contents = self.contents.clone();
+
+        Ok(())
+    }
+
+    fn rename(&mut self, new_name: &str) -> Result<(), BufferError> {
+        let file = self
+            .file_data
+            .as_mut()
+            .ok_or(BufferError::NoAssociatedFile)?;
+        let mut new_path = file.path.clone();
+
+        // TODO: santise the new name and check for errors
+        new_path.set_file_name(new_name);
+
+        std::fs::rename(&file.path, &new_path).map_err(BufferError::IoError)?;
+
+        file.path = new_path;
 
         Ok(())
     }
