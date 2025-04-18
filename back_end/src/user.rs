@@ -43,7 +43,9 @@ pub async fn fetch_and_cache_github_user(
 
     let user = match res {
         GithubUserResponse::User(user) => user,
-        GithubUserResponse::Error { message, .. } => bail!("failed to auth github user: {}", message),
+        GithubUserResponse::Error { message, .. } => {
+            bail!("failed to auth github user: {}", message)
+        }
     };
 
     token_ids

@@ -11,7 +11,10 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use middlewares::auth::SharedTokenIds;
 use reqwest::header::USER_AGENT;
 use sqlx::{postgres::PgPoolOptions, PgPool};
-use tower_http::{add_extension::AddExtensionLayer, services::{ServeDir, ServeFile}};
+use tower_http::{
+    add_extension::AddExtensionLayer,
+    services::{ServeDir, ServeFile},
+};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
@@ -44,7 +47,9 @@ impl Config {
             github_client_secret: dotenv::var("GITHUB_CLIENT_SECRET")
                 .context("missing GITHUB_CLIENT_SECRET")?,
             database_url: dotenv::var("DATABASE_URL").context("missing DATABASE_URL")?,
-            aes_key: BASE64_STANDARD.decode(dotenv::var("AES_KEY").context("missing AES_KEY")?).context("invalid base64 AES_KEY")?,
+            aes_key: BASE64_STANDARD
+                .decode(dotenv::var("AES_KEY").context("missing AES_KEY")?)
+                .context("invalid base64 AES_KEY")?,
         })
     }
 }

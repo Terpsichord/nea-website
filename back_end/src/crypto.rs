@@ -1,4 +1,7 @@
-use aes_gcm::{aead::{generic_array::GenericArray, Aead, AeadMutInPlace, OsRng}, AeadCore, Aes256Gcm, Key, KeyInit};
+use aes_gcm::{
+    aead::{generic_array::GenericArray, Aead, AeadMutInPlace, OsRng},
+    AeadCore, Aes256Gcm, Key, KeyInit,
+};
 
 use crate::CONFIG;
 
@@ -21,7 +24,9 @@ pub fn encrypt(value: &[u8]) -> Vec<u8> {
     nonce.copy_from_slice(&generated_nonce);
 
     let mut cipher = Aes256Gcm::new(key());
-    let cipher_tag = cipher.encrypt_in_place_detached(GenericArray::from_slice(nonce), b"", buffer).expect("failed to encrypt");
+    let cipher_tag = cipher
+        .encrypt_in_place_detached(GenericArray::from_slice(nonce), b"", buffer)
+        .expect("failed to encrypt");
     tag.copy_from_slice(&cipher_tag);
 
     out

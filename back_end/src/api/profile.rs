@@ -8,7 +8,10 @@ use serde::Deserialize;
 use sqlx::PgPool;
 
 use crate::{
-    api::user::ProjectInfo, middlewares::auth::{auth_middleware, AuthUser}, user::UserResponse, AppState
+    api::user::ProjectInfo,
+    middlewares::auth::{auth_middleware, AuthUser},
+    user::UserResponse,
+    AppState,
 };
 
 use super::AppError;
@@ -46,7 +49,13 @@ async fn update_bio(
     State(db): State<PgPool>,
     Json(UpdateBio { bio }): Json<UpdateBio>,
 ) -> Result<(), AppError> {
-    sqlx::query!("UPDATE users SET bio = $1 WHERE github_id = $2", bio, github_id).execute(&db).await?;
+    sqlx::query!(
+        "UPDATE users SET bio = $1 WHERE github_id = $2",
+        bio,
+        github_id
+    )
+    .execute(&db)
+    .await?;
 
     Ok(())
 }

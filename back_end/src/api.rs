@@ -1,19 +1,23 @@
 use axum::{
-    extract::{Path, State}, http::{header, HeaderName, StatusCode}, middleware, response::{IntoResponse, Response}, routing::{get, post}, Extension, Json, Router
+    extract::{Path, State},
+    http::{header, HeaderName, StatusCode},
+    middleware,
+    response::{IntoResponse, Response},
+    routing::{get, post},
+    Extension, Json, Router,
 };
 use axum_extra::extract::CookieJar;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 
-use crate::{middlewares::auth::{auth_middleware, AuthUser}, AppState};
+use crate::AppState;
 
 mod follow;
-mod project;
 mod profile;
+mod project;
 mod user;
 
 pub const AUTH_COOKIE: &str = "access-token";
-
 
 pub struct AppError(anyhow::Error);
 

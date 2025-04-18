@@ -96,13 +96,19 @@ async fn get_followers(
     Extension(AuthUser { github_id }): Extension<AuthUser>,
     State(db): State<PgPool>,
 ) -> Result<Json<Vec<UserResponse>>, AppError> {
-    let followers = sqlx::query_as!(UserResponse, r#"
+    let followers = sqlx::query_as!(
+        UserResponse,
+        r#"
         SELECT u.username, u.picture_url, u.bio, u.join_date
         FROM users u
         INNER JOIN follows f ON u.id = f.follower_id
         INNER JOIN users fe ON f.followee_id = fe.id
         WHERE fe.github_id = $1
-    "#, github_id).fetch_all(&db).await?;
+    "#,
+        github_id
+    )
+    .fetch_all(&db)
+    .await?;
 
     Ok(Json(followers))
 }

@@ -52,7 +52,6 @@ async fn get_project(
     Ok(Json(project))
 }
 
-
 async fn get_project_list(
     State(db): State<PgPool>,
 ) -> Result<Json<Vec<ProjectResponse>>, AppError> {
@@ -94,8 +93,13 @@ async fn get_liked(
     Ok(Json(liked))
 }
 
-async fn like(Path((username, repo_name)): Path<(String, String)>, State(db): State<PgPool>, Extension(AuthUser { github_id }): Extension<AuthUser>) -> Result<(), AppError> {
-    sqlx::query!(r#"
+async fn like(
+    Path((username, repo_name)): Path<(String, String)>,
+    State(db): State<PgPool>,
+    Extension(AuthUser { github_id }): Extension<AuthUser>,
+) -> Result<(), AppError> {
+    sqlx::query!(
+        r#"
         INSERT INTO likes (user_id, project_id)
         SELECT 
         (SELECT id FROM users WHERE github_id = $1),
@@ -110,13 +114,20 @@ async fn like(Path((username, repo_name)): Path<(String, String)>, State(db): St
         github_id,
         username,
         repo_name
-    ).execute(&db).await?;
+    )
+    .execute(&db)
+    .await?;
 
     Ok(())
 }
 
-async fn unlike(Path((username, repo_name)): Path<(String, String)>, State(db): State<PgPool>, Extension(AuthUser { github_id }): Extension<AuthUser>) -> Result<(), AppError> {
-    sqlx::query!(r#"
+async fn unlike(
+    Path((username, repo_name)): Path<(String, String)>,
+    State(db): State<PgPool>,
+    Extension(AuthUser { github_id }): Extension<AuthUser>,
+) -> Result<(), AppError> {
+    sqlx::query!(
+        r#"
         DELETE FROM likes
         WHERE user_id = (SELECT id FROM users WHERE github_id = $1)
         AND project_id = 
@@ -131,7 +142,9 @@ async fn unlike(Path((username, repo_name)): Path<(String, String)>, State(db): 
         github_id,
         username,
         repo_name
-    ).execute(&db).await?;
+    )
+    .execute(&db)
+    .await?;
 
     Ok(())
 }
