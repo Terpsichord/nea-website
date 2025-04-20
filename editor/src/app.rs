@@ -1,10 +1,12 @@
 use crate::{
-    buffer::{Buffer, BufferError, Buffers, FileData}, explorer::Explorer, pipe_reader::{read_piped, PipedLine}
+    buffer::{Buffer, BufferError, Buffers, FileData},
+    explorer::Explorer,
+    pipe_reader::{read_piped, PipedLine},
+    project::{Project, ProjectSettings},
 };
 
 use core::f32;
 use std::{
-    fmt::Debug,
     path::PathBuf,
     process::{Child, Stdio},
     sync::{Arc, Mutex},
@@ -14,10 +16,10 @@ use std::{
 use crossbeam_channel as crossbeam;
 use eframe::egui;
 use egui::{
-    containers::modal::Modal, Button, CentralPanel, Color32, Id, RichText, ScrollArea, SidePanel,
-    TopBottomPanel, ViewportCommand,
+    containers::modal::Modal, vec2, Align, Button, CentralPanel, Id, Layout, ScrollArea, SidePanel, TopBottomPanel, ViewportCommand
 };
 use egui_extras::syntax_highlighting;
+use eyre::{bail, OptionExt};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -56,22 +58,24 @@ impl Default for EditorSettings {
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
-pub struct ProjectSettings {
-    pub run_command: String,
-}
-
 #[derive(Debug, Clone, Copy)]
 enum SaveError {
     NoFileSelected,
     NoBufferSelected,
 }
 
+/// The current state of the save modal
 #[derive(Default, Debug, Serialize, Deserialize)]
 enum SaveModalState {
+    /// Open (saves all files on "Save")
     SaveAllOpen,
+    /// Open (saves current file on "Save")
     SaveFileOpen,
+    /// In the process of closing
+    ///
+    /// Needed to visably close the modal before performing the modal action
     Closing,
+    /// Closed (and the modal action is completed)
     #[default]
     Closed,
 }
@@ -82,25 +86,26 @@ struct RunningCommand {
     thread: JoinHandle<()>,
 }
 
-
 #[derive(Default, Serialize, Deserialize)]
 pub struct App {
     editor_settings: EditorSettings,
-    project_settings: ProjectSettings,
-    #[serde(skip)]
-    invalid_run_command: bool,
+    project: Option<Project>,
     #[serde(skip)]
     running_command: Option<RunningCommand>,
     buffers: Buffers,
+    /// Current [`syntax_highlighting::CodeTheme`] for the editor
     code_theme: syntax_highlighting::CodeTheme,
+    /// [`Explorer`] side panel
     explorer: Option<Explorer>,
-    // must be wrapped in an arc and mutex so that it can be shared to and modified across threads, including the `running_command` thread
+    /// Contents of the output panel
+    /// This must be wrapped in an `Arc<Mutex<_>>` so that it can be shared to and modified across threads, including the `running_command` thread.
     output: Arc<Mutex<String>>,
     #[serde(skip)]
     error_message: Option<String>,
+    /// Current state of the save modal, as described in [`SaveModalState`]
     #[serde(skip)]
     save_modal_state: SaveModalState,
-    // The action to be completed once the current modal is closed
+    /// Action to be completed once the current modal is closed.
     #[serde(skip)]
     modal_action: Option<ModalAction>,
     #[serde(skip)]
@@ -153,18 +158,22 @@ impl eframe::App for App {
             });
 
         let buffers_response = CentralPanel::default()
-            .show(ctx, |ui| self.buffers.show(&self.editor_settings, ui, &self.code_theme))
+            .show(ctx, |ui| {
+                self.buffers
+                    .show(&self.editor_settings, ui, &self.code_theme)
+            })
             .inner;
         if let Some(action) = buffers_response.save_modal_action {
             self.save_modal_state = SaveModalState::SaveFileOpen;
             self.modal_action = Some(action);
         }
-        self.error_message = buffers_response.error_message;
+        if let Some(err) = buffers_response.error_message {
+            self.error_message = Some(err);
+        }
 
         match self.save_modal_state {
             SaveModalState::SaveAllOpen => self.show_save_modal(ctx, true),
             SaveModalState::SaveFileOpen => self.show_save_modal(ctx, false),
-            // Separate `Closing` variant needed to visably close the modal before performing the action
             SaveModalState::Closing => {
                 self.save_modal_state = SaveModalState::Closed;
             }
@@ -179,7 +188,11 @@ impl eframe::App for App {
             self.show_error_modal(ctx);
         }
 
-        if self.running_command.as_ref().is_some_and(|cmd| cmd.thread.is_finished()) {
+        if self
+            .running_command
+            .as_ref()
+            .is_some_and(|cmd| cmd.thread.is_finished())
+        {
             self.running_command = None;
         }
     }
@@ -238,21 +251,12 @@ impl App {
             ui.menu_button("View", |_ui| {});
             ui.menu_button("Run", |ui| {
                 if ui.button("Run").clicked() {
-                    self.run();
+                    if let Err(e) = self.run() {
+                        self.error_message = Some(e.to_string());
+                    }
                 }
             });
             ui.menu_button("Help", |_ui| {});
-
-            // TODO: move these to a settings menu
-            ui.checkbox(&mut self.editor_settings.auto_save, "Auto save");
-            ui.text_edit_singleline(&mut self.project_settings.run_command);
-
-            self.invalid_run_command =
-                shell_words::split(&self.project_settings.run_command).is_err();
-
-            if self.invalid_run_command {
-                ui.label(RichText::new("Invalid run command").color(Color32::RED));
-            }
 
             self.running_buttons(ui);
         });
@@ -386,6 +390,23 @@ impl App {
             return;
         };
 
+        self.open_project(path);
+    }
+
+    fn open_project(&mut self, path: PathBuf) {
+        let settings = match ProjectSettings::read_from(&path) {
+            Ok(settings) => settings,
+            Err(err) => {
+                self.error_message = Some(err.to_string());
+                return;
+            }
+        };
+
+        self.project = Some(Project {
+            path: path.clone(),
+            settings,
+        });
+
         match Explorer::new(path) {
             Ok(explorer) => {
                 self.explorer = Some(explorer);
@@ -442,9 +463,11 @@ impl App {
     fn show_error_modal(&mut self, ctx: &egui::Context) {
         let modal = Modal::new(Id::new("error_modal")).show(ctx, |ui| {
             ui.label(self.error_message.as_deref().unwrap_or("An error occurred"));
-            if ui.button("OK").clicked() {
-                self.error_message = None;
-            }
+            ui.with_layout(Layout::default().with_cross_align(Align::Max), |ui| {
+                if ui.button("OK").clicked() {
+                    self.error_message = None;
+                }
+            });
         });
 
         if modal.should_close() {
@@ -452,34 +475,43 @@ impl App {
         }
     }
 
-    fn run(&mut self) {
+    // TODO: error cases in the NEA write-up should include all of the `ok_or_eyre` and `bail!` errors in this function
+    fn run(&mut self) -> eyre::Result<()> {
         self.stop();
 
-        let mut words = match shell_words::split(&self.project_settings.run_command) {
+        // TODO: don't show missing/invalid run command errors as modals that take up the whole screen
+
+        // TODO: maybe gray out the run button if this is the case
+        let project = self.project.as_mut().ok_or_eyre("No project open")?;
+
+        // update project settings
+        match ProjectSettings::read_from(&project.path) {
+            Ok(settings) => project.settings = settings,
+            Err(err) => Err(err)?,
+        }
+
+        let settings = project
+            .settings
+            .as_ref()
+            .ok_or_eyre("No run command set\n\nA project.toml file is needed to set it")?;
+
+        let mut words = match shell_words::split(&settings.run_command) {
             Ok(words) => words.into_iter(),
-            Err(_) => {
-                self.invalid_run_command = true;
-                return;
-            }
+            Err(_) => bail!("Invalid run command"),
         };
-        let Some(command) = words.next() else {
-            self.invalid_run_command = true;
-            return;
-        };
+        let command = words.next().ok_or_eyre("Run command is empty")?;
+
         let args = words.collect::<Vec<String>>();
 
+        // TODO: error handling for this should include handling "program not found" and "invalid input"
         let mut child = std::process::Command::new(command)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .current_dir(
-                self.explorer
-                    .as_ref()
-                    .map(|x| x.root_node.path().clone())
-                    .unwrap_or(std::env::current_dir().unwrap()),
-            )
+            .current_dir(&project.path)
             .args(args)
             .spawn()
             .expect("failed to start subprocess");
+        
 
         self.output.lock().expect("failed to lock output").clear();
         let output = self.output.clone();
@@ -513,7 +545,9 @@ impl App {
         self.running_command = Some(RunningCommand {
             process: child,
             thread,
-        })
+        });
+
+        Ok(())
     }
 
     fn stop(&mut self) {

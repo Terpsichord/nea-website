@@ -2,7 +2,7 @@ use std::{fmt::Debug, io, path::PathBuf};
 
 use crate::app::{EditorSettings, ModalAction};
 use color_eyre::Section;
-use egui::{Response, RichText, ScrollArea, Ui};
+use egui::{Response, RichText, ScrollArea, TextEdit, Ui};
 use egui_extras::syntax_highlighting::{self, CodeTheme};
 use eyre::{eyre, Context};
 use itertools::Itertools;
@@ -71,7 +71,9 @@ impl Buffers {
                         failed_to_save.push((err, &*buf));
                     }
                 }
-                error_message = Some(Self::join_save_errors(failed_to_save));
+                if !failed_to_save.is_empty() {
+                    error_message = Some(Self::join_save_errors(failed_to_save));
+                }
             }
         } else {
             ui.label("No file open...");
@@ -117,7 +119,10 @@ impl Buffers {
                     .as_mut()
                     .filter(|rename| buffer.id == rename.buffer_id)
                 {
-                    let text_edit = ui.text_edit_singleline(&mut rename.name);
+                    let text_edit = ui.add_sized(
+                        [100.0, ui.available_height()],
+                        TextEdit::singleline(&mut rename.name),
+                    );
 
                     if rename.just_started {
                         ui.memory_mut(|mem| mem.request_focus(text_edit.id));

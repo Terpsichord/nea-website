@@ -4,6 +4,7 @@ mod app;
 mod buffer;
 mod explorer;
 mod pipe_reader;
+mod project;
 
 fn main() -> eframe::Result {
     env_logger::init();
