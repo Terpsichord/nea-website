@@ -13,6 +13,7 @@ use reqwest::header::USER_AGENT;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::{
     add_extension::AddExtensionLayer,
+    catch_panic::CatchPanicLayer,
     services::{ServeDir, ServeFile},
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -21,6 +22,7 @@ mod api;
 mod callback;
 mod crypto;
 mod db;
+mod error;
 mod middlewares;
 mod user;
 
@@ -101,7 +103,8 @@ async fn main() {
                 .fallback(ServeFile::new(format!("{FRONT_PUBLIC}/index.html"))),
         )
         .with_state(state)
-        .layer(AddExtensionLayer::new(SharedTokenIds::default()));
+        .layer(AddExtensionLayer::new(SharedTokenIds::default()))
+        .layer(CatchPanicLayer::new());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
 

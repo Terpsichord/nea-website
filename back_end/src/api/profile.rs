@@ -9,12 +9,11 @@ use sqlx::PgPool;
 
 use crate::{
     api::user::ProjectInfo,
+    error::AppError,
     middlewares::auth::{auth_middleware, AuthUser},
     user::UserResponse,
     AppState,
 };
-
-use super::AppError;
 
 pub fn profile_route(state: AppState) -> Router<AppState> {
     Router::new()

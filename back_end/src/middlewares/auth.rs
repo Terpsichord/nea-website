@@ -1,4 +1,3 @@
-use anyhow::{anyhow, Context};
 use axum::{
     extract::{Request, State},
     middleware::Next,
@@ -13,10 +12,10 @@ use std::{
 };
 
 use crate::{
-    api::{AppError, AUTH_COOKIE},
+    api::AUTH_COOKIE,
     crypto,
+    error::{AppError, InvalidAuthError},
     user::fetch_and_cache_github_user,
-    AppState,
 };
 
 #[derive(Clone)]
@@ -24,23 +23,51 @@ pub struct AuthUser {
     pub github_id: i32,
 }
 
-pub async fn auth_middleware(
-    Extension(token_ids): Extension<SharedTokenIds>,
-    State(client): State<reqwest::Client>,
+// TODO: help?? what was i going to use this for, i forgor 💀
+pub async fn optional_auth_middleware(
+    token_ids: Extension<SharedTokenIds>,
+    client: State<reqwest::Client>,
     jar: CookieJar,
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    let encrypted_token = jar
-        .get(AUTH_COOKIE)
-        .context(format!("missing {AUTH_COOKIE} cookie"))?
-        .value()
-        .to_string();
+    let maybe_auth_user = get_auth_user(token_ids, client, &jar).await?;
 
-    let token = String::from_utf8(
-        crypto::decrypt(&BASE64_STANDARD.decode(&encrypted_token)?)
-            .map_err(|_| anyhow!("failed to decrypt token"))?,
-    )?;
+    req.extensions_mut().insert(maybe_auth_user);
+
+    Ok(next.run(req).await)
+}
+
+pub async fn auth_middleware(
+    token_ids: Extension<SharedTokenIds>,
+    client: State<reqwest::Client>,
+    jar: CookieJar,
+    mut req: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    let auth_user = get_auth_user(token_ids, client, &jar)
+        .await?
+        .ok_or(AppError::Unauthorized)?;
+
+    // TODO: does this actually do anything?
+    let _ = jar.remove(AUTH_COOKIE);
+
+    req.extensions_mut().insert(auth_user);
+
+    Ok(next.run(req).await)
+}
+
+pub async fn get_auth_user(
+    Extension(token_ids): Extension<SharedTokenIds>,
+    State(client): State<reqwest::Client>,
+    jar: &CookieJar,
+) -> Result<Option<AuthUser>, AppError> {
+    let Some(cookie) = jar.get(AUTH_COOKIE) else {
+        return Ok(None);
+    };
+
+    let encrypted_token = cookie.value().to_string();
+    let token = decode_token(&encrypted_token)?;
 
     let maybe_id = {
         // needed to satisfy the compiler
@@ -57,12 +84,14 @@ pub async fn auth_middleware(
         }
     };
 
-    req.extensions_mut().insert(AuthUser { github_id });
+    Ok(Some(AuthUser { github_id }))
+}
 
-    // TODO: does this actually do anything?
-    let _ = jar.remove(AUTH_COOKIE);
+fn decode_token(encrypted_token: &str) -> Result<String, InvalidAuthError> {
+    let decoded = BASE64_STANDARD.decode(encrypted_token)?;
+    let decrypted = crypto::decrypt(&decoded).map_err(InvalidAuthError::Encryption)?;
 
-    Ok(next.run(req).await)
+    Ok(String::from_utf8(decrypted)?)
 }
 
 pub type SharedTokenIds = Arc<RwLock<HashMap<String, i32>>>;

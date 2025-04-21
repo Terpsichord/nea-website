@@ -9,11 +9,12 @@ use serde::Serialize;
 use sqlx::{FromRow, PgPool};
 
 use crate::{
+    error::AppError,
     middlewares::auth::{auth_middleware, AuthUser},
     AppState,
 };
 
-use super::{user::ProjectInfo, AppError};
+use super::user::ProjectInfo;
 
 pub fn project_route(state: AppState) -> Router<AppState> {
     let auth_router = Router::new()

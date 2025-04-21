@@ -32,6 +32,7 @@ pub fn encrypt(value: &[u8]) -> Vec<u8> {
     out
 }
 
+// TODO: replace split_at with split_at_checked
 pub fn decrypt(value: &[u8]) -> Result<Vec<u8>, aes_gcm::Error> {
     let (nonce, ciphertext) = value.split_at(NONCE_LEN);
 

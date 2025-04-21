@@ -9,8 +9,9 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::{AppError, AUTH_COOKIE},
+    api::AUTH_COOKIE,
     crypto,
+    error::AppError,
     middlewares::auth::SharedTokenIds,
     user::{add_user_from_github, fetch_and_cache_github_user},
     AppState, Config, CONFIG,
@@ -67,13 +68,16 @@ pub async fn github_callback(
         .post("https://github.com/login/oauth/access_token")
         .form(&params)
         .send()
-        .await?
+        .await
+        .map_err(AppError::auth_failed)?
         .text()
-        .await?;
+        .await
+        .map_err(AppError::auth_failed)?;
 
     let AccessTokenResponse { access_token, .. } =
         serde_urlencoded::from_str::<AccessTokenResponse>(&text)
-            .with_context(|| format!("failed to decode AccessTokenRequest from: {text}"))?;
+            .with_context(|| format!("failed to decode AccessTokenRequest from: {text}"))
+            .map_err(AppError::auth_failed)?;
     let encrypted_token = BASE64_STANDARD.encode(crypto::encrypt(access_token.as_bytes()));
 
     let user =

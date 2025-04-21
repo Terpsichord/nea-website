@@ -2,7 +2,7 @@ import { Dispatch, useEffect, useState } from "react";
 import { User } from "../types";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCheck, faPlus } from "@fortawesome/free-solid-svg-icons";
-import { useApi } from "../utils";
+import { fetchApi, useApi } from "../utils";
 
 function Follow({ username, setShow }: { username: string, setShow: Dispatch<boolean> }) {
     const [isFollowed, setIsFollowed] = useState(false);
@@ -20,11 +20,11 @@ function Follow({ username, setShow }: { username: string, setShow: Dispatch<boo
     useEffect(() => setShow(isFollowed || canFollow), [isFollowed, canFollow]);
 
     const follow = () => {
-        fetch(`/follow/${username}`, { method: "POST" })
+        fetchApi(`/follow/${username}`, { method: "POST" })
         setIsFollowed(true);
     };
     const unfollow = () => {
-        fetch(`/follow/${username}/unfollow`, { method: "POST" });
+        fetchApi(`/follow/${username}/unfollow`, { method: "POST" });
         setIsFollowed(false);
     };
 

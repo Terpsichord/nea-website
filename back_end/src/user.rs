@@ -1,7 +1,7 @@
-use std::error::Error;
-
-use crate::middlewares::auth::SharedTokenIds;
-use anyhow::{anyhow, bail};
+use crate::{
+    error::{AppError, GithubUserError},
+    middlewares::auth::SharedTokenIds,
+};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
@@ -18,11 +18,7 @@ pub struct GithubUser {
 #[serde(untagged)]
 pub enum GithubUserResponse {
     User(GithubUser),
-    Error {
-        message: String,
-        documentation_url: String,
-        status: String,
-    },
+    Error(GithubUserError),
 }
 
 pub async fn fetch_and_cache_github_user(
@@ -30,22 +26,20 @@ pub async fn fetch_and_cache_github_user(
     client: &reqwest::Client,
     encrypted_token: &str,
     token_ids: &SharedTokenIds,
-) -> anyhow::Result<GithubUser> {
+) -> Result<GithubUser, AppError> {
     let res = client
         .get("https://api.github.com/user")
         .header("Authorization", format!("Bearer {access_token}"))
         .send()
         .await
-        .map_err(|e| anyhow!("failed to auth github user: {:?}", e.source().unwrap_or(&e)))?
+        .map_err(AppError::auth_failed)?
         .json::<GithubUserResponse>()
         .await
-        .map_err(|err| anyhow!("failed to decode GithubUserResponse: {}", err))?;
+        .map_err(AppError::auth_failed)?;
 
     let user = match res {
         GithubUserResponse::User(user) => user,
-        GithubUserResponse::Error { message, .. } => {
-            bail!("failed to auth github user: {}", message)
-        }
+        GithubUserResponse::Error(error) => return Err(AppError::GithubAuth(error)),
     };
 
     token_ids

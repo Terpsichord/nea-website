@@ -7,12 +7,11 @@ use axum::{
 use sqlx::PgPool;
 
 use crate::{
+    error::AppError,
     middlewares::auth::{auth_middleware, AuthUser},
     user::UserResponse,
     AppState,
 };
-
-use super::AppError;
 
 pub fn follow_route(state: AppState) -> Router<AppState> {
     Router::new()
@@ -27,6 +26,7 @@ async fn get_follow_list() -> Result<Json<Vec<UserResponse>>, AppError> {
     todo!()
 }
 
+/// Checks if the authenticated user currently follows the given user
 async fn get_follow(
     Path(username): Path<String>,
     Extension(AuthUser { github_id }): Extension<AuthUser>,

@@ -6,9 +6,7 @@ use axum::{
 use serde::Serialize;
 use sqlx::{FromRow, PgPool};
 
-use crate::{user::UserResponse, AppState};
-
-use super::AppError;
+use crate::{error::AppError, user::UserResponse, AppState};
 
 pub fn user_route() -> Router<AppState> {
     Router::new()
