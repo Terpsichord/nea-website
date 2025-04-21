@@ -2,12 +2,14 @@ import { DependencyList, useEffect, useState } from "react";
 
 type Args = RequestInit & { deps?: DependencyList };
 
+type ApiError = { status: number } | undefined;
+
 export function useApi<T>(url: null): undefined;
-export function useApi<T>(url: string): [T | undefined, any];
-export function useApi<T>(url: string | null, args?: Args): [T | undefined, any] | undefined;
-export function useApi<T>(url: string | null, args?: Args): [T | undefined, any] | undefined {
+export function useApi<T>(url: string): [T | undefined, ApiError];
+export function useApi<T>(url: string | null, args?: Args): [T | undefined, ApiError] | undefined;
+export function useApi<T>(url: string | null, args?: Args): [T | undefined, ApiError] | undefined {
     const [value, setValue] = useState(undefined);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<ApiError>(undefined);
 
     useEffect(() => {
         async function asyncFetch() {
@@ -16,12 +18,12 @@ export function useApi<T>(url: string | null, args?: Args): [T | undefined, any]
             }
 
             const response = await fetch(`/api${url}`, args);
-            const data = await response.json();
 
             if (response.ok) {
+                const data = await response.json();
                 setValue(data);
             } else {
-                setError(data);
+                setError({ status: response.status });
             }
         }
 

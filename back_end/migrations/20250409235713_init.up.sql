@@ -13,7 +13,7 @@ CREATE TABLE projects (
     user_id INT NOT NULL REFERENCES users(id),
     repo_name VARCHAR(255) NOT NULL,
     readme TEXT NOT NULL DEFAULT '',
-    public BOOLEAN,
+    public BOOLEAN NOT NULL,
     upload_time TIMESTAMP NOT NULL,
     last_modified TIMESTAMP,
     UNIQUE (user_id, repo_name)

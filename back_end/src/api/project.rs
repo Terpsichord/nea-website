@@ -4,13 +4,14 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
+use axum_extra::routing::RouterExt;
 use chrono::NaiveDateTime;
 use serde::Serialize;
 use sqlx::{FromRow, PgPool};
 
 use crate::{
     error::AppError,
-    middlewares::auth::{auth_middleware, AuthUser},
+    middlewares::auth::{auth_middleware, optional_auth_middleware, AuthUser},
     AppState,
 };
 
@@ -21,12 +22,22 @@ pub fn project_route(state: AppState) -> Router<AppState> {
         .route("/project/{username}/{repo_name}/liked", get(get_liked))
         .route("/project/{username}/{repo_name}/like", post(like))
         .route("/project/{username}/{repo_name}/unlike", post(unlike))
-        .layer(middleware::from_fn_with_state(state, auth_middleware));
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
+
+    let optional_auth_router = Router::new()
+        .route("/project/{username}/{repo_name}", get(get_project))
+        .layer(middleware::from_fn_with_state(
+            state,
+            optional_auth_middleware,
+        ));
 
     Router::new()
-        .route("/project/{username}/{repo_name}", get(get_project))
         .route("/projects", get(get_project_list))
         .merge(auth_router)
+        .merge(optional_auth_router)
 }
 
 #[derive(Serialize, FromRow)]
@@ -36,19 +47,42 @@ struct ProjectResponse {
     info: ProjectInfo,
     github_url: String,
     upload_time: NaiveDateTime,
+    public: bool,
 }
 
 async fn get_project(
     Path((username, repo_name)): Path<(String, String)>,
+    Extension(auth_user): Extension<Option<AuthUser>>,
     State(db): State<PgPool>,
 ) -> Result<Json<ProjectResponse>, AppError> {
-    let project = sqlx::query_as!(ProjectResponse, r#"
-        SELECT ROW(p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo", pi.github_url as "github_url!", p.upload_time
+    let authorized = match auth_user {
+        Some(AuthUser { github_id }) => {
+            sqlx::query_scalar!("SELECT username FROM users WHERE github_id = $1", github_id)
+                .fetch_one(&db)
+                .await?
+                == username
+        }
+        None => false,
+    };
+
+    let project = sqlx::query_as!(
+        ProjectResponse,
+        r#"
+        SELECT 
+            ROW(p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo",
+            pi.github_url as "github_url!",
+            p.upload_time,
+            p.public
         FROM projects p
         INNER JOIN project_info pi ON pi.id = p.id
         WHERE pi.username = $1
         AND p.repo_name = $2
-    "#, username, repo_name).fetch_one(&db).await?;
+        AND (p.public OR $3)
+        "#,
+        username,
+        repo_name,
+        authorized
+    ).fetch_one(&db).await?;
 
     Ok(Json(project))
 }
@@ -57,7 +91,11 @@ async fn get_project_list(
     State(db): State<PgPool>,
 ) -> Result<Json<Vec<ProjectResponse>>, AppError> {
     let projects = sqlx::query_as!(ProjectResponse, r#"
-        SELECT ROW(p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo", pi.github_url as "github_url!", p.upload_time
+        SELECT
+            ROW(p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo",
+            pi.github_url as "github_url!",
+            p.upload_time,
+            p.public
         FROM projects p
         INNER JOIN project_info pi ON pi.id = p.id
         WHERE p.public

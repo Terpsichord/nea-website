@@ -1,4 +1,4 @@
-import { faEllipsisV, faHeart as faHeartSolid } from "@fortawesome/free-solid-svg-icons";
+import { faEllipsisV, faGlobe, faHeart as faHeartSolid, faLock } from "@fortawesome/free-solid-svg-icons";
 import { faHeart as faHeartRegular } from "@fortawesome/free-regular-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useEffect, useRef, useState } from "react";
@@ -14,7 +14,7 @@ import { useAuth } from "../auth";
 
 function ProjectPage() {
     const params = useParams();
-    const [project, _error] = useApi<Project>(`/project/${params.username}/${params.id}`)
+    const [project, projectError] = useApi<Project>(`/project/${params.username}/${params.id}`)
 
     const { isAuth } = useAuth()
     const [likedInitial] = useApi<boolean>(isAuth ? `/project/${params.username}/${params.id}/liked`: null, { deps: [isAuth] }) ?? [undefined];
@@ -37,6 +37,15 @@ function ProjectPage() {
     const [showMenu, setShowMenu] = useState(false);
     const menuParent = useRef<HTMLDivElement | null>(null);
 
+
+    if (projectError?.status === 404) {
+        return (
+        <div className="flex justify-center">
+            <p className="text-4xl font-medium my-[30vh]">404 - Project not found</p>
+        </div>
+        );
+    }
+    
     if (project === undefined) {
         return <Loading />;
     }
@@ -70,7 +79,13 @@ function ProjectPage() {
             <h2 className="text-4xl font-medium mb-3">{project.title}</h2>
             <div className="flex items-center mb-7">
                 <img src={project.pictureUrl} draggable={false} className="size-10 rounded-full" />
-                <Link to={`/user/${project.username}`} className="pl-3 text-lg">{project.username}</Link>
+                <Link to={`/user/${project.username}`} className="mx-3 text-lg">{project.username}</Link>
+                <div className="bg-blue-gray rounded-2xl px-2.5 py-1">{ project.public ? 
+                    <><FontAwesomeIcon icon={faGlobe} size="sm" className="mr-1.5"/>Public</> :
+                    <><FontAwesomeIcon icon={faLock} size="sm" className="mr-1.5"/>Private</>
+
+                }</div>
+
                 <div ref={menuParent} className="ml-auto" onClick={() => setShowMenu(true)}>
                     <FontAwesomeIcon icon={faEllipsisV} className="px-3" size="lg" />
                     {showMenu &&

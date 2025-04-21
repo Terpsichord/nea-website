@@ -59,6 +59,7 @@ async fn get_user_projects(
         FROM projects p
         INNER JOIN project_info pi ON p.id = pi.id
         WHERE pi.username = $1
+        AND p.public
         "#,
         username
     )
