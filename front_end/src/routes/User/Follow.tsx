@@ -1,8 +1,8 @@
 import { Dispatch, useEffect, useState } from "react";
-import { User } from "../types";
+import { User } from "../../types";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCheck, faPlus } from "@fortawesome/free-solid-svg-icons";
-import { fetchApi, useApi } from "../utils";
+import { fetchApi, useApi } from "../../utils";
 
 function Follow({ username, setShow }: { username: string, setShow: Dispatch<boolean> }) {
     const [isFollowed, setIsFollowed] = useState(false);

@@ -1,4 +1,4 @@
-import { useContext, createContext, useState, useEffect, Context, ReactNode, Dispatch } from "react";
+import { useContext, createContext, useState, useEffect, Context, Dispatch, PropsWithChildren } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { fetchApi } from "./utils";
 
@@ -11,7 +11,7 @@ interface AuthContextType {
 
 const AuthContext: Context<AuthContextType> = createContext({} as AuthContextType);
 
-function AuthProvider({ children }: { children: ReactNode }) {
+function AuthProvider({ children }: PropsWithChildren) {
     const [isAuth, setIsAuth] = useState(false);
     const location = useLocation();
 

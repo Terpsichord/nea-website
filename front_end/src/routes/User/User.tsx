@@ -1,11 +1,11 @@
 import { useParams } from "react-router";
-import { formatDate, useApi } from "../utils";
-import Loading from "../components/Loading";
-import { User } from "../types";
-import ProjectView from "../components/ProjectView";
+import { formatDate, useApi } from "../../utils";
+import Loading from "../../components/Loading";
+import { User } from "../../types";
+import ProjectView from "../../components/ProjectView";
 import { useState } from "react";
-import Follow from "../components/Follow";
-import { useAuth } from "../auth";
+import Follow from "./Follow";
+import { useAuth } from "../../auth";
 
 function UserPage() {
     const params = useParams();

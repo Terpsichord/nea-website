@@ -3,7 +3,7 @@ import { faHeart as faHeartRegular } from "@fortawesome/free-regular-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useEffect, useRef, useState } from "react";
 import ContextMenu from "../components/ContextMenu";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 import { fetchApi, formatDate, useApi } from "../utils";
 import { Project } from "../types";
 import Loading from "../components/Loading";
@@ -11,13 +11,14 @@ import DOMPurify from "dompurify";
 import { marked } from "marked";
 import '../markdown.scss';
 import { useAuth } from "../auth";
+import InlineUser from "../components/InlineUser";
 
 function ProjectPage() {
     const params = useParams();
     const [project, projectError] = useApi<Project>(`/project/${params.username}/${params.id}`)
 
     const { isAuth } = useAuth()
-    const [likedInitial] = useApi<boolean>(isAuth ? `/project/${params.username}/${params.id}/liked`: null, { deps: [isAuth] }) ?? [undefined];
+    const [likedInitial] = useApi<boolean>(isAuth ? `/project/${params.username}/${params.id}/liked` : null, { deps: [isAuth] }) ?? [undefined];
 
     const [liked, setLiked] = useState(false);
     const [likeCount, setLikeCount] = useState(0);
@@ -40,12 +41,12 @@ function ProjectPage() {
 
     if (projectError?.status === 404) {
         return (
-        <div className="flex justify-center">
-            <p className="text-4xl font-medium my-[30vh]">404 - Project not found</p>
-        </div>
+            <div className="flex justify-center">
+                <p className="text-4xl font-medium my-[30vh]">404 - Project not found</p>
+            </div>
         );
     }
-    
+
     if (project === undefined) {
         return <Loading />;
     }
@@ -78,12 +79,10 @@ function ProjectPage() {
         <div className="px-24">
             <h2 className="text-4xl font-medium mb-3">{project.title}</h2>
             <div className="flex items-center mb-7">
-                <img src={project.pictureUrl} draggable={false} className="size-10 rounded-full" />
-                <Link to={`/user/${project.username}`} className="mx-3 text-lg">{project.username}</Link>
-                <div className="bg-blue-gray rounded-2xl px-2.5 py-1">{ project.public ? 
-                    <><FontAwesomeIcon icon={faGlobe} size="sm" className="mr-1.5"/>Public</> :
-                    <><FontAwesomeIcon icon={faLock} size="sm" className="mr-1.5"/>Private</>
-
+                <InlineUser user={project} />
+                <div className="bg-blue-gray rounded-2xl ml-3 px-2.5 py-1">{project.public ?
+                    <><FontAwesomeIcon icon={faGlobe} size="sm" className="mr-1.5" />Public</> :
+                    <><FontAwesomeIcon icon={faLock} size="sm" className="mr-1.5" />Private</>
                 }</div>
 
                 <div ref={menuParent} className="ml-auto" onClick={() => setShowMenu(true)}>

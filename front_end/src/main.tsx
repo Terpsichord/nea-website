@@ -5,9 +5,9 @@ import './index.css'
 import AuthProvider from './auth.tsx';
 import Navbar from './components/Navbar.tsx';
 import Home from './routes/Home.tsx'
-import SignIn from './routes/SignIn.tsx';
-import Profile from './routes/Profile.tsx';
-import User from './routes/User.tsx';
+import SignIn from './routes/SignIn/SignIn.tsx';
+import Profile from './routes/Profile/Profile.tsx';
+import User from './routes/User/User.tsx';
 import ProjectPage from './routes/ProjectPage.tsx';
 import Explore from './routes/Explore.tsx';
 import About from './routes/About.tsx';

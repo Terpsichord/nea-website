@@ -1,7 +1,7 @@
 import { ChangeEvent, useState } from "react";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPencil } from '@fortawesome/free-solid-svg-icons'
-import { fetchApi } from "../utils";
+import { fetchApi } from "../../utils";
 
 
 function Bio({ value }: { value: string }) {
@@ -38,7 +38,7 @@ function Bio({ value }: { value: string }) {
             {editing ?
                 <div className="flex flex-col">
                     <div className="relative">
-                        <textarea className="bg-white rounded-lg outline resize-none w-100 h-24 p-1" value={contents} onChange={onChange} />
+                        <textarea className="bg-white rounded-lg outline resize-none w-full h-24 p-1" value={contents} onChange={onChange} />
                         <div className="font-light absolute right-0 bottom-0 pr-1 pb-1">{contents.length}/{maxLength}</div>
                     </div>
                     <button className="self-end" onClick={saveChanges}>Save changes</button>
