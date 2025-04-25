@@ -16,7 +16,8 @@ use std::{
 use crossbeam_channel as crossbeam;
 use eframe::egui;
 use egui::{
-    containers::modal::Modal, vec2, Align, Button, CentralPanel, Id, Layout, ScrollArea, SidePanel, TopBottomPanel, ViewportCommand
+    containers::modal::Modal, Align, Button, CentralPanel, Id, Layout, ScrollArea, SidePanel,
+    TopBottomPanel, ViewportCommand,
 };
 use egui_extras::syntax_highlighting;
 use eyre::{bail, OptionExt};
@@ -310,6 +311,11 @@ impl App {
             return Err(SaveError::NoBufferSelected);
         };
 
+        #[cfg(target_arch = "wasm32")]
+        panic!("files not supported on wasm");
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
         let Some(path) = rfd::FileDialog::new().save_file() else {
             return Err(SaveError::NoFileSelected);
         };
@@ -340,6 +346,7 @@ impl App {
 
         Ok(())
     }
+    }
 
     fn save_all(&mut self) {
         let dirty_buffers: Vec<_> = self
@@ -361,20 +368,26 @@ impl App {
     }
 
     fn open_file(&mut self, path: Option<PathBuf>) {
-        let Some(path) = path.or_else(|| rfd::FileDialog::new().pick_file()) else {
-            log::info!("no file selected to open");
-            return;
-        };
+        #[cfg(target_arch = "wasm32")]
+        panic!("files not supported on wasm");
 
-        // Don't open a new tab if the file is already open
-        if let Some(buffer) = self.buffers.get_by_path(&path) {
-            self.buffers.select(buffer.id());
-            return;
-        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let Some(path) = path.or_else(|| rfd::FileDialog::new().pick_file()) else {
+                log::info!("no file selected to open");
+                return;
+            };
 
-        match Buffer::from_path(path) {
-            Ok(buffer) => self.buffers.add(buffer),
-            Err(err) => self.error_message = Some(err.to_string()),
+            // Don't open a new tab if the file is already open
+            if let Some(buffer) = self.buffers.get_by_path(&path) {
+                self.buffers.select(buffer.id());
+                return;
+            }
+
+            match Buffer::from_path(path) {
+                Ok(buffer) => self.buffers.add(buffer),
+                Err(err) => self.error_message = Some(err.to_string()),
+            }
         }
     }
 
@@ -385,12 +398,18 @@ impl App {
             return;
         }
 
-        let Some(path) = rfd::FileDialog::new().pick_folder() else {
-            log::info!("no folder selected to open");
-            return;
-        };
+        #[cfg(target_arch = "wasm32")]
+        panic!("files not supported on wasm");
 
-        self.open_project(path);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let Some(path) = rfd::FileDialog::new().pick_folder() else {
+                log::info!("no folder selected to open");
+                return;
+            };
+
+            self.open_project(path);
+        }
     }
 
     fn open_project(&mut self, path: PathBuf) {
@@ -511,7 +530,6 @@ impl App {
             .args(args)
             .spawn()
             .expect("failed to start subprocess");
-        
 
         self.output.lock().expect("failed to lock output").clear();
         let output = self.output.clone();
