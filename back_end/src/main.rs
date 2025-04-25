@@ -28,6 +28,8 @@ mod user;
 
 const FRONT_PUBLIC: &str = "./front_end/dist";
 const CLIENT_USER_AGENT: &str = "nea-website";
+const EDITOR_PATH: &str = "./editor/dist";
+const SOCKET_ADDRESS: &str = "0.0.0.0:8080";
 
 static CONFIG: LazyLock<Config> =
     LazyLock::new(|| Config::from_env().expect("failed to load env vars"));
@@ -98,6 +100,11 @@ async fn main() {
     let app = Router::new()
         .nest("/api", api_routes(state.clone()))
         .route("/callback", get(callback::github_callback))
+        .nest_service(
+            "/editor",
+            ServeDir::new(EDITOR_PATH)
+                .fallback(ServeFile::new(format!("{EDITOR_PATH}/index.html"))),
+        )
         .fallback_service(
             ServeDir::new(FRONT_PUBLIC)
                 .fallback(ServeFile::new(format!("{FRONT_PUBLIC}/index.html"))),
@@ -106,7 +113,7 @@ async fn main() {
         .layer(AddExtensionLayer::new(SharedTokenIds::default()))
         .layer(CatchPanicLayer::new());
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
+    let listener = tokio::net::TcpListener::bind(SOCKET_ADDRESS).await.unwrap();
 
     axum::serve(listener, app).await.unwrap();
 }
