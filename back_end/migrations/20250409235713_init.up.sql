@@ -9,6 +9,7 @@ CREATE TABLE users (
 
 CREATE TABLE projects (
     id SERIAL PRIMARY KEY,
+    editor_id CHAR(21) NOT NULL UNIQUE,
     title VARCHAR(255) NOT NULL,
     user_id INT NOT NULL REFERENCES users(id),
     repo_name VARCHAR(255) NOT NULL,

@@ -1,5 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
+use std::rc::Rc;
+use std::cell::OnceCell;
+use wasm_bindgen_futures::spawn_local;
+use gloo_net::http::Request;
+
 
 #[derive(Default)]
 pub struct Runner;
@@ -25,11 +30,36 @@ impl Runner {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Project;
+pub struct Project {
+    id: String,
+    #[serde(skip)]
+    info: Rc<OnceCell<ProjectInfo>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProjectInfo {
+    github_url: String,
+}
 
 impl Project {
-    pub fn new() -> Self {
-        // TODO
-        Self
+    pub fn new(id: String) -> Self {
+        let info = Rc::new(OnceCell::new());
+        {
+            let info = info.clone();
+            let endpoint = format!("/api/project/open/{id}");
+            spawn_local(async move {
+                let project_info = Request::get(&endpoint)
+                    .send()
+                    .await
+                    .expect("failed to open project")
+                    .json::<ProjectInfo>()
+                    .await
+                    .expect("failed to parse project info");
+                web_sys::console::log_1(&format!("project github_url: {project_info:?}").into());
+                info.set(project_info).expect("failed to update project info");
+            });
+        }
+        
+        Self { id, info }
     }
 }

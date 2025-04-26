@@ -187,8 +187,12 @@ impl eframe::App for App {
 }
 
 impl App {
-    pub fn new(project_id: &str) -> Self {
-        todo!("open project on server using project id");
+    #[cfg(target_arch = "wasm32")]
+    pub fn new(project_id: String) -> Self {
+        Self {
+            project: Some(platform::Project::new(project_id)),
+            ..Self::default()
+        }
     }
 
     fn menu_bar(&mut self, ui: &mut egui::Ui) {

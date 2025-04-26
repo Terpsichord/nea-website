@@ -6,6 +6,7 @@ use axum::{
 };
 use chrono::NaiveDateTime;
 use serde::Serialize;
+use serde_json::{json, Value};
 use sqlx::{FromRow, PgPool};
 
 use crate::{
@@ -21,6 +22,7 @@ pub fn project_route(state: AppState) -> Router<AppState> {
         .route("/project/{username}/{repo_name}/liked", get(get_liked))
         .route("/project/{username}/{repo_name}/like", post(like))
         .route("/project/{username}/{repo_name}/unlike", post(unlike))
+        .route("/project/open/{project_id}", get(open_project))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -185,4 +187,28 @@ async fn unlike(
     .await?;
 
     Ok(())
+}
+
+async fn open_project(
+    Path(project_id): Path<String>,
+    State(db): State<PgPool>,
+    Extension(AuthUser { github_id }): Extension<AuthUser>,
+) -> Result<Json<Value>, AppError> {
+    let github_url = sqlx::query_scalar!(
+        r#"
+        SELECT github_url
+        FROM projects
+        WHERE editor_id = $1
+        AND user_id = (
+            SELECT id
+            FROM users
+            WHERE github_id = $2
+        )
+        "#,
+        project_id,
+        github_id,
+    ).fetch_one(&db).await?;
+
+    // FIXME: this is just to test interop between editor and backend
+    Ok(Json(json!({ "github_url": github_url })))
 }

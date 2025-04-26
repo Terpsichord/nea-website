@@ -47,7 +47,7 @@ fn main() {
             .start(
                 canvas,
                 options,
-                Box::new(move |_| Ok(Box::new(app::App::new(&project_id)))),
+                Box::new(move |_| Ok(Box::new(app::App::new(project_id)))),
             )
             .await;
 
