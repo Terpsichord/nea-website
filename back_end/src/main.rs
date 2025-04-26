@@ -6,9 +6,9 @@ use std::{iter, sync::LazyLock};
 
 use anyhow::Context;
 use api::api_routes;
-use axum::{extract::FromRef, http::HeaderValue, routing::get, Router};
+use axum::{extract::FromRef, http::HeaderValue, middleware, routing::get, Router};
 use base64::{prelude::BASE64_STANDARD, Engine};
-use middlewares::auth::SharedTokenIds;
+use middlewares::auth::{redirect_auth_middleware, SharedTokenIds};
 use reqwest::header::USER_AGENT;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::{
@@ -16,6 +16,7 @@ use tower_http::{
     catch_panic::CatchPanicLayer,
     services::{ServeDir, ServeFile},
 };
+use tower::ServiceBuilder;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
@@ -97,14 +98,17 @@ async fn main() {
 
     let state = AppState::with_db(pool);
 
-    let app = Router::new()
-        .nest("/api", api_routes(state.clone()))
-        .route("/callback", get(callback::github_callback))
-        .nest_service(
-            "/editor",
+    let editor = Router::new()
+        .fallback_service(
             ServeDir::new(EDITOR_PATH)
                 .fallback(ServeFile::new(format!("{EDITOR_PATH}/index.html"))),
         )
+        .layer(middleware::from_fn_with_state(state.clone(), redirect_auth_middleware));
+
+    let app = Router::new()
+        .nest("/api", api_routes(state.clone()))
+        .route("/callback", get(callback::github_callback))
+        .nest("/editor", editor)
         .fallback_service(
             ServeDir::new(FRONT_PUBLIC)
                 .fallback(ServeFile::new(format!("{FRONT_PUBLIC}/index.html"))),

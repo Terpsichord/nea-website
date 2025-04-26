@@ -1,4 +1,7 @@
-use std::{io::{self, ErrorKind}, path::{Path, PathBuf}};
+use std::{
+    io::{self, ErrorKind},
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -30,5 +33,3 @@ impl ProjectSettings {
         Ok(x)
     }
 }
-
-

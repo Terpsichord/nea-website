@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use std::io;
-use serde::{Serialize, Deserialize};
 use thiserror::Error;
 
 #[cfg(not(target_arch = "wasm32"))]

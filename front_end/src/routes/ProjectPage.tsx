@@ -53,7 +53,7 @@ function ProjectPage() {
 
     const menuItems = [
         <a href={project.githubUrl}>View files on Github</a>,
-        <a href="editor_url">View in editor</a>
+        <a href="/editor">View in editor</a>
     ];
 
     const onLikeClick = () => {

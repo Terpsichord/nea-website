@@ -1,7 +1,7 @@
 use axum::{
     extract::{Request, State},
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Redirect, Response},
     Extension,
 };
 use axum_extra::extract::cookie::CookieJar;
@@ -24,6 +24,7 @@ pub struct AuthUser {
 }
 
 // TODO: help?? what was i going to use this for, i forgor 💀
+// edit: i think i've remembered now
 pub async fn optional_auth_middleware(
     token_ids: Extension<SharedTokenIds>,
     client: State<reqwest::Client>,
@@ -55,6 +56,23 @@ pub async fn auth_middleware(
     req.extensions_mut().insert(auth_user);
 
     Ok(next.run(req).await)
+}
+
+pub async fn redirect_auth_middleware(
+    token_ids: Extension<SharedTokenIds>,
+    client: State<reqwest::Client>,
+    jar: CookieJar,
+    mut req: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    // probably shouldn't return AppError on a public route (/editor)
+    if let Some(auth_user) = get_auth_user(token_ids, client, &jar).await? {
+        req.extensions_mut().insert(auth_user);
+
+        Ok(next.run(req).await)
+    } else {
+        Ok(Redirect::to("/").into_response())
+    }
 }
 
 pub async fn get_auth_user(

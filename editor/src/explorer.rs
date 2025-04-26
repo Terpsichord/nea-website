@@ -3,8 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use eyre::WrapErr;
 use egui::{CollapsingHeader, Response, ScrollArea};
+use eyre::WrapErr;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -28,6 +28,7 @@ impl TreeNode {
         Self::new_recursive(path, Self::INITIAL_DEPTH)
     }
 
+    // post-order recursive tree traversal algorithm, i think
     fn new_recursive(path: PathBuf, max_depth: usize) -> eyre::Result<Self> {
         Ok(if path.is_file() {
             TreeNode::File { path }
@@ -63,7 +64,10 @@ impl TreeNode {
         let mut children = vec![];
         let dir_entries = std::fs::read_dir(path).wrap_err_with(error_msg)?;
         for entry in dir_entries {
-            children.push(Self::new_recursive(entry.wrap_err_with(error_msg)?.path(), max_depth - 1)?);
+            children.push(Self::new_recursive(
+                entry.wrap_err_with(error_msg)?.path(),
+                max_depth - 1,
+            )?);
         }
         children.sort_by(|a, b| match (a, b) {
             (

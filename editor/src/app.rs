@@ -1,5 +1,7 @@
 use crate::{
-    buffer::{Buffer, BufferError, Buffers, FileData}, explorer::Explorer, platform 
+    buffer::{Buffer, BufferError, Buffers, FileData},
+    explorer::Explorer,
+    platform,
 };
 
 use core::f32;
@@ -130,6 +132,8 @@ impl eframe::App for App {
             match explorer_response {
                 Ok(explorer_response) => {
                     if let Some(path) = explorer_response.open_file {
+                        // TODO: abstract open file to `platform` module
+                        #[cfg(not(target_arch = "wasm32"))]
                         self.open_file(Some(path));
                     }
                 }
@@ -160,6 +164,7 @@ impl eframe::App for App {
             self.error_message = Some(err);
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
         match self.save_modal_state {
             SaveModalState::SaveAllOpen => self.show_save_modal(ctx, true),
             SaveModalState::SaveFileOpen => self.show_save_modal(ctx, false),
@@ -182,8 +187,14 @@ impl eframe::App for App {
 }
 
 impl App {
+    pub fn new(project_id: &str) -> Self {
+        todo!("open project on server using project id");
+    }
+
     fn menu_bar(&mut self, ui: &mut egui::Ui) {
         egui::menu::bar(ui, |ui| {
+            // TODO: clean up and properly organise this and all the other random cfg target_arch's
+            #[cfg(not(target_arch = "wasm32"))]
             ui.menu_button("File", |ui| {
                 if ui.button("New file").clicked() {
                     self.buffers.add(Buffer::empty());
@@ -326,6 +337,7 @@ impl App {
         Ok(())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn save_all(&mut self) {
         let dirty_buffers: Vec<_> = self
             .buffers
@@ -345,27 +357,22 @@ impl App {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn open_file(&mut self, path: Option<PathBuf>) {
-        #[cfg(target_arch = "wasm32")]
-        panic!("files not supported on wasm");
+        let Some(path) = path.or_else(|| rfd::FileDialog::new().pick_file()) else {
+            log::info!("no file selected to open");
+            return;
+        };
 
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let Some(path) = path.or_else(|| rfd::FileDialog::new().pick_file()) else {
-                log::info!("no file selected to open");
-                return;
-            };
+        // Don't open a new tab if the file is already open
+        if let Some(buffer) = self.buffers.get_by_path(&path) {
+            self.buffers.select(buffer.id());
+            return;
+        }
 
-            // Don't open a new tab if the file is already open
-            if let Some(buffer) = self.buffers.get_by_path(&path) {
-                self.buffers.select(buffer.id());
-                return;
-            }
-
-            match Buffer::from_path(path) {
-                Ok(buffer) => self.buffers.add(buffer),
-                Err(err) => self.error_message = Some(err.to_string()),
-            }
+        match Buffer::from_path(path) {
+            Ok(buffer) => self.buffers.add(buffer),
+            Err(err) => self.error_message = Some(err.to_string()),
         }
     }
 
@@ -416,6 +423,8 @@ impl App {
     fn modal_action(&mut self, action: ModalAction, ctx: &egui::Context) {
         self.ignore_dirty = false;
         self.modal_action = None;
+
+        #[cfg(not(target_arch = "wasm32"))]
         match action {
             ModalAction::OpenFile => self.open_file(None),
             ModalAction::OpenFolder => self.open_folder(),
@@ -430,6 +439,7 @@ impl App {
     /// Shows a modal prompting the user to save any unsaved changes.
     ///
     /// If an action was taking place before the modal was opened (`self.modal_action` is `Some`), it is executed after the modal is closed.
+    #[cfg(not(target_arch = "wasm32"))]
     fn show_save_modal(&mut self, ctx: &egui::Context, save_all: bool) {
         Modal::new(Id::new("confirm_unsaved_changes")).show(ctx, |ui| {
             ui.label("You have unsaved changes, do you want to save them?");

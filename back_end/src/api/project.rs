@@ -4,7 +4,6 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
-use axum_extra::routing::RouterExt;
 use chrono::NaiveDateTime;
 use serde::Serialize;
 use sqlx::{FromRow, PgPool};

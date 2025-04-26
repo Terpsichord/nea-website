@@ -1,9 +1,16 @@
-use eyre::bail;
-use std::{process::{Child, Stdio}, sync::{Arc, Mutex, MutexGuard}, thread::{self, JoinHandle}};
 use crossbeam_channel as crossbeam;
+use eyre::bail;
 use eyre::OptionExt;
+use std::{
+    process::{Child, Stdio},
+    sync::{Arc, Mutex, MutexGuard},
+    thread::{self, JoinHandle},
+};
 
-use super::{pipe_reader::{PipedLine, read_piped}, Project, ProjectSettings};
+use super::{
+    pipe_reader::{read_piped, PipedLine},
+    Project, ProjectSettings,
+};
 
 #[derive(Default)]
 pub struct Runner {
@@ -36,7 +43,6 @@ impl Runner {
         let command = words.next().ok_or_eyre("Run command is empty")?;
 
         let args = words.collect::<Vec<String>>();
-
 
         // TODO: error handling for this should include handling "program not found" and "invalid input"
         let mut child = std::process::Command::new(command)
