@@ -3,8 +3,7 @@
 mod app;
 mod buffer;
 mod explorer;
-mod pipe_reader;
-mod project;
+mod platform;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {

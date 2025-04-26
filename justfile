@@ -6,3 +6,6 @@ build-editor:
 
 run: build-npm build-editor
     cargo run --bin nea-website
+
+editor:
+    cd editor && cargo run --target x86_64-pc-windows-gnu

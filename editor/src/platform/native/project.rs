@@ -1,17 +1,19 @@
 use std::{io::{self, ErrorKind}, path::{Path, PathBuf}};
 
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
+
+use super::{ProjectSettings, ProjectSettingsError};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
-    pub path: PathBuf,
-    pub settings: Option<ProjectSettings>
+    pub(super) path: PathBuf,
+    pub(super) settings: Option<ProjectSettings>,
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
-pub struct ProjectSettings {
-    pub run_command: String,
+impl Project {
+    pub fn new(path: PathBuf, settings: Option<ProjectSettings>) -> Self {
+        Self { path, settings }
+    }
 }
 
 impl ProjectSettings {
@@ -29,11 +31,4 @@ impl ProjectSettings {
     }
 }
 
-#[derive(Debug, Error)]
-pub enum ProjectSettingsError {
-    #[error("Failed to read project.toml")]
-    Io(#[from] io::Error),
-    #[error("project.toml has invalid format")]
-    Format(#[from] toml::de::Error),
-}
 

@@ -1,19 +1,13 @@
 use crate::{
-    buffer::{Buffer, BufferError, Buffers, FileData},
-    explorer::Explorer,
-    pipe_reader::{read_piped, PipedLine},
-    project::{Project, ProjectSettings},
+    buffer::{Buffer, BufferError, Buffers, FileData}, explorer::Explorer, platform 
 };
 
 use core::f32;
 use std::{
     path::PathBuf,
-    process::{Child, Stdio},
     sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
 };
 
-use crossbeam_channel as crossbeam;
 use eframe::egui;
 use egui::{
     containers::modal::Modal, Align, Button, CentralPanel, Id, Layout, ScrollArea, SidePanel,
@@ -81,18 +75,12 @@ enum SaveModalState {
     Closed,
 }
 
-#[derive(Debug)]
-struct RunningCommand {
-    process: Child,
-    thread: JoinHandle<()>,
-}
-
 #[derive(Default, Serialize, Deserialize)]
 pub struct App {
     editor_settings: EditorSettings,
-    project: Option<Project>,
+    project: Option<platform::Project>,
     #[serde(skip)]
-    running_command: Option<RunningCommand>,
+    runner: platform::Runner,
     buffers: Buffers,
     /// Current [`syntax_highlighting::CodeTheme`] for the editor
     code_theme: syntax_highlighting::CodeTheme,
@@ -189,13 +177,7 @@ impl eframe::App for App {
             self.show_error_modal(ctx);
         }
 
-        if self
-            .running_command
-            .as_ref()
-            .is_some_and(|cmd| cmd.thread.is_finished())
-        {
-            self.running_command = None;
-        }
+        self.runner.update();
     }
 }
 
@@ -266,8 +248,8 @@ impl App {
     fn running_buttons(&mut self, ui: &mut egui::Ui) {
         ui.scope(|ui| {
             ui.style_mut().visuals.button_frame = true;
-            if self.running_command.is_some() && ui.button("Stop").clicked() {
-                self.stop();
+            if self.runner.is_running() && ui.button("Stop").clicked() {
+                self.runner.stop();
             }
         });
     }
@@ -293,6 +275,7 @@ impl App {
     /// It updates the `file` field with the latest contents after saving.
     ///
     /// Returns `true` if the save was completed.
+    #[cfg(not(target_arch = "wasm32"))]
     fn save_file(&mut self) -> Result<(), SaveError> {
         match self.buffers.current_buffer_mut() {
             Some(buffer) => match buffer.save() {
@@ -306,16 +289,12 @@ impl App {
     // TODO: doc comment
     ///
     /// Returns `true` if the save was completed.
+    #[cfg(not(target_arch = "wasm32"))]
     fn save_as(&mut self) -> Result<(), SaveError> {
         let Some(buffer) = self.buffers.current_buffer() else {
             return Err(SaveError::NoBufferSelected);
         };
 
-        #[cfg(target_arch = "wasm32")]
-        panic!("files not supported on wasm");
-
-        #[cfg(not(target_arch = "wasm32"))]
-        {
         let Some(path) = rfd::FileDialog::new().save_file() else {
             return Err(SaveError::NoFileSelected);
         };
@@ -345,7 +324,6 @@ impl App {
         self.save_file()?;
 
         Ok(())
-    }
     }
 
     fn save_all(&mut self) {
@@ -412,7 +390,10 @@ impl App {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn open_project(&mut self, path: PathBuf) {
+        use crate::platform::{Project, ProjectSettings};
+
         let settings = match ProjectSettings::read_from(&path) {
             Ok(settings) => settings,
             Err(err) => {
@@ -421,10 +402,7 @@ impl App {
             }
         };
 
-        self.project = Some(Project {
-            path: path.clone(),
-            settings,
-        });
+        self.project = Some(Project::new(path.clone(), settings));
 
         match Explorer::new(path) {
             Ok(explorer) => {
@@ -494,90 +472,17 @@ impl App {
         }
     }
 
-    // TODO: error cases in the NEA write-up should include all of the `ok_or_eyre` and `bail!` errors in this function
+    // TODO: error/test cases in the NEA write-up should include all of the `ok_or_eyre` and `bail!` errors in this function
     fn run(&mut self) -> eyre::Result<()> {
-        self.stop();
+        self.runner.stop();
 
         // TODO: don't show missing/invalid run command errors as modals that take up the whole screen
 
         // TODO: maybe gray out the run button if this is the case
         let project = self.project.as_mut().ok_or_eyre("No project open")?;
 
-        // update project settings
-        match ProjectSettings::read_from(&project.path) {
-            Ok(settings) => project.settings = settings,
-            Err(err) => Err(err)?,
-        }
-
-        let settings = project
-            .settings
-            .as_ref()
-            .ok_or_eyre("No run command set\n\nA project.toml file is needed to set it")?;
-
-        let mut words = match shell_words::split(&settings.run_command) {
-            Ok(words) => words.into_iter(),
-            Err(_) => bail!("Invalid run command"),
-        };
-        let command = words.next().ok_or_eyre("Run command is empty")?;
-
-        let args = words.collect::<Vec<String>>();
-
-        // TODO: error handling for this should include handling "program not found" and "invalid input"
-        let mut child = std::process::Command::new(command)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(&project.path)
-            .args(args)
-            .spawn()
-            .expect("failed to start subprocess");
-
-        self.output.lock().expect("failed to lock output").clear();
-        let output = self.output.clone();
-
-        // should be able to unwrap these, as we set stdout and stderr in the Command
-        let out = read_piped(child.stdout.take().unwrap());
-        let err = read_piped(child.stderr.take().unwrap());
-
-        let thread = thread::spawn(move || {
-            loop {
-                // waits to receive the next line from either stdout or stderr, and processes which ever one is received first
-                crossbeam::select! {
-                    recv(out) -> msg => match msg {
-                        Ok(Ok(PipedLine::Line(line))) => {
-                            println!("{:?}", &line);
-                            output.lock().expect("failed to lock output").push_str(&(line));
-                        }
-                        Ok(Ok(PipedLine::Eof)) | Err(_) => break,
-                        // TODO: handle this error
-                        Ok(Err(err)) => eprintln!("Error: {:?}", err),
-                    },
-                    recv(err) -> msg => match msg {
-                        Ok(Ok(PipedLine::Line(line))) => output.lock().expect("failed to lock output").push_str(&format!("** {} **\n", &line)),
-                        Ok(Ok(PipedLine::Eof)) | Err(_) => break,
-                        Ok(Err(err)) => eprintln!("Error: {:?}", err),
-                    },
-                }
-            }
-        });
-
-        self.running_command = Some(RunningCommand {
-            process: child,
-            thread,
-        });
+        self.runner.run(project, self.output.clone())?;
 
         Ok(())
-    }
-
-    fn stop(&mut self) {
-        if let Some(mut running_command) = self.running_command.take() {
-            running_command
-                .process
-                .kill()
-                .expect("failed to kill process");
-            running_command
-                .thread
-                .join()
-                .expect("failed to join thread");
-        }
     }
 }
