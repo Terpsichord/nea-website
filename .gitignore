@@ -7,4 +7,5 @@
 /front_end/dist/
 /front_end/package-lock.json
 
-/editor/test files
+/editor/test files/
+/editor/dist/
