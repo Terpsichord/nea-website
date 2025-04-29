@@ -226,7 +226,7 @@ async fn get_comments(
     Path((username, repo_name)): Path<(String, String)>,
     State(db): State<PgPool>,
 ) -> Result<Json<Vec<Comment>>, AppError> {
-    let comments = sqlx::query_as!(
+    let mut comments = sqlx::query_as!(
         Comment,
         r#"
         SELECT
@@ -251,31 +251,55 @@ async fn get_comments(
     .fetch_all(&db)
     .await?;
 
-    let mut comment_map = HashMap::new();
+    // let mut comment_map = HashMap::new();
 
-    for comment in comments {
-        comment_map.insert(comment.id, comment);
+    // for comment in comments {
+    //     comment_map.insert(comment.id, comment);
+    // }
+
+    // let ids: Vec<_> = comment_map.keys().copied().collect();
+    // for id in ids {
+    //     if let Some(parent_id) = comment_map[&id].parent_id {
+    //         let comment = comment_map[&id].clone();
+    //         comment_map
+    //             .get_mut(&parent_id)
+    //             // can unwrap here as this is guaranteed by foreign key constraints in the database
+    //             .unwrap()
+    //             .children
+    //             .push(comment);
+    //     }
+    // }
+    // 
+    // let root_comments = comment_map
+    //     .into_values()
+    //     .filter(|com| com.parent_id.is_none())
+    //     .collect();
+
+    // FIXME: this seems to work at the moment, but, make this better and more optimised
+
+    let mut roots = vec![];
+    for comment in comments.iter() {
+        if comment.parent_id.is_none() {
+           roots.push(comment.clone());
+        }
+    }
+    for root in &mut roots {
+        root.children = get_comment_replies(root.id, &mut comments);
     }
 
-    let ids: Vec<_> = comment_map.keys().copied().collect();
-    for id in ids {
-        if let Some(parent_id) = comment_map[&id].parent_id {
-            let comment = comment_map[&id].clone();
-            comment_map
-                .get_mut(&parent_id)
-                // can unwrap here as this is guaranteed by foreign key constraints in the database
-                .unwrap()
-                .children
-                .push(comment);
+    Ok(Json(roots))
+}
+
+fn get_comment_replies(id: i32, comments: &mut [Comment]) -> Vec<Comment> {
+    let mut children = vec![];
+    for i in 0..comments.len() {
+        if comments[i].parent_id == Some(id) {
+            comments[i].children = get_comment_replies(comments[i].id, comments);
+            children.push(comments[i].clone());
         }
     }
 
-    let root_comments = comment_map
-        .into_values()
-        .filter(|com| com.parent_id.is_none())
-        .collect();
-
-    Ok(Json(root_comments))
+    children
 }
 
 async fn open_project(
