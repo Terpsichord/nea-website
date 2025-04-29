@@ -32,8 +32,9 @@ fn main() {
         let window = web_sys::window().expect("no window");
 
         let query_string = window.location().search().expect("no query string");
-        let params = web_sys::UrlSearchParams::new_with_str(&query_string).expect("invalid query string");
-        
+        let params =
+            web_sys::UrlSearchParams::new_with_str(&query_string).expect("invalid query string");
+
         let project_id = params.get("project_id").expect("missing project id");
 
         let document = window.document().expect("no document");

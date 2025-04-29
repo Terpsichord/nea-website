@@ -5,7 +5,7 @@
 use std::{iter, sync::LazyLock};
 
 use anyhow::Context;
-use api::api_routes;
+use api::api_router;
 use axum::{extract::FromRef, http::HeaderValue, middleware, routing::get, Router};
 use base64::{prelude::BASE64_STANDARD, Engine};
 use middlewares::auth::{redirect_auth_middleware, SharedTokenIds};
@@ -16,7 +16,6 @@ use tower_http::{
     catch_panic::CatchPanicLayer,
     services::{ServeDir, ServeFile},
 };
-use tower::ServiceBuilder;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
@@ -103,10 +102,13 @@ async fn main() {
             ServeDir::new(EDITOR_PATH)
                 .fallback(ServeFile::new(format!("{EDITOR_PATH}/index.html"))),
         )
-        .layer(middleware::from_fn_with_state(state.clone(), redirect_auth_middleware));
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            redirect_auth_middleware,
+        ));
 
     let app = Router::new()
-        .nest("/api", api_routes(state.clone()))
+        .nest("/api", api_router(state.clone()))
         .route("/callback", get(callback::github_callback))
         .nest("/editor", editor)
         .fallback_service(

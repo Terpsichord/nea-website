@@ -1,10 +1,9 @@
-use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
-use std::rc::Rc;
-use std::cell::OnceCell;
-use wasm_bindgen_futures::spawn_local;
 use gloo_net::http::Request;
-
+use serde::{Deserialize, Serialize};
+use std::cell::OnceCell;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use wasm_bindgen_futures::spawn_local;
 
 #[derive(Default)]
 pub struct Runner;
@@ -56,10 +55,11 @@ impl Project {
                     .await
                     .expect("failed to parse project info");
                 web_sys::console::log_1(&format!("project github_url: {project_info:?}").into());
-                info.set(project_info).expect("failed to update project info");
+                info.set(project_info)
+                    .expect("failed to update project info");
             });
         }
-        
+
         Self { id, info }
     }
 }

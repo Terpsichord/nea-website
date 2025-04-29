@@ -49,7 +49,7 @@ CREATE TABLE follows (
 
 CREATE TABLE comments (
     id SERIAL PRIMARY KEY,
-    contents VARCHAR(100),
+    contents VARCHAR(100) NOT NULL,
     user_id INT REFERENCES users(id),
     project_id INT NOT NULL REFERENCES projects(id),
     parent_id INT REFERENCES comments(id)

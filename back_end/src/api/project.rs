@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use axum::{
     extract::{Path, State},
     middleware,
@@ -17,28 +19,40 @@ use crate::{
 
 use super::user::ProjectInfo;
 
-pub fn project_route(state: AppState) -> Router<AppState> {
-    let auth_router = Router::new()
-        .route("/project/{username}/{repo_name}/liked", get(get_liked))
-        .route("/project/{username}/{repo_name}/like", post(like))
-        .route("/project/{username}/{repo_name}/unlike", post(unlike))
-        .route("/project/open/{project_id}", get(open_project))
+pub fn project_router(state: AppState) -> Router<AppState> {
+    let auth = Router::new().route("/project/open/{project_id}", get(open_project));
+
+    Router::new()
+        .route("/projects", get(get_project_list))
+        .merge(auth)
+        .nest(
+            "/project/{username}/{repo_name}",
+            project_page_router(state),
+        )
+}
+
+fn project_page_router(state: AppState) -> Router<AppState> {
+    let auth = Router::new()
+        .route("/liked", get(get_liked))
+        .route("/like", post(like))
+        .route("/unlike", post(unlike))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
         ));
 
-    let optional_auth_router = Router::new()
-        .route("/project/{username}/{repo_name}", get(get_project))
-        .layer(middleware::from_fn_with_state(
-            state,
-            optional_auth_middleware,
-        ));
+    let optional_auth =
+        Router::new()
+            .route("/", get(get_project))
+            .layer(middleware::from_fn_with_state(
+                state,
+                optional_auth_middleware,
+            ));
 
     Router::new()
-        .route("/projects", get(get_project_list))
-        .merge(auth_router)
-        .merge(optional_auth_router)
+        .merge(auth)
+        .merge(optional_auth)
+        .route("/comments", get(get_comments))
 }
 
 #[derive(Serialize, FromRow)]
@@ -70,7 +84,7 @@ async fn get_project(
         ProjectResponse,
         r#"
         SELECT 
-            ROW(p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo",
+            (p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo",
             pi.github_url as "github_url!",
             p.upload_time,
             p.public
@@ -93,7 +107,7 @@ async fn get_project_list(
 ) -> Result<Json<Vec<ProjectResponse>>, AppError> {
     let projects = sqlx::query_as!(ProjectResponse, r#"
         SELECT
-            ROW(p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo",
+            (p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo",
             pi.github_url as "github_url!",
             p.upload_time,
             p.public
@@ -189,6 +203,81 @@ async fn unlike(
     Ok(())
 }
 
+#[derive(Clone, Debug, Serialize, sqlx::Type)]
+#[serde(rename_all = "camelCase")]
+struct InlineUser {
+    username: String,
+    picture_url: String,
+}
+
+#[derive(Clone, Debug, Serialize, sqlx::Type)]
+#[serde(rename_all = "camelCase")]
+struct Comment {
+    user: InlineUser,
+    contents: String,
+    children: Vec<Comment>,
+    #[serde(skip)]
+    id: i32,
+    #[serde(skip)]
+    parent_id: Option<i32>,
+}
+
+async fn get_comments(
+    Path((username, repo_name)): Path<(String, String)>,
+    State(db): State<PgPool>,
+) -> Result<Json<Vec<Comment>>, AppError> {
+    let comments = sqlx::query_as!(
+        Comment,
+        r#"
+        SELECT
+            c.id,
+            c.parent_id,
+            (u.username, u.picture_url) as "user!: InlineUser",
+            c.contents,
+            array[]::integer[] as "children!: Vec<Comment>"
+        FROM comments c
+        INNER JOIN users u ON u.id = c.user_id
+        WHERE c.project_id = (
+            SELECT p.id
+            FROM projects p
+            INNER JOIN users u ON u.id = p.user_id
+            WHERE u.username = $1
+            AND p.repo_name = $2
+        )
+        "#,
+        username,
+        repo_name,
+    )
+    .fetch_all(&db)
+    .await?;
+
+    let mut comment_map = HashMap::new();
+
+    for comment in comments {
+        comment_map.insert(comment.id, comment);
+    }
+
+    let ids: Vec<_> = comment_map.keys().copied().collect();
+    for id in ids {
+        if let Some(parent_id) = comment_map[&id].parent_id {
+            let comment = comment_map[&id].clone();
+            comment_map
+                .get_mut(&parent_id)
+                // can unwrap here as this is guaranteed by foreign key constraints in the database
+                .unwrap()
+                .children
+                .push(comment);
+        }
+    }
+
+    let root_comments = comment_map
+        .into_values()
+        .filter(|com| com.parent_id.is_none())
+        .collect();
+
+    Ok(Json(root_comments))
+}
+
 async fn open_project(
     Path(project_id): Path<String>,
     State(db): State<PgPool>,
@@ -207,7 +296,9 @@ async fn open_project(
         "#,
         project_id,
         github_id,
-    ).fetch_one(&db).await?;
+    )
+    .fetch_one(&db)
+    .await?;
 
     // FIXME: this is just to test interop between editor and backend
     Ok(Json(json!({ "github_url": github_url })))

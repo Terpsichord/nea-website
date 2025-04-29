@@ -13,7 +13,7 @@ use crate::{
     AppState,
 };
 
-pub fn follow_route(state: AppState) -> Router<AppState> {
+pub fn follow_router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/follow", get(get_follow_list))
         .route("/follow/{username}", get(get_follow).post(post_follow))

@@ -15,12 +15,12 @@ mod user;
 
 pub const AUTH_COOKIE: &str = "access-token";
 
-pub fn api_routes(state: AppState) -> Router<AppState> {
+pub fn api_router(state: AppState) -> Router<AppState> {
     Router::new()
-        .merge(profile::profile_route(state.clone()))
-        .merge(user::user_route())
-        .merge(follow::follow_route(state.clone()))
-        .merge(project::project_route(state))
+        .merge(profile::profile_router(state.clone()))
+        .merge(user::user_router())
+        .merge(follow::follow_router(state.clone()))
+        .merge(project::project_router(state))
         .route("/auth", get(auth_handler))
         .route("/signout", post(sign_out))
 }

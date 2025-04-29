@@ -1,8 +1,11 @@
-export interface User {
-    username: string
+export interface InlineUser {
+    username: string,
+    pictureUrl: string,
+}
+
+export interface User extends InlineUser {
     joinDate: string,
     bio: string,
-    pictureUrl: string,
 }
 
 export interface ProjectInfo {
@@ -19,4 +22,10 @@ export interface Project extends ProjectInfo {
     githubUrl: string,
     uploadTime: string,
     public: boolean,
+}
+
+export interface ProjectComment {
+    user: InlineUser,
+    contents: string,
+    children: ProjectComment[],
 }

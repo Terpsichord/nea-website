@@ -1,19 +1,18 @@
 import { Link } from "react-router";
+import { InlineUser } from "../types";
 
-interface Props {
-    user: {
-        username: string,
-        pictureUrl: string,
-    }
+export interface InlineUserProps {
+    user: InlineUser;
+    small?: boolean;
 }
 
-function InlineUser({ user }: Props) {
+function InlineUserView({ user, small }: InlineUserProps) {
     return (
         <Link to={`/user/${user.username}`} className="text-lg">
-            <img src={user.pictureUrl} draggable={false} className="size-10 rounded-full inline mr-3" />
+            <img src={user.pictureUrl} draggable={false} className={`rounded-full inline ${small ? "size-7 mr-2" : "size-10 mr-3" }`} />
             {user.username}
         </Link>
     );
 }
 
-export default InlineUser;
+export default InlineUserView;

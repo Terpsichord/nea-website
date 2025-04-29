@@ -2,16 +2,17 @@ import { faEllipsisV, faGlobe, faHeart as faHeartSolid, faLock } from "@fortawes
 import { faHeart as faHeartRegular } from "@fortawesome/free-regular-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useEffect, useRef, useState } from "react";
-import ContextMenu from "../components/ContextMenu";
+import ContextMenu from "../../components/ContextMenu";
 import { useParams } from "react-router";
-import { fetchApi, formatDate, useApi } from "../utils";
-import { Project } from "../types";
-import Loading from "../components/Loading";
+import { fetchApi, formatDate, useApi } from "../../utils";
+import { ProjectComment, Project } from "../../types";
+import Loading from "../../components/Loading";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import '../markdown.scss';
-import { useAuth } from "../auth";
-import InlineUser from "../components/InlineUser";
+import './markdown.scss';
+import { useAuth } from "../../auth";
+import InlineUserView from "../../components/InlineUser";
+import Comments from "./Comments";
 
 function ProjectPage() {
     const params = useParams();
@@ -19,6 +20,8 @@ function ProjectPage() {
 
     const { isAuth } = useAuth()
     const [likedInitial] = useApi<boolean>(isAuth ? `/project/${params.username}/${params.id}/liked` : null, { deps: [isAuth] }) ?? [undefined];
+
+    const [comments] = useApi<ProjectComment[]>(`/project/${params.username}/${params.id}/comments`);
 
     const [liked, setLiked] = useState(false);
     const [likeCount, setLikeCount] = useState(0);
@@ -79,7 +82,7 @@ function ProjectPage() {
         <div className="px-24">
             <h2 className="text-4xl font-medium mb-3">{project.title}</h2>
             <div className="flex items-center mb-7">
-                <InlineUser user={project} />
+                <InlineUserView user={project} />
                 <div className="bg-blue-gray rounded-2xl ml-3 px-2.5 py-1">{project.public ?
                     <><FontAwesomeIcon icon={faGlobe} size="sm" className="mr-1.5" />Public</> :
                     <><FontAwesomeIcon icon={faLock} size="sm" className="mr-1.5" />Private</>
@@ -100,6 +103,11 @@ function ProjectPage() {
                     {likeCount} like{likeCount === 1 ? "" : "s"}
                 </span>
             </div>
+
+            { comments === undefined ?
+                <Loading /> :
+                <Comments comments={comments} />
+            }
         </div>
     )
 }

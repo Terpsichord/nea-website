@@ -15,7 +15,7 @@ use crate::{
     AppState,
 };
 
-pub fn profile_route(state: AppState) -> Router<AppState> {
+pub fn profile_router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/profile", get(get_profile))
         .route("/profile/bio", patch(update_bio))

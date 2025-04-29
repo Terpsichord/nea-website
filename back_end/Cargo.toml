@@ -15,7 +15,7 @@ tower-http = { version = "0.6.2", features = ["full"] }
 anyhow = "1.0.97"
 
 # database
-sqlx = { version = "0.8.3", features = ["runtime-tokio-native-tls", "postgres", "chrono"] }
+sqlx = { version = "0.8.3", features = ["runtime-tokio-native-tls", "postgres", "chrono", "json"] }
 chrono = { version = "0.4.40", features = ["serde"] }
 
 # http client

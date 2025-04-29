@@ -8,7 +8,7 @@ use sqlx::{FromRow, PgPool};
 
 use crate::{error::AppError, user::UserResponse, AppState};
 
-pub fn user_route() -> Router<AppState> {
+pub fn user_router() -> Router<AppState> {
     Router::new()
         .route("/user/{username}", get(get_user))
         .route("/user/{username}/projects", get(get_user_projects))

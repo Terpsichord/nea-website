@@ -8,7 +8,7 @@ import Home from './routes/Home.tsx'
 import SignIn from './routes/SignIn/SignIn.tsx';
 import Profile from './routes/Profile/Profile.tsx';
 import User from './routes/User/User.tsx';
-import ProjectPage from './routes/ProjectPage.tsx';
+import ProjectPage from './routes/Project/ProjectPage.tsx';
 import Explore from './routes/Explore.tsx';
 import About from './routes/About.tsx';
 
