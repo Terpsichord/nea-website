@@ -10,7 +10,7 @@ function CommentView({ user, contents, children }: ProjectComment) {
                 <div className="flex mt-2">
                     <span className="w-1 rounded-full ml-3 mr-5 bg-gray" />
                     <div className="mt-1 space-y-4">
-                        {children.map((child) => <CommentView {...child} />)}
+                        {children.map(child => <CommentView {...child} />)}
                     </div>
                 </div>
             }

@@ -17,8 +17,8 @@ function AuthProvider({ children }: PropsWithChildren) {
 
     useEffect(() => {
         fetchApi("/auth")
-            .then((resp) => resp.json())
-            .then((data) => {
+            .then(resp => resp.json())
+            .then(data => {
                 if (data.isAuth !== isAuth) {
                     setIsAuth(data.isAuth)
                 }

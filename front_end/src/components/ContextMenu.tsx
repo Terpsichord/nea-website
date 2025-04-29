@@ -17,10 +17,7 @@ function ContextMenu({ items, parent, setShow }: { items: ReactNode[], parent: R
     return (
         <div className="absolute w-52 bg-blue-gray outline outline-gray rounded-xl p-4 -translate-x-11/12 z-10">
             <ul>
-                {items.map((item) => (
-                    <li>{item}</li>
-                ))}
-                <li></li>
+                {items.map(item => <li>{item}</li>)}
             </ul>
         </div>
     );

@@ -13,6 +13,7 @@ import './markdown.scss';
 import { useAuth } from "../../auth";
 import InlineUserView from "../../components/InlineUser";
 import Comments from "./Comments";
+import Tag from "../../components/Tag";
 
 function ProjectPage() {
     const params = useParams();
@@ -95,7 +96,12 @@ function ProjectPage() {
                     }
                 </div>
             </div>
-            <div className="markdown bg-blue-gray rounded-2xl p-8 mb-5" dangerouslySetInnerHTML={{ __html: readmeHtml }} />
+
+            <div className="markdown bg-blue-gray rounded-2xl px-8 pb-4 pt-4 mb-5">
+                <div dangerouslySetInnerHTML={{ __html: readmeHtml }} />
+                <div className="mt-5 space-x-2">{project.tags.map(tag => <Tag contents={tag} />)}</div>
+            </div>
+
             <div className="flex text-gray">
                 <span>Uploaded {uploadDate}</span>
                 <span className="ml-auto mr-1">
@@ -104,7 +110,7 @@ function ProjectPage() {
                 </span>
             </div>
 
-            { comments === undefined ?
+            {comments === undefined ?
                 <Loading /> :
                 <Comments comments={comments} />
             }

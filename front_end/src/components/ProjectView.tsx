@@ -25,9 +25,7 @@ function ProjectView({ username, dashboard, className }: { username?: string, da
     return (
         <div className="flex justify-center">
             <div className={`${className} grid`}>
-                {projects.map((project) => (
-                    <ProjectCard project={project} />
-                ))}
+                {projects.map(project => <ProjectCard project={project} />)}
             </div>
         </div>
     )
