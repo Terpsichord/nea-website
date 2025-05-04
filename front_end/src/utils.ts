@@ -4,8 +4,8 @@ type Args = RequestInit & { deps?: DependencyList };
 
 type ApiError = { status: number } | undefined;
 
-export function useApi<T>(url: null): undefined;
-export function useApi<T>(url: string): [T | undefined, ApiError];
+export function useApi<T>(url: null, args?: Args): undefined;
+export function useApi<T>(url: string, args?: Args): [T | undefined, ApiError];
 export function useApi<T>(url: string | null, args?: Args): [T | undefined, ApiError] | undefined;
 export function useApi<T>(url: string | null, args?: Args): [T | undefined, ApiError] | undefined {
     const [value, setValue] = useState(undefined);
@@ -17,7 +17,7 @@ export function useApi<T>(url: string | null, args?: Args): [T | undefined, ApiE
                 return;
             }
 
-            const response = await fetch(`/api${url}`, args);
+            const response = await fetchApi(url, args);
 
             if (response.ok) {
                 const data = await response.json();

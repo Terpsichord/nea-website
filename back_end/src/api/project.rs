@@ -7,7 +7,7 @@ use axum::{
     Extension, Json, Router,
 };
 use chrono::NaiveDateTime;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{FromRow, PgPool};
 
@@ -36,6 +36,7 @@ fn project_page_router(state: AppState) -> Router<AppState> {
         .route("/liked", get(get_liked))
         .route("/like", post(like))
         .route("/unlike", post(unlike))
+        .route("/comment", post(post_comment))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -201,6 +202,46 @@ async fn unlike(
     .await?;
 
     Ok(())
+}
+
+#[derive(Deserialize)]
+struct PostCommentBody {
+    contents: String,
+    parent_id: Option<i32>,
+}
+
+async fn post_comment(
+    Path((username, repo_name)): Path<(String, String)>,
+    State(db): State<PgPool>,
+    Extension(AuthUser { github_id }): Extension<AuthUser>,
+    Json(PostCommentBody { contents, parent_id }): Json<PostCommentBody>,
+) -> Result<(), AppError> {
+    sqlx::query!(
+        r#"
+        INSERT INTO comments (contents, user_id, project_id, parent_id)
+        SELECT 
+            $1, 
+            (SELECT id FROM users WHERE github_id = $2),
+            (
+                SELECT p.id
+                FROM projects p
+                INNER JOIN users u ON u.id = p.user_id
+                WHERE u.username = $3
+                AND p.repo_name = $4
+            ),
+            $5
+        "#,
+        contents,
+        github_id,
+        username,
+        repo_name,
+        parent_id
+    )
+    .execute(&db)
+    .await?;
+
+    Ok(())
+
 }
 
 #[derive(Clone, Debug, Serialize, sqlx::Type)]

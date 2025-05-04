@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import ContextMenu from "../../components/ContextMenu";
 import { useParams } from "react-router";
 import { fetchApi, formatDate, useApi } from "../../utils";
-import { ProjectComment, Project } from "../../types";
+import { Project } from "../../types";
 import Loading from "../../components/Loading";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
@@ -21,8 +21,6 @@ function ProjectPage() {
 
     const { isAuth } = useAuth()
     const [likedInitial] = useApi<boolean>(isAuth ? `/project/${params.username}/${params.id}/liked` : null, { deps: [isAuth] }) ?? [undefined];
-
-    const [comments] = useApi<ProjectComment[]>(`/project/${params.username}/${params.id}/comments`);
 
     const [liked, setLiked] = useState(false);
     const [likeCount, setLikeCount] = useState(0);
@@ -109,11 +107,7 @@ function ProjectPage() {
                     {likeCount} like{likeCount === 1 ? "" : "s"}
                 </span>
             </div>
-
-            {comments === undefined ?
-                <Loading /> :
-                <Comments comments={comments} />
-            }
+            <Comments project={{ username: params.username!, id: params.id! }} />
         </div>
     )
 }
