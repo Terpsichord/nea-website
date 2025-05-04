@@ -1,6 +1,6 @@
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    github_id INT NOT NULL,
+    github_id INT NOT NULL UNIQUE,
     username VARCHAR(40) NOT NULL UNIQUE,
     picture_url VARCHAR(255) NOT NULL,
     bio VARCHAR(100) NOT NULL DEFAULT '',
