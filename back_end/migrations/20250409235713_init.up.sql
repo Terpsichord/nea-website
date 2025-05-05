@@ -15,8 +15,8 @@ CREATE TABLE projects (
     repo_name VARCHAR(255) NOT NULL,
     readme TEXT NOT NULL DEFAULT '',
     public BOOLEAN NOT NULL,
-    upload_time TIMESTAMP NOT NULL,
-    last_modified TIMESTAMP,
+    upload_time TIMESTAMPTZ NOT NULL,
+    last_modified TIMESTAMPTZ,
     UNIQUE (user_id, repo_name)
 );
 
@@ -53,6 +53,7 @@ CREATE TABLE comments (
     user_id INT REFERENCES users(id),
     project_id INT NOT NULL REFERENCES projects(id),
     parent_id INT REFERENCES comments(id)
+    upload_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 );
 
 CREATE TABLE likes (

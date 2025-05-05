@@ -285,6 +285,7 @@ async fn get_comments(
             WHERE u.username = $1
             AND p.repo_name = $2
         )
+        ORDER BY c.upload_time DESC
         "#,
         username,
         repo_name,

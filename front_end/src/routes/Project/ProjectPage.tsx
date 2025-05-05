@@ -95,7 +95,7 @@ function ProjectPage() {
                 </div>
             </div>
 
-            <div className="markdown bg-blue-gray rounded-2xl px-8 pb-4 pt-4 mb-5">
+            <div className="markdown bg-blue-gray rounded-2xl px-8 pb-4 pt-4 mb-3">
                 <div dangerouslySetInnerHTML={{ __html: readmeHtml }} />
                 <div className="mt-5 space-x-2">{project.tags.map(tag => <Tag contents={tag} />)}</div>
             </div>

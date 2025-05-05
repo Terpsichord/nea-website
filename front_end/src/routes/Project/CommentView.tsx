@@ -11,7 +11,7 @@ function CommentView({ user, contents, children }: ProjectComment) {
     return (
         <div>
             <InlineUserView small user={user} />
-            <div className="mt-2 w-fit rounded-xl bg-blue-gray py-1 px-3" onClick={toggle}>{contents}</div>
+            <div className="whitespace-pre mt-2 w-fit rounded-xl bg-blue-gray py-1 px-3" onClick={toggle}>{contents}</div>
             {children && children.length > 0 &&
                 <div className="mt-2">
                     {isCollapsed && <FontAwesomeIcon icon={faEllipsisH} onClick={toggle} className="ml-5" />}
