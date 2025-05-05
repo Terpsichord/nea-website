@@ -5,6 +5,7 @@
   color-scheme: dark;
   background-color: #0e0f17;
   font-family: 'Fira Sans', sans-serif;
+  scroll-behavior: smooth;
 }
 
 @theme {

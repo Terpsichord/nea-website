@@ -1,7 +1,9 @@
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, KeyboardEvent, ReactElement, Ref, useState } from "react";
 
 interface TextAreaProps {
+    ref?: Ref<HTMLTextAreaElement>,
     value?: string,
+    subtext?: ReactElement,
     maxLength: number,
     inputFilter?: (input: string) => string,
     submitText: string,
@@ -10,7 +12,7 @@ interface TextAreaProps {
     submitClass?: string
 }
 
-function TextArea({ value: defaultValue = "", maxLength, inputFilter, submitText, onSubmit, className = "", submitClass = "" }: TextAreaProps) {
+function TextArea({ ref, value: defaultValue = "", subtext, maxLength, inputFilter, submitText, onSubmit, className = "", submitClass = "" }: TextAreaProps) {
     const [contents, setContents] = useState(defaultValue);
 
     function onChange(event: ChangeEvent<HTMLTextAreaElement>) {
@@ -23,17 +25,24 @@ function TextArea({ value: defaultValue = "", maxLength, inputFilter, submitText
         setContents(value);
     }
 
-    function onClick() {
-        onSubmit(contents);
+    const onClick = () => onSubmit(contents);
+
+    function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+        if (event.ctrlKey && event.key == "Enter") {
+            onSubmit(contents);
+        }
     }
 
     return (
         <div className="flex flex-col">
             <div className="relative">
-                <textarea className={`${className} rounded-lg resize-none w-full h-24 p-1 overflow-hidden`} value={contents} onChange={onChange} />
+                <textarea ref={ref} className={`${className} rounded-lg resize-none w-full h-24 p-1 overflow-hidden`} value={contents} onChange={onChange} onKeyDown={onKeyDown}/>
                 <div className="font-light absolute right-0 bottom-0 pr-1 pb-1">{contents.length}/{maxLength}</div>
             </div>
-            <button className={`${submitClass} self-end`} onClick={onClick}>{submitText}</button>
+            <div className="flex justify-between">
+                {subtext}
+                <button className={`${submitClass} ml-auto self-start`} onClick={onClick}>{submitText}</button>
+            </div>
         </div>
     )
 }

@@ -25,6 +25,7 @@ export interface Project extends ProjectInfo {
 }
 
 export interface ProjectComment {
+    id: number,
     user: InlineUser,
     contents: string,
     children: ProjectComment[],

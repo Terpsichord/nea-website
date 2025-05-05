@@ -254,11 +254,10 @@ struct InlineUser {
 #[derive(Clone, Debug, Serialize, sqlx::Type)]
 #[serde(rename_all = "camelCase")]
 struct Comment {
+    id: i32,
     user: InlineUser,
     contents: String,
     children: Vec<Comment>,
-    #[serde(skip)]
-    id: i32,
     #[serde(skip)]
     parent_id: Option<i32>,
 }
