@@ -35,6 +35,8 @@ pub enum InvalidAuthError {
     Encryption(aes_gcm::Error),
     #[error("invalid utf-8")]
     Utf8(#[from] std::string::FromUtf8Error),
+    #[error("missing refresh token")]
+    MissingRefreshToken,
 }
 
 impl AppError {
@@ -57,7 +59,7 @@ impl IntoResponse for AppError {
             Unauthorized => return StatusCode::UNAUTHORIZED.into_response(),
             InvalidAuth(e) => e.into(),
             Database(e) => e.into(),
-            GithubAuth(e) => anyhow!(e.message),
+            GithubAuth(e) => anyhow!("Github auth failed: {}", e.message),
             AuthFailed(e) | Other(e) => e,
         };
 

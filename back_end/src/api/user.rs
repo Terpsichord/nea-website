@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::Serialize;
 use sqlx::{FromRow, PgPool};
+use tracing::instrument;
 
 use crate::{error::AppError, user::UserResponse, AppState};
 
@@ -14,6 +15,7 @@ pub fn user_router() -> Router<AppState> {
         .route("/user/{username}/projects", get(get_user_projects))
 }
 
+#[instrument(skip(db))]
 async fn get_user(
     Path(username): Path<String>,
     State(db): State<PgPool>,
@@ -41,6 +43,7 @@ pub struct ProjectInfo {
     pub like_count: i64,
 }
 
+#[instrument(skip(db))]
 async fn get_user_projects(
     Path(username): Path<String>,
     State(db): State<PgPool>,

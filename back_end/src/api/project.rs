@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::cmp::Reverse;
 
 use axum::{
     extract::{Path, State},
@@ -6,10 +6,11 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{FromRow, PgPool};
+use tracing::instrument;
 
 use crate::{
     error::AppError,
@@ -66,6 +67,7 @@ struct ProjectResponse {
     public: bool,
 }
 
+#[instrument(skip(db))]
 async fn get_project(
     Path((username, repo_name)): Path<(String, String)>,
     Extension(auth_user): Extension<Option<AuthUser>>,
@@ -99,10 +101,12 @@ async fn get_project(
         repo_name,
         authorized
     ).fetch_one(&db).await?;
+    // TODO: (i think), make this fetch 0 or 1 and show error if 0
 
     Ok(Json(project))
 }
 
+#[instrument(skip(db))]
 async fn get_project_list(
     State(db): State<PgPool>,
 ) -> Result<Json<Vec<ProjectResponse>>, AppError> {
@@ -121,6 +125,7 @@ async fn get_project_list(
     Ok(Json(projects))
 }
 
+#[instrument(skip(db))]
 async fn get_liked(
     Path((username, repo_name)): Path<(String, String)>,
     State(db): State<PgPool>,
@@ -176,6 +181,7 @@ async fn like(
     Ok(())
 }
 
+#[instrument(skip(db))]
 async fn unlike(
     Path((username, repo_name)): Path<(String, String)>,
     State(db): State<PgPool>,
@@ -210,6 +216,7 @@ struct PostCommentBody {
     parent_id: Option<i32>,
 }
 
+#[instrument(skip(db))]
 async fn post_comment(
     Path((username, repo_name)): Path<(String, String)>,
     State(db): State<PgPool>,
@@ -260,8 +267,11 @@ struct Comment {
     children: Vec<Comment>,
     #[serde(skip)]
     parent_id: Option<i32>,
+    #[serde(skip)]
+    upload_time: DateTime<Utc>,
 }
 
+#[instrument(skip(db))]
 async fn get_comments(
     Path((username, repo_name)): Path<(String, String)>,
     State(db): State<PgPool>,
@@ -274,7 +284,8 @@ async fn get_comments(
             c.parent_id,
             (u.username, u.picture_url) as "user!: InlineUser",
             c.contents,
-            array[]::integer[] as "children!: Vec<Comment>"
+            array[]::integer[] as "children!: Vec<Comment>",
+            c.upload_time
         FROM comments c
         INNER JOIN users u ON u.id = c.user_id
         WHERE c.project_id = (
@@ -284,7 +295,7 @@ async fn get_comments(
             WHERE u.username = $1
             AND p.repo_name = $2
         )
-        ORDER BY c.upload_time DESC
+        ORDER BY c.upload_time
         "#,
         username,
         repo_name,
@@ -319,7 +330,7 @@ async fn get_comments(
     // FIXME: this seems to work at the moment, but, make this better and more optimised
 
     let mut roots = vec![];
-    for comment in comments.iter() {
+    for comment in &comments {
         if comment.parent_id.is_none() {
            roots.push(comment.clone());
         }
@@ -327,6 +338,8 @@ async fn get_comments(
     for root in &mut roots {
         root.children = get_comment_replies(root.id, &mut comments);
     }
+
+    roots.sort_by_key(|root| Reverse(root.upload_time));
 
     Ok(Json(roots))
 }
@@ -343,6 +356,7 @@ fn get_comment_replies(id: i32, comments: &mut [Comment]) -> Vec<Comment> {
     children
 }
 
+#[instrument(skip(db))]
 async fn open_project(
     Path(project_id): Path<String>,
     State(db): State<PgPool>,

@@ -1,8 +1,7 @@
 use crate::{
-    error::{AppError, GithubUserError},
-    middlewares::auth::SharedTokenIds,
+    auth::{SharedTokenInfo, TokenInfo, ACCESS_EXPIRY}, error::{AppError, GithubUserError}, 
 };
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 
@@ -21,11 +20,14 @@ pub enum GithubUserResponse {
     Error(GithubUserError),
 }
 
+/// Fetches information about the Github user using the access token, and caches the user's id with the encrypted token
+/// 
+/// Returns the user info on a successful fetch
 pub async fn fetch_and_cache_github_user(
     access_token: &str,
     client: &reqwest::Client,
     encrypted_token: &str,
-    token_ids: &SharedTokenIds,
+    token_info: &SharedTokenInfo,
 ) -> Result<GithubUser, AppError> {
     let res = client
         .get("https://api.github.com/user")
@@ -42,10 +44,13 @@ pub async fn fetch_and_cache_github_user(
         GithubUserResponse::Error(error) => return Err(AppError::GithubAuth(error)),
     };
 
-    token_ids
+    token_info
         .write()
-        .unwrap()
-        .insert(encrypted_token.to_string(), user.id);
+        .await
+        .insert(encrypted_token.to_string(), TokenInfo {
+            github_id: user.id,
+            expiry_date: Utc::now() + ACCESS_EXPIRY, 
+        });
 
     Ok(user)
 }

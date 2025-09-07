@@ -6,19 +6,21 @@ use std::{iter, sync::LazyLock};
 
 use anyhow::Context;
 use api::api_router;
+use auth::SharedTokenInfo;
 use axum::{extract::FromRef, http::HeaderValue, middleware, routing::get, Router};
 use base64::{prelude::BASE64_STANDARD, Engine};
-use middlewares::auth::{redirect_auth_middleware, SharedTokenIds};
+use middlewares::auth::redirect_auth_middleware;
 use reqwest::header::USER_AGENT;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::{
     add_extension::AddExtensionLayer,
     catch_panic::CatchPanicLayer,
-    services::{ServeDir, ServeFile},
+    services::{ServeDir, ServeFile}, trace::TraceLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
+mod auth;
 mod callback;
 mod crypto;
 mod db;
@@ -80,12 +82,10 @@ impl AppState {
 
 #[tokio::main]
 async fn main() {
-    // start tracing - level set by either RUST_LOG env variable or defaults to debug
-    // TODO: check i've configured this the way i want it
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "nea_website=debug".into()),
-        ))
+        .with(tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| "nea_website=debug,tower_http=warn".into()),
+        )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
@@ -116,8 +116,9 @@ async fn main() {
                 .fallback(ServeFile::new(format!("{FRONT_PUBLIC}/index.html"))),
         )
         .with_state(state)
-        .layer(AddExtensionLayer::new(SharedTokenIds::default()))
-        .layer(CatchPanicLayer::new());
+        .layer(AddExtensionLayer::new(SharedTokenInfo::default()))
+        .layer(CatchPanicLayer::new())
+        .layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind(SOCKET_ADDRESS).await.unwrap();
 

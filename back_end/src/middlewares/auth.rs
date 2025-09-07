@@ -5,111 +5,80 @@ use axum::{
     Extension,
 };
 use axum_extra::extract::cookie::CookieJar;
-use base64::{prelude::BASE64_STANDARD, Engine};
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use tracing::{info, instrument};
 
 use crate::{
-    api::AUTH_COOKIE,
-    crypto,
-    error::{AppError, InvalidAuthError},
-    user::fetch_and_cache_github_user,
+    auth::{get_auth_user, SharedTokenInfo, TokenHeaders, ACCESS_COOKIE},
+    error::AppError
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AuthUser {
     pub github_id: i32,
 }
 
-// TODO: help?? what was i going to use this for, i forgor 💀
-// edit: i think i've remembered now
+// Response is always wrapped in `Ok` as is required by the middleware functions below
+#[allow(clippy::unnecessary_wraps)]
+fn append_token_headers(resp: Response, headers: Option<TokenHeaders>) -> Result<Response, AppError> {
+    Ok(match headers {
+        Some(headers) => (headers, resp).into_response(),
+        None => resp,
+    })
+}
+
 pub async fn optional_auth_middleware(
-    token_ids: Extension<SharedTokenIds>,
+    token_info: Extension<SharedTokenInfo>,
     client: State<reqwest::Client>,
     jar: CookieJar,
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    let maybe_auth_user = get_auth_user(token_ids, client, &jar).await?;
+    let (maybe_auth_user, token_headers) = match get_auth_user(token_info, client, &jar).await? {
+        Some((user, headers)) => (Some(user), headers),
+        None => (None, None),
+    };
 
     req.extensions_mut().insert(maybe_auth_user);
 
-    Ok(next.run(req).await)
+    append_token_headers(next.run(req).await, token_headers)
 }
 
+#[instrument(skip(token_info, client, jar, next))]
 pub async fn auth_middleware(
-    token_ids: Extension<SharedTokenIds>,
+    token_info: Extension<SharedTokenInfo>,
     client: State<reqwest::Client>,
     jar: CookieJar,
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    let auth_user = get_auth_user(token_ids, client, &jar)
+    info!("auth middleware");
+    let (auth_user, token_headers) = get_auth_user(token_info, client, &jar)
         .await?
         .ok_or(AppError::Unauthorized)?;
 
     // TODO: does this actually do anything?
-    let _ = jar.remove(AUTH_COOKIE);
+    let _ = jar.remove(ACCESS_COOKIE);
 
     req.extensions_mut().insert(auth_user);
 
-    Ok(next.run(req).await)
+    append_token_headers(next.run(req).await, token_headers)
 }
 
 pub async fn redirect_auth_middleware(
-    token_ids: Extension<SharedTokenIds>,
+    token_info: Extension<SharedTokenInfo>,
     client: State<reqwest::Client>,
     jar: CookieJar,
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    // probably shouldn't return AppError on a public route (/editor)
-    if let Some(auth_user) = get_auth_user(token_ids, client, &jar).await? {
-        req.extensions_mut().insert(auth_user);
+    // TODO: probably shouldn't return AppError on a public route (/editor)
 
-        Ok(next.run(req).await)
-    } else {
-        Ok(Redirect::to("/").into_response())
+    match get_auth_user(token_info, client, &jar).await? {
+        Some((user, headers)) => {
+            req.extensions_mut().insert(user);
+
+            append_token_headers(next.run(req).await, headers)
+        }
+        None => Ok(Redirect::to("/").into_response())
     }
 }
-
-pub async fn get_auth_user(
-    Extension(token_ids): Extension<SharedTokenIds>,
-    State(client): State<reqwest::Client>,
-    jar: &CookieJar,
-) -> Result<Option<AuthUser>, AppError> {
-    let Some(cookie) = jar.get(AUTH_COOKIE) else {
-        return Ok(None);
-    };
-
-    let encrypted_token = cookie.value().to_string();
-    let token = decode_token(&encrypted_token)?;
-
-    let maybe_id = {
-        // needed to satisfy the compiler
-        let read_guard = token_ids.read().unwrap();
-        read_guard.get(&encrypted_token).copied()
-    };
-
-    let github_id = match maybe_id {
-        Some(id) => id,
-        None => {
-            fetch_and_cache_github_user(&token, &client, &encrypted_token, &token_ids)
-                .await?
-                .id
-        }
-    };
-
-    Ok(Some(AuthUser { github_id }))
-}
-
-fn decode_token(encrypted_token: &str) -> Result<String, InvalidAuthError> {
-    let decoded = BASE64_STANDARD.decode(encrypted_token)?;
-    let decrypted = crypto::decrypt(&decoded).map_err(InvalidAuthError::Encryption)?;
-
-    Ok(String::from_utf8(decrypted)?)
-}
-
-pub type SharedTokenIds = Arc<RwLock<HashMap<String, i32>>>;

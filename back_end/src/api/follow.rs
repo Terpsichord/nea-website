@@ -5,6 +5,7 @@ use axum::{
     Extension, Json, Router,
 };
 use sqlx::PgPool;
+use tracing::instrument;
 
 use crate::{
     error::AppError,
@@ -27,6 +28,7 @@ async fn get_follow_list() -> Result<Json<Vec<UserResponse>>, AppError> {
 }
 
 /// Checks if the authenticated user currently follows the given user
+#[instrument(skip(db))]
 async fn get_follow(
     Path(username): Path<String>,
     Extension(AuthUser { github_id }): Extension<AuthUser>,
@@ -51,6 +53,7 @@ async fn get_follow(
     Ok(Json(follows))
 }
 
+#[instrument(skip(db))]
 async fn post_follow(
     Path(username): Path<String>,
     Extension(AuthUser { github_id }): Extension<AuthUser>,
@@ -72,6 +75,7 @@ async fn post_follow(
     Ok(())
 }
 
+#[instrument(skip(db))]
 async fn post_unfollow(
     Path(username): Path<String>,
     Extension(AuthUser { github_id }): Extension<AuthUser>,
@@ -92,6 +96,7 @@ async fn post_unfollow(
     Ok(())
 }
 
+#[instrument(skip(db))]
 async fn get_followers(
     Extension(AuthUser { github_id }): Extension<AuthUser>,
     State(db): State<PgPool>,

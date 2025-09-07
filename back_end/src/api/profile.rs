@@ -6,6 +6,7 @@ use axum::{
 };
 use serde::Deserialize;
 use sqlx::PgPool;
+use tracing::{info, instrument};
 
 use crate::{
     api::user::ProjectInfo,
@@ -23,6 +24,7 @@ pub fn profile_router(state: AppState) -> Router<AppState> {
         .layer(middleware::from_fn_with_state(state, auth_middleware))
 }
 
+#[instrument(skip(db))]
 async fn get_profile(
     Extension(AuthUser { github_id }): Extension<AuthUser>,
     State(db): State<PgPool>,
@@ -43,6 +45,7 @@ struct UpdateBio {
     bio: String,
 }
 
+#[instrument(skip(db))]
 async fn update_bio(
     Extension(AuthUser { github_id }): Extension<AuthUser>,
     State(db): State<PgPool>,
@@ -59,10 +62,12 @@ async fn update_bio(
     Ok(())
 }
 
+#[instrument(skip(db))]
 async fn get_projects(
     Extension(AuthUser { github_id }): Extension<AuthUser>,
     State(db): State<PgPool>,
 ) -> Result<Json<Vec<ProjectInfo>>, AppError> {
+    info!("getting projects");
     let projects = sqlx::query_as!(
         ProjectInfo,
         r#"

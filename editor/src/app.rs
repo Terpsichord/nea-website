@@ -217,8 +217,10 @@ impl App {
                     .add_enabled(show_save, Button::new("Save file"))
                     .clicked()
                 {
-                    // this button should be greyed out if no buffer is selected, so we should be able to unwrap here
-                    self.save_file().unwrap();
+                    match self.save_file() {
+                        Err(SaveError::NoBufferSelected) => panic!("tried to save file when no buffer selected"), // TODO: probably change this to show an error message to the user like "Failed to save file"
+                        Ok(_) | Err(SaveError::NoFileSelected) => {}, // do nothing if the user doesn't selected a file to save to
+                    }
                 }
                 if ui
                     .add_enabled(show_save, Button::new("Save as..."))
