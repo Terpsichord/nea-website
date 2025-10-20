@@ -210,6 +210,7 @@ struct PostCommentBody {
     parent_id: Option<i32>,
 }
 
+// TODO: change this to be on a /comment/ endpoint like in your API diagram
 async fn post_comment(
     Path((username, repo_name)): Path<(String, String)>,
     State(db): State<PgPool>,
