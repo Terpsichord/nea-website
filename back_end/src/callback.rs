@@ -6,12 +6,8 @@ use tracing::{info, instrument};
 
 use crate::{
     auth::{
-        get_tokens_with_unencrypted, token_headers, SharedTokenInfo, TokenHeaders,
-        TokenRequestType,
-    },
-    error::AppError,
-    user::{add_user_from_github, fetch_and_cache_github_user},
-    AppState, 
+        SharedTokenInfo, TokenHeaders,
+    }, error::AppError, github::access_tokens::TokenRequestType, AppState 
 };
 
 #[derive(Deserialize)]
@@ -19,31 +15,26 @@ pub struct UserCode {
     code: String,
 }
 
-#[instrument(skip(state))]
+#[instrument(skip(client, db))]
+/// Callback that the user is redirected to after authenticating with Github
 pub async fn github_callback(
     Query(UserCode { code }): Query<UserCode>,
     Extension(token_info): Extension<SharedTokenInfo>,
-    State(state): State<AppState>,
+    State(AppState { client, db }): State<AppState>,
 ) -> Result<(TokenHeaders, Redirect), AppError> {
     info!("handling Github auth callback");
 
-    let (
-        [(access_token, _access_expiry_date), (refresh_token, refresh_expiry_date)],
-        access_token_unencrypted,
-    ) = get_tokens_with_unencrypted(&state.client, TokenRequestType::Callback { code }).await?;
+    let tokens = client.get_tokens(TokenRequestType::Callback { code }).await?;
 
     // TODO: cache each refresh token's `expires_in` to avoid making a request with an already expired refresh token
 
-    let user = fetch_and_cache_github_user(
-        &access_token_unencrypted,
-        &state.client,
-        &access_token,
-        &token_info,
-    )
-    .await?;
+    let user = client.get_user(&tokens.access_unencrypted).await?;
 
-    add_user_from_github(user, &state.db).await?;
+    db.add_user(&user).await?;
 
-    let headers = token_headers(&access_token, &refresh_token, refresh_expiry_date);
+    let headers = TokenHeaders::from(&tokens);
+
+    token_info.cache_user_token(&user, tokens.access_token, Some(tokens.access_expiry)).await;
+
     Ok((headers, Redirect::to("/")))
 }

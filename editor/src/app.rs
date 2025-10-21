@@ -6,7 +6,7 @@ use crate::{
 
 use core::f32;
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 
@@ -15,6 +15,7 @@ use egui::{
     containers::modal::Modal, Align, Button, CentralPanel, Id, Layout, ScrollArea, SidePanel,
     TopBottomPanel, ViewportCommand,
 };
+use egui_console::{ConsoleBuilder, ConsoleWindow};
 use egui_extras::syntax_highlighting;
 use eyre::{bail, OptionExt};
 use serde::{Deserialize, Serialize};
@@ -77,6 +78,12 @@ enum SaveModalState {
     Closed,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+enum BottomPanelState {
+    Output,
+    Console,
+}
+
 #[derive(Default, Serialize, Deserialize)]
 pub struct App {
     editor_settings: EditorSettings,
@@ -88,9 +95,12 @@ pub struct App {
     code_theme: syntax_highlighting::CodeTheme,
     /// [`Explorer`] side panel
     explorer: Option<Explorer>,
+    bottom_panel_state: Option<BottomPanelState>,
     /// Contents of the output panel
     /// This must be wrapped in an `Arc<Mutex<_>>` so that it can be shared to and modified across threads, including the `running_command` thread.
     output: Arc<Mutex<String>>,
+    #[serde(skip)]
+    console: Option<ConsoleWindow>,
     #[serde(skip)]
     error_message: Option<String>,
     /// Current state of the save modal, as described in [`SaveModalState`]
@@ -141,14 +151,19 @@ impl eframe::App for App {
             }
         }
 
-        let max_bottom_panel_height = 0.8;
-        TopBottomPanel::bottom("output_panel")
-            .resizable(true)
-            .max_height(max_bottom_panel_height * ctx.available_rect().height())
-            .show(ctx, |ui| {
-                let size = ui.available_size();
-                self.output(ui, size);
-            });
+        if let Some(ref bottom_panel_state) = self.bottom_panel_state {
+            let max_bottom_panel_height = 0.8;
+            TopBottomPanel::bottom("bottom_panel")
+                .resizable(true)
+                .max_height(max_bottom_panel_height * ctx.available_rect().height())
+                .show(ctx, |ui| {
+                    let size = ui.available_size();
+                    match bottom_panel_state {
+                        BottomPanelState::Output => self.output(ui, size),
+                        BottomPanelState::Console => self.console(ui, size),
+                    }
+                });
+        }
 
         let buffers_response = CentralPanel::default()
             .show(ctx, |ui| {
@@ -218,8 +233,10 @@ impl App {
                     .clicked()
                 {
                     match self.save_file() {
-                        Err(SaveError::NoBufferSelected) => panic!("tried to save file when no buffer selected"), // TODO: probably change this to show an error message to the user like "Failed to save file"
-                        Ok(_) | Err(SaveError::NoFileSelected) => {}, // do nothing if the user doesn't selected a file to save to
+                        Err(SaveError::NoBufferSelected) => {
+                            panic!("tried to save file when no buffer selected")
+                        } // TODO: probably change this to show an error message to the user like "Failed to save file"
+                        Ok(_) | Err(SaveError::NoFileSelected) => {} // do nothing if the user doesn't selected a file to save to
                     }
                 }
                 if ui
@@ -248,7 +265,14 @@ impl App {
                 ui.separator();
                 if ui.button("Settings").clicked() {}
             });
-            ui.menu_button("View", |_ui| {});
+            ui.menu_button("View", |ui| {
+                if ui.add_enabled(self.explorer.is_some(), Button::new("Show output")).clicked() {
+                    self.bottom_panel_state = Some(BottomPanelState::Output)
+                }
+                if ui.add_enabled(self.explorer.is_some(), Button::new("Show console")).clicked() {
+                    self.bottom_panel_state = Some(BottomPanelState::Console)
+                }
+            });
             ui.menu_button("Run", |ui| {
                 if ui.button("Run").clicked() {
                     if let Err(e) = self.run() {
@@ -282,6 +306,12 @@ impl App {
                 .code_editor(),
             );
         });
+    }
+
+    fn console(&self, ui: &mut egui::Ui, size: egui::Vec2) {
+        if let Some(console) = self.console {
+            console.draw(ui);
+        }
     }
 
     /// Saves the current contents of the code buffer to a file.
@@ -407,6 +437,10 @@ impl App {
     fn open_project(&mut self, path: PathBuf) {
         use crate::platform::{Project, ProjectSettings};
 
+        if !path.is_dir() {
+            panic!("path must be a dir");
+        }
+
         let settings = match ProjectSettings::read_from(&path) {
             Ok(settings) => settings,
             Err(err) => {
@@ -416,6 +450,12 @@ impl App {
         };
 
         self.project = Some(Project::new(path.clone(), settings));
+
+        self.console = Some(
+            ConsoleBuilder::new()
+                .prompt(&format!("{}$", path.display()))
+                .build(),
+        );
 
         match Explorer::new(path) {
             Ok(explorer) => {
@@ -491,6 +531,8 @@ impl App {
     // TODO: error/test cases in the NEA write-up should include all of the `ok_or_eyre` and `bail!` errors in this function
     fn run(&mut self) -> eyre::Result<()> {
         self.runner.stop();
+
+        self.bottom_panel_state = Some(BottomPanelState::Output);
 
         // TODO: don't show missing/invalid run command errors as modals that take up the whole screen
 

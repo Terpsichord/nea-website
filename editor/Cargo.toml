@@ -6,11 +6,11 @@ edition = "2021"
 [dependencies]
 color-eyre = { version = "0.6.3", default-features = false }
 crossbeam-channel = "0.5.14"
+# TODO: update to 0.32.2, update pop-up modal code
 eframe = { version = "0.31.1", features = ["serde"] }
 egui = { version = "0.31.1", features = ["persistence"] }
-# you will probably either need this for the terminal, or need to base a reference off of it
-# (probably no reason to write your own, just use this)
-# egui_console = ...
+# egui_console = "0.2.0"
+# egui_console = { version = "0.3.0", path = "../../egui_console" }
 egui_extras = { version = "0.31.1", default-features = false, features = ["serde", "syntect"] }
 eyre = "0.6.12"
 itertools = "0.14.0"

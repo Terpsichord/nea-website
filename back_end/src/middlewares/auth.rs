@@ -9,7 +9,7 @@ use tracing::{info, instrument};
 
 use crate::{
     auth::{get_auth_user, SharedTokenInfo, TokenHeaders, ACCESS_COOKIE},
-    error::AppError
+    error::AppError, github::GithubClient
 };
 
 #[derive(Clone, Debug)]
@@ -28,7 +28,7 @@ fn append_token_headers(resp: Response, headers: Option<TokenHeaders>) -> Result
 
 pub async fn optional_auth_middleware(
     token_info: Extension<SharedTokenInfo>,
-    client: State<reqwest::Client>,
+    client: State<GithubClient>,
     jar: CookieJar,
     mut req: Request,
     next: Next,
@@ -46,7 +46,7 @@ pub async fn optional_auth_middleware(
 #[instrument(skip(token_info, client, jar, next))]
 pub async fn auth_middleware(
     token_info: Extension<SharedTokenInfo>,
-    client: State<reqwest::Client>,
+    client: State<GithubClient>,
     jar: CookieJar,
     mut req: Request,
     next: Next,
@@ -66,7 +66,7 @@ pub async fn auth_middleware(
 
 pub async fn redirect_auth_middleware(
     token_info: Extension<SharedTokenInfo>,
-    client: State<reqwest::Client>,
+    client: State<GithubClient>,
     jar: CookieJar,
     mut req: Request,
     next: Next,

@@ -4,7 +4,10 @@ use axum::{
     Json, Router,
 };
 use axum_extra::extract::CookieJar;
+use chrono::NaiveDate;
+use serde::Serialize;
 use serde_json::{json, Value};
+use sqlx::prelude::FromRow;
 
 use crate::AppState;
 use crate::auth::ACCESS_COOKIE;
@@ -33,4 +36,13 @@ async fn sign_out() -> [(HeaderName, String); 1] {
         header::SET_COOKIE,
         format!("{ACCESS_COOKIE}=; Max-Age=0; Path=/"),
     )]
+}
+
+#[derive(Serialize, FromRow, sqlx::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UserResponse {
+    pub username: String,
+    pub picture_url: String,
+    pub bio: String,
+    pub join_date: NaiveDate,
 }

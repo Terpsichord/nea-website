@@ -4,10 +4,10 @@ use axum::{
     Json, Router,
 };
 use serde::Serialize;
-use sqlx::{FromRow, PgPool};
+use sqlx::FromRow;
 use tracing::instrument;
 
-use crate::{error::AppError, user::UserResponse, AppState};
+use crate::{api::UserResponse, db::DatabaseConnector, error::AppError, AppState};
 
 pub fn user_router() -> Router<AppState> {
     Router::new()
@@ -18,14 +18,14 @@ pub fn user_router() -> Router<AppState> {
 #[instrument(skip(db))]
 async fn get_user(
     Path(username): Path<String>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
 ) -> Result<Json<UserResponse>, AppError> {
     let user = sqlx::query_as!(
         UserResponse,
         "SELECT username, picture_url, bio, join_date FROM users WHERE username = $1",
         username
     )
-    .fetch_one(&db)
+    .fetch_one(&*db)
     .await?;
 
     Ok(Json(user))
@@ -46,7 +46,7 @@ pub struct ProjectInfo {
 #[instrument(skip(db))]
 async fn get_user_projects(
     Path(username): Path<String>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
 ) -> Result<Json<Vec<ProjectInfo>>, AppError> {
     let projects = sqlx::query_as!(
         ProjectInfo,
@@ -66,7 +66,7 @@ async fn get_user_projects(
         "#,
         username
     )
-    .fetch_all(&db)
+    .fetch_all(&*db)
     .await?;
 
     Ok(Json(projects))

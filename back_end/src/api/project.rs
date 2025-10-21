@@ -9,19 +9,18 @@ use axum::{
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sqlx::{FromRow, PgPool};
+use sqlx::FromRow;
 use tracing::instrument;
 
 use crate::{
-    error::AppError,
-    middlewares::auth::{auth_middleware, optional_auth_middleware, AuthUser},
-    AppState,
+    db::DatabaseConnector, error::AppError, middlewares::auth::{auth_middleware, optional_auth_middleware, AuthUser}, AppState
 };
 
 use super::user::ProjectInfo;
 
 pub fn project_router(state: AppState) -> Router<AppState> {
-    let auth = Router::new().route("/project/open/{project_id}", get(open_project));
+    let auth = Router::new()
+        .route("/project/open/{project_id}", get(open_project));
 
     Router::new()
         .route("/projects", get(get_project_list))
@@ -71,12 +70,12 @@ struct ProjectResponse {
 async fn get_project(
     Path((username, repo_name)): Path<(String, String)>,
     Extension(auth_user): Extension<Option<AuthUser>>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
 ) -> Result<Json<ProjectResponse>, AppError> {
     let authorized = match auth_user {
         Some(AuthUser { github_id }) => {
             sqlx::query_scalar!("SELECT username FROM users WHERE github_id = $1", github_id)
-                .fetch_one(&db)
+                .fetch_one(&*db)
                 .await?
                 == username
         }
@@ -100,7 +99,7 @@ async fn get_project(
         username,
         repo_name,
         authorized
-    ).fetch_one(&db).await?;
+    ).fetch_one(&*db).await?;
     // TODO: (i think), make this fetch 0 or 1 and show error if 0
 
     Ok(Json(project))
@@ -108,7 +107,7 @@ async fn get_project(
 
 #[instrument(skip(db))]
 async fn get_project_list(
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
 ) -> Result<Json<Vec<ProjectResponse>>, AppError> {
     let projects = sqlx::query_as!(ProjectResponse, r#"
         SELECT
@@ -120,7 +119,7 @@ async fn get_project_list(
         INNER JOIN project_info pi ON pi.id = p.id
         WHERE p.public
         ORDER BY upload_time DESC
-    "#).fetch_all(&db).await?;
+    "#).fetch_all(&*db).await?;
 
     Ok(Json(projects))
 }
@@ -128,7 +127,7 @@ async fn get_project_list(
 #[instrument(skip(db))]
 async fn get_liked(
     Path((username, repo_name)): Path<(String, String)>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
     Extension(AuthUser { github_id }): Extension<AuthUser>,
 ) -> Result<Json<bool>, AppError> {
     let liked = sqlx::query_scalar!(
@@ -147,7 +146,7 @@ async fn get_liked(
         username,
         repo_name
     )
-    .fetch_one(&db)
+    .fetch_one(&*db)
     .await?;
 
     Ok(Json(liked))
@@ -155,7 +154,7 @@ async fn get_liked(
 
 async fn like(
     Path((username, repo_name)): Path<(String, String)>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
     Extension(AuthUser { github_id }): Extension<AuthUser>,
 ) -> Result<(), AppError> {
     sqlx::query!(
@@ -175,7 +174,7 @@ async fn like(
         username,
         repo_name
     )
-    .execute(&db)
+    .execute(&*db)
     .await?;
 
     Ok(())
@@ -184,7 +183,7 @@ async fn like(
 #[instrument(skip(db))]
 async fn unlike(
     Path((username, repo_name)): Path<(String, String)>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
     Extension(AuthUser { github_id }): Extension<AuthUser>,
 ) -> Result<(), AppError> {
     sqlx::query!(
@@ -204,7 +203,7 @@ async fn unlike(
         username,
         repo_name
     )
-    .execute(&db)
+    .execute(&*db)
     .await?;
 
     Ok(())
@@ -219,7 +218,7 @@ struct PostCommentBody {
 #[instrument(skip(db))]
 async fn post_comment(
     Path((username, repo_name)): Path<(String, String)>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
     Extension(AuthUser { github_id }): Extension<AuthUser>,
     Json(PostCommentBody { contents, parent_id }): Json<PostCommentBody>,
 ) -> Result<(), AppError> {
@@ -244,7 +243,7 @@ async fn post_comment(
         repo_name,
         parent_id
     )
-    .execute(&db)
+    .execute(&*db)
     .await?;
 
     Ok(())
@@ -274,7 +273,7 @@ struct Comment {
 #[instrument(skip(db))]
 async fn get_comments(
     Path((username, repo_name)): Path<(String, String)>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
 ) -> Result<Json<Vec<Comment>>, AppError> {
     let mut comments = sqlx::query_as!(
         Comment,
@@ -300,7 +299,7 @@ async fn get_comments(
         username,
         repo_name,
     )
-    .fetch_all(&db)
+    .fetch_all(&*db)
     .await?;
 
     // let mut comment_map = HashMap::new();
@@ -359,7 +358,7 @@ fn get_comment_replies(id: i32, comments: &mut [Comment]) -> Vec<Comment> {
 #[instrument(skip(db))]
 async fn open_project(
     Path(project_id): Path<String>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
     Extension(AuthUser { github_id }): Extension<AuthUser>,
 ) -> Result<Json<Value>, AppError> {
     let github_url = sqlx::query_scalar!(
@@ -376,7 +375,7 @@ async fn open_project(
         project_id,
         github_id,
     )
-    .fetch_one(&db)
+    .fetch_one(&*db)
     .await?;
 
     // FIXME: this is just to test interop between editor and backend

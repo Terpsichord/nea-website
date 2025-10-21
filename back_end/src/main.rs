@@ -1,16 +1,16 @@
 #![deny(clippy::all)]
+#![deny(unused_must_use)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
 
-use std::{iter, sync::LazyLock};
+use std::sync::LazyLock;
 
 use anyhow::Context;
 use api::api_router;
 use auth::SharedTokenInfo;
-use axum::{extract::FromRef, http::HeaderValue, middleware, routing::get, Router};
+use axum::{extract::FromRef, middleware, routing::get, Router};
 use base64::{prelude::BASE64_STANDARD, Engine};
 use middlewares::auth::redirect_auth_middleware;
-use reqwest::header::USER_AGENT;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::{
     add_extension::AddExtensionLayer,
@@ -19,14 +19,16 @@ use tower_http::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::{db::DatabaseConnector, github::GithubClient};
+
 mod api;
 mod auth;
 mod callback;
 mod crypto;
 mod db;
 mod error;
+mod github;
 mod middlewares;
-mod user;
 
 const FRONT_PUBLIC: &str = "./front_end/dist";
 const CLIENT_USER_AGENT: &str = "nea-website";
@@ -62,20 +64,15 @@ impl Config {
 
 #[derive(Clone, FromRef)]
 struct AppState {
-    pub client: reqwest::Client,
-    pub db: PgPool,
+    pub client: GithubClient,
+    pub db: DatabaseConnector,
 }
 
 impl AppState {
     fn with_db(pool: PgPool) -> Self {
         Self {
-            client: reqwest::Client::builder()
-                .default_headers(
-                    iter::once((USER_AGENT, HeaderValue::from_static(CLIENT_USER_AGENT))).collect(),
-                )
-                .build()
-                .unwrap(),
-            db: pool,
+            client: GithubClient::default(),
+            db: DatabaseConnector::new(pool),
         }
     }
 }
