@@ -1,30 +1,34 @@
 #![deny(clippy::all)]
+#![deny(unused_must_use)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
 
-use std::{iter, sync::LazyLock};
+use std::sync::LazyLock;
 
 use anyhow::Context;
 use api::api_router;
-use axum::{extract::FromRef, http::HeaderValue, middleware, routing::get, Router};
+use auth::SharedTokenInfo;
+use axum::{extract::FromRef, middleware, routing::get, Router};
 use base64::{prelude::BASE64_STANDARD, Engine};
-use middlewares::auth::{redirect_auth_middleware, SharedTokenIds};
-use reqwest::header::USER_AGENT;
+use middlewares::auth::redirect_auth_middleware;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::{
     add_extension::AddExtensionLayer,
     catch_panic::CatchPanicLayer,
-    services::{ServeDir, ServeFile},
+    services::{ServeDir, ServeFile}, trace::TraceLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::{db::DatabaseConnector, github::GithubClient};
+
 mod api;
+mod auth;
 mod callback;
 mod crypto;
 mod db;
 mod error;
+mod github;
 mod middlewares;
-mod user;
 
 const FRONT_PUBLIC: &str = "./front_end/dist";
 const CLIENT_USER_AGENT: &str = "nea-website";
@@ -60,32 +64,25 @@ impl Config {
 
 #[derive(Clone, FromRef)]
 struct AppState {
-    pub client: reqwest::Client,
-    pub db: PgPool,
+    pub client: GithubClient,
+    pub db: DatabaseConnector,
 }
 
 impl AppState {
     fn with_db(pool: PgPool) -> Self {
         Self {
-            client: reqwest::Client::builder()
-                .default_headers(
-                    iter::once((USER_AGENT, HeaderValue::from_static(CLIENT_USER_AGENT))).collect(),
-                )
-                .build()
-                .unwrap(),
-            db: pool,
+            client: GithubClient::default(),
+            db: DatabaseConnector::new(pool),
         }
     }
 }
 
 #[tokio::main]
 async fn main() {
-    // start tracing - level set by either RUST_LOG env variable or defaults to debug
-    // TODO: check i've configured this the way i want it
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "nea_website=debug".into()),
-        ))
+        .with(tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| "nea_website=debug,tower_http=warn".into()),
+        )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
@@ -116,8 +113,9 @@ async fn main() {
                 .fallback(ServeFile::new(format!("{FRONT_PUBLIC}/index.html"))),
         )
         .with_state(state)
-        .layer(AddExtensionLayer::new(SharedTokenIds::default()))
-        .layer(CatchPanicLayer::new());
+        .layer(AddExtensionLayer::new(SharedTokenInfo::default()))
+        .layer(CatchPanicLayer::new())
+        .layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind(SOCKET_ADDRESS).await.unwrap();
 

@@ -4,13 +4,10 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
-use sqlx::PgPool;
+use tracing::instrument;
 
 use crate::{
-    error::AppError,
-    middlewares::auth::{auth_middleware, AuthUser},
-    user::UserResponse,
-    AppState,
+    api::UserResponse, db::DatabaseConnector, error::AppError, middlewares::auth::{auth_middleware, AuthUser}, AppState
 };
 
 pub fn follow_router(state: AppState) -> Router<AppState> {
@@ -27,10 +24,11 @@ async fn get_follow_list() -> Result<Json<Vec<UserResponse>>, AppError> {
 }
 
 /// Checks if the authenticated user currently follows the given user
+#[instrument(skip(db))]
 async fn get_follow(
     Path(username): Path<String>,
     Extension(AuthUser { github_id }): Extension<AuthUser>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
 ) -> Result<Json<bool>, AppError> {
     let follows = sqlx::query_scalar!(
         r#" 
@@ -45,16 +43,17 @@ async fn get_follow(
         github_id,
         username
     )
-    .fetch_one(&db)
+    .fetch_one(&*db)
     .await?;
 
     Ok(Json(follows))
 }
 
+#[instrument(skip(db))]
 async fn post_follow(
     Path(username): Path<String>,
     Extension(AuthUser { github_id }): Extension<AuthUser>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
 ) -> Result<(), AppError> {
     sqlx::query!(
         r#"
@@ -66,16 +65,17 @@ async fn post_follow(
         github_id,
         username
     )
-    .execute(&db)
+    .execute(&*db)
     .await?;
 
     Ok(())
 }
 
+#[instrument(skip(db))]
 async fn post_unfollow(
     Path(username): Path<String>,
     Extension(AuthUser { github_id }): Extension<AuthUser>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
 ) -> Result<(), AppError> {
     sqlx::query!(
         r#"
@@ -86,15 +86,16 @@ async fn post_unfollow(
         github_id,
         username
     )
-    .execute(&db)
+    .execute(&*db)
     .await?;
 
     Ok(())
 }
 
+#[instrument(skip(db))]
 async fn get_followers(
     Extension(AuthUser { github_id }): Extension<AuthUser>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
 ) -> Result<Json<Vec<UserResponse>>, AppError> {
     let followers = sqlx::query_as!(
         UserResponse,
@@ -107,7 +108,7 @@ async fn get_followers(
     "#,
         github_id
     )
-    .fetch_all(&db)
+    .fetch_all(&*db)
     .await?;
 
     Ok(Json(followers))

@@ -5,14 +5,10 @@ use axum::{
     Extension, Json, Router,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
+use tracing::{info, instrument};
 
 use crate::{
-    api::user::ProjectInfo,
-    error::AppError,
-    middlewares::auth::{auth_middleware, AuthUser},
-    user::UserResponse,
-    AppState,
+    api::{user::ProjectInfo, UserResponse}, db::DatabaseConnector, error::AppError, middlewares::auth::{auth_middleware, AuthUser}, AppState
 };
 
 pub fn profile_router(state: AppState) -> Router<AppState> {
@@ -23,16 +19,17 @@ pub fn profile_router(state: AppState) -> Router<AppState> {
         .layer(middleware::from_fn_with_state(state, auth_middleware))
 }
 
+#[instrument(skip(db))]
 async fn get_profile(
     Extension(AuthUser { github_id }): Extension<AuthUser>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
 ) -> Result<Json<UserResponse>, AppError> {
     let user = sqlx::query_as!(
         UserResponse,
         "SELECT username, picture_url, bio, join_date FROM users WHERE github_id = $1",
         github_id
     )
-    .fetch_one(&db)
+    .fetch_one(&*db)
     .await?;
 
     Ok(Json(user))
@@ -43,9 +40,10 @@ struct UpdateBio {
     bio: String,
 }
 
+#[instrument(skip(db))]
 async fn update_bio(
     Extension(AuthUser { github_id }): Extension<AuthUser>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
     Json(UpdateBio { bio }): Json<UpdateBio>,
 ) -> Result<(), AppError> {
     sqlx::query!(
@@ -53,16 +51,18 @@ async fn update_bio(
         bio,
         github_id
     )
-    .execute(&db)
+    .execute(&*db)
     .await?;
 
     Ok(())
 }
 
+#[instrument(skip(db))]
 async fn get_projects(
     Extension(AuthUser { github_id }): Extension<AuthUser>,
-    State(db): State<PgPool>,
+    State(db): State<DatabaseConnector>,
 ) -> Result<Json<Vec<ProjectInfo>>, AppError> {
+    info!("getting projects");
     let projects = sqlx::query_as!(
         ProjectInfo,
         r#"
@@ -80,7 +80,7 @@ async fn get_projects(
         "#,
         github_id
     )
-    .fetch_all(&db)
+    .fetch_all(&*db)
     .await?;
 
     Ok(Json(projects))

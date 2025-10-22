@@ -163,6 +163,13 @@ impl Explorer {
         })
     }
 
+    pub fn root_path(&self) -> &Path {
+        match &self.root_node {
+            TreeNode::UnexploredDir { path } | TreeNode::ExploredDir { path, .. } => path,
+            TreeNode::File { .. } => panic!("explorer root node isn't a directory")
+        }
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui) -> eyre::Result<ExplorerResponse> {
         ScrollArea::vertical()
             .show(ui, |ui| {

@@ -2,6 +2,7 @@ use aes_gcm::{
     aead::{generic_array::GenericArray, Aead, AeadMutInPlace, OsRng},
     AeadCore, Aes256Gcm, Key, KeyInit,
 };
+use base64::{prelude::BASE64_STANDARD, Engine};
 
 use crate::CONFIG;
 
@@ -30,6 +31,10 @@ pub fn encrypt(value: &[u8]) -> Vec<u8> {
     tag.copy_from_slice(&cipher_tag);
 
     out
+}
+
+pub fn encrypt_base64(value: &[u8]) -> String {
+    BASE64_STANDARD.encode(encrypt(value))
 }
 
 // TODO: replace split_at with split_at_checked

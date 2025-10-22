@@ -17,9 +17,14 @@ self.addEventListener('install', (e) => {
 
 /* Serve cached content when offline */
 self.addEventListener('fetch', (e) => {
-  e.respondWith(
-    fetch(e.request).catch((_error) => {
+  let response = fetch(e.request);
+
+  // only use cached files if running as a standalone installed app
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    response = response.catch((_error) => {
       return caches.match(e.request)
     })
-  );
+  }
+
+  e.respondWith(response);
 });

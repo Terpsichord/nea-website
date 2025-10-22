@@ -1,20 +1,13 @@
-use anyhow::Context;
 use axum::{
-    extract::{Query, State},
-    http::{header, HeaderName},
-    response::Redirect,
-    Extension,
+    extract::{Query, State}, response::Redirect, Extension
 };
-use base64::{prelude::BASE64_STANDARD, Engine};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use tracing::{info, instrument};
 
 use crate::{
-    api::AUTH_COOKIE,
-    crypto,
-    error::AppError,
-    middlewares::auth::SharedTokenIds,
-    user::{add_user_from_github, fetch_and_cache_github_user},
-    AppState, Config, CONFIG,
+    auth::{
+        SharedTokenInfo, TokenHeaders,
+    }, error::AppError, github::access_tokens::TokenRequestType, AppState 
 };
 
 #[derive(Deserialize)]
@@ -22,72 +15,26 @@ pub struct UserCode {
     code: String,
 }
 
-#[derive(Serialize)]
-struct GithubSecrets {
-    client_id: &'static str,
-    client_secret: &'static str,
-}
-
-impl GithubSecrets {
-    fn from_config(config: &'static Config) -> Self {
-        Self {
-            client_id: &config.github_client_id,
-            client_secret: &config.github_client_secret,
-        }
-    }
-}
-
-#[derive(Serialize)]
-struct AccessTokenRequest {
-    #[serde(flatten)]
-    secrets: GithubSecrets,
-    code: String,
-}
-
-#[derive(Deserialize)]
-struct AccessTokenResponse {
-    access_token: String,
-    expires_in: u64,
-    refresh_token: String,
-    refresh_token_expires_in: u64,
-    token_type: String,
-}
-
+#[instrument(skip(client, db))]
+/// Callback that the user is redirected to after authenticating with Github
 pub async fn github_callback(
     Query(UserCode { code }): Query<UserCode>,
-    Extension(token_ids): Extension<SharedTokenIds>,
-    State(state): State<AppState>,
-) -> Result<([(HeaderName, String); 1], Redirect), AppError> {
-    let params = AccessTokenRequest {
-        code,
-        secrets: GithubSecrets::from_config(&CONFIG),
-    };
+    Extension(token_info): Extension<SharedTokenInfo>,
+    State(AppState { client, db }): State<AppState>,
+) -> Result<(TokenHeaders, Redirect), AppError> {
+    info!("handling Github auth callback");
 
-    let text = state
-        .client
-        .post("https://github.com/login/oauth/access_token")
-        .form(&params)
-        .send()
-        .await
-        .map_err(AppError::auth_failed)?
-        .text()
-        .await
-        .map_err(AppError::auth_failed)?;
+    let tokens = client.get_tokens(TokenRequestType::Callback { code }).await?;
 
-    let AccessTokenResponse { access_token, .. } =
-        serde_urlencoded::from_str::<AccessTokenResponse>(&text)
-            .with_context(|| format!("failed to decode AccessTokenRequest from: {text}"))
-            .map_err(AppError::auth_failed)?;
-    let encrypted_token = BASE64_STANDARD.encode(crypto::encrypt(access_token.as_bytes()));
+    // TODO: cache each refresh token's `expires_in` to avoid making a request with an already expired refresh token
 
-    let user =
-        fetch_and_cache_github_user(&access_token, &state.client, &encrypted_token, &token_ids)
-            .await?;
-    add_user_from_github(user, &state.db).await?;
+    let user = client.get_user(&tokens.access_unencrypted).await?;
 
-    let headers = [(
-        header::SET_COOKIE,
-        format!("{AUTH_COOKIE}={encrypted_token}; Secure; HttpOnly; SameSite=Strict; Path=/"),
-    )];
+    db.add_user(&user).await?;
+
+    let headers = TokenHeaders::from(&tokens);
+
+    token_info.cache_user_token(&user, tokens.access_token, Some(tokens.access_expiry)).await;
+
     Ok((headers, Redirect::to("/")))
 }
