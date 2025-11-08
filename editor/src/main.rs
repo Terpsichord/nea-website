@@ -31,11 +31,21 @@ fn main() {
     wasm_bindgen_futures::spawn_local(async {
         let window = web_sys::window().expect("no window");
 
-        let query_string = window.location().search().expect("no query string");
-        let params =
-            web_sys::UrlSearchParams::new_with_str(&query_string).expect("invalid query string");
+        let path = window
+            .location()
+            .pathname()
+            .expect("no path");
+        let path_end = path
+            .strip_prefix("/editor/")
+            .expect("invalid path");
+        let mut path_parts = path_end.split("/");
 
-        let project_id = params.get("project_id").expect("missing project id");
+        let user = path_parts.next().expect("invalid path").to_string();
+        let repo = path_parts.next().expect("invalid path").to_string();
+
+        if path_parts.next().is_some() {
+            panic!("invalid path");
+        }
 
         let document = window.document().expect("no document");
         let canvas = document
@@ -48,7 +58,7 @@ fn main() {
             .start(
                 canvas,
                 options,
-                Box::new(move |_| Ok(Box::new(app::App::new(project_id)))),
+                Box::new(move |_| Ok(Box::new(app::App::new(user, repo)))),
             )
             .await;
 

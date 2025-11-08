@@ -5,16 +5,18 @@ use axum::{
     Extension,
 };
 use axum_extra::extract::cookie::CookieJar;
-use tracing::{info, instrument};
+use tracing::instrument;
 
 use crate::{
-    auth::{get_auth_user, SharedTokenInfo, TokenHeaders, ACCESS_COOKIE},
+    auth::{ACCESS_COOKIE, SharedTokenInfo, TokenHeaders, WithTokenHeaders, get_auth_user},
     error::AppError, github::GithubClient
 };
 
 #[derive(Clone, Debug)]
 pub struct AuthUser {
     pub github_id: i32,
+    pub access_token: String,
+    pub refresh_token: String,
 }
 
 // Response is always wrapped in `Ok` as is required by the middleware functions below
@@ -33,9 +35,9 @@ pub async fn optional_auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    let (maybe_auth_user, token_headers) = match get_auth_user(token_info, client, &jar).await? {
-        Some((user, headers)) => (Some(user), headers),
-        None => (None, None),
+    let WithTokenHeaders(maybe_auth_user, token_headers) = match get_auth_user(token_info, client, &jar).await? {
+        Some(user) => user.map(Some),
+        None => Default::default(),
     };
 
     req.extensions_mut().insert(maybe_auth_user);
@@ -43,7 +45,7 @@ pub async fn optional_auth_middleware(
     append_token_headers(next.run(req).await, token_headers)
 }
 
-#[instrument(skip(token_info, client, jar, next))]
+#[instrument(skip_all)]
 pub async fn auth_middleware(
     token_info: Extension<SharedTokenInfo>,
     client: State<GithubClient>,
@@ -51,8 +53,7 @@ pub async fn auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    info!("auth middleware");
-    let (auth_user, token_headers) = get_auth_user(token_info, client, &jar)
+    let WithTokenHeaders(auth_user, token_headers) = get_auth_user(token_info, client, &jar)
         .await?
         .ok_or(AppError::Unauthorized)?;
 
@@ -74,7 +75,7 @@ pub async fn redirect_auth_middleware(
     // TODO: probably shouldn't return AppError on a public route (/editor)
 
     match get_auth_user(token_info, client, &jar).await? {
-        Some((user, headers)) => {
+        Some(WithTokenHeaders(user, headers)) => {
             req.extensions_mut().insert(user);
 
             append_token_headers(next.run(req).await, headers)

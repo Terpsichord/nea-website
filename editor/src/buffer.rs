@@ -1,15 +1,18 @@
-use std::{fmt::Debug, io, path::PathBuf};
+use std::{fmt::Debug, io, ops::Deref, path::{Path, PathBuf}};
 
-use crate::app::{EditorSettings, ModalAction};
+use crate::{
+    app::{EditorSettings, ModalAction},
+    platform::{FileSystem, FileSystemTrait as _},
+};
 use color_eyre::Section;
 use egui::{Response, RichText, ScrollArea, TextEdit, Ui};
 use egui_extras::syntax_highlighting::{self, CodeTheme};
-use eyre::{eyre, Context};
+use eyre::{Context, eyre};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct FileData {
     pub path: PathBuf,
     pub contents: String,
@@ -47,14 +50,15 @@ impl Buffers {
         settings: &EditorSettings,
         ui: &mut Ui,
         code_theme: &CodeTheme,
+        fs: &FileSystem,
     ) -> BuffersOutput {
-        let (to_delete, renamed) = self.show_tabs(ui);
+        let (delete_id, renamed) = self.show_tabs(ui);
 
         if renamed {
             // can unwrap as `renamed` is only set to true if `rename` is Some
             let rename = self.rename.take().unwrap();
             self.get_mut_by_id(rename.buffer_id)
-                .and_then(|b| b.rename(&rename.name).ok())
+                .and_then(|b| b.rename(&rename.name, fs).ok())
                 .expect("failed to rename buffer");
         }
 
@@ -67,7 +71,7 @@ impl Buffers {
                 let mut failed_to_save = vec![];
                 for buf in self.buffers.iter_mut() {
                     // Ignore `BufferError::NoAssociatedFile` as we ignore buffers that don't have files in auto save
-                    if let Err(BufferError::IoError(err)) = buf.save() {
+                    if let Err(BufferError::IoError(err)) = buf.save(fs) {
                         failed_to_save.push((err, &*buf));
                     }
                 }
@@ -79,27 +83,18 @@ impl Buffers {
             ui.label("No file open...");
         }
 
-        let save_modal_action = to_delete.and_then(|to_delete| {
+        let mut save_modal_action = None;
+        
+        // If there is a buffer to delete
+        if let Some(id) = delete_id && let Some(buffer) = self.get_by_id(id) {
             // If buffer is dirty, then firstly show an "unsaved changes" modal, and then continue with deletion
             // Otherwise, just delete the buffer
-            let save_modal_action = if let Some(deleted_buffer) = self.get_by_id(to_delete) {
-                if deleted_buffer.is_dirty() {
-                    Some(ModalAction::DeleteBuffer(deleted_buffer.id))
-                } else {
-                    self.delete_buffer(deleted_buffer.id);
-                    None
-                }
+            if buffer.is_dirty() {
+                save_modal_action = Some(ModalAction::DeleteBuffer(id));
             } else {
-                None
-            };
-
-            // If selected tab is closed, select last tab (if any are open)
-            if self.selected_id.is_some_and(|id| id == to_delete) {
-                self.selected_id = self.buffers.last().map(|buf| buf.id);
+                self.delete_buffer(id);
             }
-
-            save_modal_action
-        });
+        }
 
         BuffersOutput {
             save_modal_action,
@@ -200,6 +195,10 @@ impl Buffers {
 
     pub fn delete_buffer(&mut self, id: Uuid) {
         self.buffers.retain(|buffer| id != buffer.id);
+
+        if self.selected_id.is_some_and(|selected| selected == id) {
+            self.selected_id = self.buffers.last().map(|buf| buf.id);
+        }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Buffer> {
@@ -222,10 +221,10 @@ impl Buffers {
         self.selected_id.and_then(|id| self.get_mut_by_id(id))
     }
 
-    pub fn get_by_path(&self, path: &PathBuf) -> Option<&Buffer> {
+    pub fn get_by_path(&self, path: &Path) -> Option<&Buffer> {
         self.buffers
             .iter()
-            .find(|buf| buf.file_data.as_ref().map(|f| &f.path) == Some(path))
+            .find(|buf| buf.file_data.as_ref().map(|f| &*f.path.deref()) == Some(path))
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -237,7 +236,9 @@ impl Buffers {
 pub struct Buffer {
     id: Uuid,
     contents: String,
-    pub file_data: Option<FileData>,
+    #[serde(skip)]
+    // FIXME: this is only currently serde(skip) because i can't serialize pathbuf on wasm
+    file_data: Option<FileData>,
 }
 
 impl Buffer {
@@ -249,8 +250,8 @@ impl Buffer {
         }
     }
 
-    pub fn from_path(path: PathBuf) -> eyre::Result<Self> {
-        let contents = std::fs::read_to_string(&path).wrap_err("Failed to read file")?;
+    pub fn from_path(path: PathBuf, fs: &FileSystem) -> eyre::Result<Self> {
+        let contents = fs.read_file(&path).wrap_err("Failed to read file")?;
 
         Ok(Self {
             id: Uuid::new_v4(),
@@ -315,19 +316,19 @@ impl Buffer {
     }
 
     // returns an error if the buffer has no associated file
-    pub fn save(&mut self) -> Result<(), BufferError> {
+    pub fn save(&mut self, fs: &FileSystem) -> Result<(), BufferError> {
         let file = self
             .file_data
             .as_mut()
             .ok_or(BufferError::NoAssociatedFile)?;
 
-        std::fs::write(&file.path, &self.contents).map_err(BufferError::IoError)?;
+        fs.write(&file.path, &self.contents).map_err(BufferError::IoError)?;
         file.contents = self.contents.clone();
 
         Ok(())
     }
 
-    fn rename(&mut self, new_name: &str) -> Result<(), BufferError> {
+    fn rename(&mut self, new_name: &str, fs: &FileSystem) -> Result<(), BufferError> {
         let file = self
             .file_data
             .as_mut()
@@ -337,7 +338,7 @@ impl Buffer {
         // TODO: santise the new name and check for errors
         new_path.set_file_name(new_name);
 
-        std::fs::rename(&file.path, &new_path).map_err(BufferError::IoError)?;
+        fs.rename(&file.path, &new_path).map_err(BufferError::IoError)?;
 
         file.path = new_path;
 
@@ -365,11 +366,11 @@ impl Buffer {
                                 ui.ctx(),
                                 ui.style(),
                                 theme,
-                                contents,
+                                contents.as_str(),
                                 &lang.to_string_lossy(),
                             );
                             layout_job.wrap.max_width = wrap_width;
-                            ui.fonts(|f| f.layout_job(layout_job))
+                            ui.fonts_mut(|f| f.layout_job(layout_job))
                         }),
                 )
             })

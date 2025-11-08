@@ -1,26 +1,38 @@
 use std::cmp::Reverse;
 
 use axum::{
-    extract::{Path, State},
-    middleware,
-    routing::{get, post},
     Extension, Json, Router,
+    extract::{Path, State, WebSocketUpgrade, ws::{Message, WebSocket}},
+    middleware,
+    response::Response,
+    routing::{get, post},
 };
-use chrono::{DateTime, NaiveDateTime, Utc};
+use base64::{Engine, prelude::BASE64_STANDARD};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use sqlx::FromRow;
+use serde_json::{Value, json};
 use tracing::instrument;
 
 use crate::{
-    db::DatabaseConnector, error::AppError, middlewares::auth::{auth_middleware, optional_auth_middleware, AuthUser}, AppState
+    AppState,
+    api::ProjectResponse,
+    auth::{
+        SharedTokenInfo,
+        middleware::{AuthUser, auth_middleware, optional_auth_middleware},
+    },
+    db::DatabaseConnector,
+    error::AppError,
 };
 
-use super::user::ProjectInfo;
+use super::ProjectInfo;
 
 pub fn project_router(state: AppState) -> Router<AppState> {
     let auth = Router::new()
-        .route("/project/open/{project_id}", get(open_project));
+        .route("/project/open/{username}/{repo_name}", get(open_project))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
 
     Router::new()
         .route("/projects", get(get_project_list))
@@ -56,53 +68,22 @@ fn project_page_router(state: AppState) -> Router<AppState> {
         .route("/comments", get(get_comments))
 }
 
-#[derive(Serialize, FromRow)]
-#[serde(rename_all = "camelCase")]
-struct ProjectResponse {
-    #[serde(flatten)]
-    info: ProjectInfo,
-    github_url: String,
-    upload_time: NaiveDateTime,
-    public: bool,
-}
-
 #[instrument(skip(db))]
 async fn get_project(
     Path((username, repo_name)): Path<(String, String)>,
     Extension(auth_user): Extension<Option<AuthUser>>,
     State(db): State<DatabaseConnector>,
 ) -> Result<Json<ProjectResponse>, AppError> {
-    let authorized = match auth_user {
-        Some(AuthUser { github_id }) => {
-            sqlx::query_scalar!("SELECT username FROM users WHERE github_id = $1", github_id)
-                .fetch_one(&*db)
-                .await?
-                == username
-        }
-        None => false,
-    };
+    let project = db
+        .get_project(
+            &username,
+            &repo_name,
+            auth_user.map(|user| user.github_id),
+            false,
+        )
+        .await?;
 
-    let project = sqlx::query_as!(
-        ProjectResponse,
-        r#"
-        SELECT 
-            (p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo",
-            pi.github_url as "github_url!",
-            p.upload_time,
-            p.public
-        FROM projects p
-        INNER JOIN project_info pi ON pi.id = p.id
-        WHERE pi.username = $1
-        AND p.repo_name = $2
-        AND (p.public OR $3)
-        "#,
-        username,
-        repo_name,
-        authorized
-    ).fetch_one(&*db).await?;
-    // TODO: (i think), make this fetch 0 or 1 and show error if 0
-
-    Ok(Json(project))
+    Ok(Json(project.into()))
 }
 
 #[instrument(skip(db))]
@@ -114,7 +95,8 @@ async fn get_project_list(
             (p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo",
             pi.github_url as "github_url!",
             p.upload_time,
-            p.public
+            p.public,
+            false as "owned!"
         FROM projects p
         INNER JOIN project_info pi ON pi.id = p.id
         WHERE p.public
@@ -128,7 +110,7 @@ async fn get_project_list(
 async fn get_liked(
     Path((username, repo_name)): Path<(String, String)>,
     State(db): State<DatabaseConnector>,
-    Extension(AuthUser { github_id }): Extension<AuthUser>,
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
 ) -> Result<Json<bool>, AppError> {
     let liked = sqlx::query_scalar!(
         r#"
@@ -155,7 +137,7 @@ async fn get_liked(
 async fn like(
     Path((username, repo_name)): Path<(String, String)>,
     State(db): State<DatabaseConnector>,
-    Extension(AuthUser { github_id }): Extension<AuthUser>,
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
 ) -> Result<(), AppError> {
     sqlx::query!(
         r#"
@@ -184,7 +166,7 @@ async fn like(
 async fn unlike(
     Path((username, repo_name)): Path<(String, String)>,
     State(db): State<DatabaseConnector>,
-    Extension(AuthUser { github_id }): Extension<AuthUser>,
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
 ) -> Result<(), AppError> {
     sqlx::query!(
         r#"
@@ -219,8 +201,11 @@ struct PostCommentBody {
 async fn post_comment(
     Path((username, repo_name)): Path<(String, String)>,
     State(db): State<DatabaseConnector>,
-    Extension(AuthUser { github_id }): Extension<AuthUser>,
-    Json(PostCommentBody { contents, parent_id }): Json<PostCommentBody>,
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
+    Json(PostCommentBody {
+        contents,
+        parent_id,
+    }): Json<PostCommentBody>,
 ) -> Result<(), AppError> {
     sqlx::query!(
         r#"
@@ -247,7 +232,6 @@ async fn post_comment(
     .await?;
 
     Ok(())
-
 }
 
 #[derive(Clone, Debug, Serialize, sqlx::Type)]
@@ -320,7 +304,7 @@ async fn get_comments(
     //             .push(comment);
     //     }
     // }
-    // 
+    //
     // let root_comments = comment_map
     //     .into_values()
     //     .filter(|com| com.parent_id.is_none())
@@ -331,7 +315,7 @@ async fn get_comments(
     let mut roots = vec![];
     for comment in &comments {
         if comment.parent_id.is_none() {
-           roots.push(comment.clone());
+            roots.push(comment.clone());
         }
     }
     for root in &mut roots {
@@ -355,29 +339,60 @@ fn get_comment_replies(id: i32, comments: &mut [Comment]) -> Vec<Comment> {
     children
 }
 
-#[instrument(skip(db))]
+#[instrument(skip(db, session_mgr, access_token, refresh_token))]
 async fn open_project(
-    Path(project_id): Path<String>,
-    State(db): State<DatabaseConnector>,
-    Extension(AuthUser { github_id }): Extension<AuthUser>,
-) -> Result<Json<Value>, AppError> {
-    let github_url = sqlx::query_scalar!(
-        r#"
-        SELECT github_url
-        FROM projects
-        WHERE editor_id = $1
-        AND user_id = (
-            SELECT id
-            FROM users
-            WHERE github_id = $2
-        )
-        "#,
-        project_id,
+    Path((username, repo_name)): Path<(String, String)>,
+    State(AppState {
+        db, session_mgr, ..
+    }): State<AppState>,
+    ws: WebSocketUpgrade,
+    Extension(AuthUser {
         github_id,
-    )
-    .fetch_one(&*db)
-    .await?;
+        access_token,
+        refresh_token,
+    }): Extension<AuthUser>,
+) -> Result<Response, AppError> {
+    let project = db
+        .get_project(&username, &repo_name, Some(github_id), true)
+        .await?;
 
-    // FIXME: this is just to test interop between editor and backend
-    Ok(Json(json!({ "github_url": github_url })))
+    session_mgr
+        .open(
+            project.user_id,
+            project.id,
+            &username,
+            &repo_name,
+            &access_token,
+            &refresh_token,
+        )
+        .await?;
+
+    // let code = session_mgr.create_code(project.user_id);
+
+    Ok(ws.on_upgrade(handle_editor_ws))
 }
+
+async fn handle_editor_ws(ws: WebSocket) {
+}
+
+// async fn connect_session(
+//     Path((username, repo_name, code)): Path<(String, String, String)>,
+//     State(AppState {
+//         db, session_mgr, ..
+//     }): State<AppState>,
+//     ws: WebSocketUpgrade,
+// ) -> Result<Response, AppError> {
+//     let user_id = sqlx::query_scalar!(
+//         r#"
+//         SELECT id
+//         FROM users
+//         WHERE username = $1
+//         "#,
+//         username
+//     )
+//     .execute(&*db)
+//     .fetch_one()
+//     .await?;
+
+//     Ok(ws.on_upgrade(||))
+// }

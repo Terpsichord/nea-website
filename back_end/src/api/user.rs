@@ -7,7 +7,7 @@ use serde::Serialize;
 use sqlx::FromRow;
 use tracing::instrument;
 
-use crate::{api::UserResponse, db::DatabaseConnector, error::AppError, AppState};
+use crate::{api::{ProjectInfo, UserResponse}, db::DatabaseConnector, error::AppError, AppState};
 
 pub fn user_router() -> Router<AppState> {
     Router::new()
@@ -29,18 +29,6 @@ async fn get_user(
     .await?;
 
     Ok(Json(user))
-}
-
-#[derive(Serialize, FromRow, sqlx::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectInfo {
-    pub title: String,
-    pub username: String,
-    pub picture_url: String,
-    pub repo_name: String,
-    pub readme: String,
-    pub tags: Vec<String>,
-    pub like_count: i64,
 }
 
 #[instrument(skip(db))]

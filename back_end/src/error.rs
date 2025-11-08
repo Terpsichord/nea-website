@@ -7,16 +7,20 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 
+use crate::editor::session;
+
 pub enum AppError {
     InvalidAuth(InvalidAuthError),
     // TODO: maybe merge this into `AuthFailed`
     GithubAuth(GithubUserError),
     AuthFailed(anyhow::Error),
     Database(sqlx::Error),
+    SessionConflict,
     NotFound,
     Unauthorized,
     // try to avoid using this
     // generally prefer creating a new variant instead
+    // TODO: remove this probably
     Other(anyhow::Error),
 }
 
@@ -57,6 +61,7 @@ impl IntoResponse for AppError {
         let err: anyhow::Error = match self {
             NotFound => return StatusCode::NOT_FOUND.into_response(),
             Unauthorized => return StatusCode::UNAUTHORIZED.into_response(),
+            SessionConflict => return StatusCode::CONFLICT.into_response(),
             InvalidAuth(e) => e.into(),
             Database(e) => e.into(),
             GithubAuth(e) => anyhow!("Github auth failed: {}", e.message),
@@ -81,8 +86,8 @@ impl From<InvalidAuthError> for AppError {
 }
 
 impl From<sqlx::Error> for AppError {
-    fn from(error: sqlx::Error) -> Self {
-        match error {
+    fn from(err: sqlx::Error) -> Self {
+        match err {
             sqlx::Error::RowNotFound => Self::NotFound,
             e => Self::Database(e),
         }

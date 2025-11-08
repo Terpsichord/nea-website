@@ -10,6 +10,7 @@ function Navbar() {
     return (
         <nav className="flex max-w-full bg-linear-to-b from-black to-transparent text-xl px-12 py-8 h-28">
             {/* TODO: add mobile navbar */}
+            {/* (or don't, seeing as it's meant to be a desktop only application) */}
 
             <div className="space-x-10">
                 <NavLink className={activeStyle} to="/">{auth.isAuth ? "Dashboard" : "Home"}</NavLink>

@@ -1,0 +1,10 @@
+[package]
+name = "ws_messages"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bincode = { version = "2.0.1", features = ["serde"] }
+serde = "1.0.228"
+serde_derive = "1.0.228"
+uuid = { version = "1.18.1", features = ["v4", "serde"] }

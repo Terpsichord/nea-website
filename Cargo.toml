@@ -3,7 +3,7 @@
 resolver = "2"
 
 members = [
-    "back_end",
+    "back_end", "ws_messages",
     "editor"
 ]
 

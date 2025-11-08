@@ -53,10 +53,14 @@ function ProjectPage() {
         return <Loading />;
     }
 
-    const menuItems = [
+    let menuItems = [
         <a href={project.githubUrl}>View files on Github</a>,
-        <a href="/editor">View in editor</a>
     ];
+
+    if (project.owned) {
+        menuItems.push(<a href={`/editor/${params.username}/${params.id}`}>View in editor</a>);
+    }
+
 
     const onLikeClick = () => {
         if (!isAuth) return;

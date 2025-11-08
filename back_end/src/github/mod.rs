@@ -1,11 +1,13 @@
 use std::iter;
 
 use axum::http::HeaderValue;
+use bytes::Bytes;
+use futures_util::Stream;
 use reqwest::{RequestBuilder, Response, StatusCode, header::USER_AGENT};
 use serde::Deserialize;
 
 use crate::{
-    auth::TokenHeaders,
+    auth::WithTokenHeaders,
     error::{AppError, GithubUserError},
     github::access_tokens::TokenRequestType,
 };
@@ -46,14 +48,19 @@ pub enum GithubUserResponse {
 }
 
 impl GithubClient {
+    const API_BASE: &str = "https://api.github.com";
     const USER_AGENT: &str = "nea-website";
+
+    fn api_url(path: &str) -> String {
+        format!("{}{}", Self::API_BASE, path)
+    }
 
     async fn send_authenticated(
         &self,
         mut req: RequestBuilder,
         access_token: &str,
         refresh_token: Option<&str>,
-    ) -> Result<(Response, Option<TokenHeaders>), AppError> {
+    ) -> Result<WithTokenHeaders<Response>, AppError> {
         let req_clone = req.try_clone();
 
         req = req.header("Authorization", format!("Bearer {access_token}"));
@@ -83,19 +90,15 @@ impl GithubClient {
             token_headers = Some(new_tokens.into());
         }
 
-        Ok((resp, token_headers))
+        Ok(WithTokenHeaders(resp, token_headers))
     }
 
     /// Fetches information about the Github user using the access token, and caches the user's id with the encrypted token
     ///
     /// Returns the user info on a successful fetch
-    pub async fn get_user(&self, access_token: &str) -> Result<GithubUser, AppError> {
-        let (resp, _) = self
-            .send_authenticated(
-                self.client.get("https://api.github.com/user"),
-                access_token,
-                None,
-            ) // todo: change this from None if this function is called from anywhere outsied of the github callback (and don't ignore the token headers in the line above)
+    pub async fn get_user(&self, access_token: &str, refresh_token: Option<&str>) -> Result<WithTokenHeaders<GithubUser>, AppError> {
+        let WithTokenHeaders(resp, headers) = self
+            .send_authenticated(self.client.get(Self::api_url("/user")), access_token, refresh_token)
             .await?;
 
         let user_res = resp
@@ -104,8 +107,27 @@ impl GithubClient {
             .map_err(AppError::auth_failed)?;
 
         match user_res {
-            GithubUserResponse::User(user) => Ok(user),
+            GithubUserResponse::User(user) => Ok(WithTokenHeaders(user, headers)),
             GithubUserResponse::Error(error) => Err(AppError::GithubAuth(error)),
         }
+    }
+
+    pub async fn get_project_tarball(
+        &self,
+        access_token: &str,
+        refresh_token: &str,
+        username: &str,
+        repo_name: &str,
+    ) -> Result<WithTokenHeaders<Bytes>, AppError> {
+        let WithTokenHeaders(resp, token_headers) = self.send_authenticated(
+            self.client.get(Self::api_url(&format!(
+                "/repos/{username}/{repo_name}/tarball"
+            ))),
+            access_token,
+            Some(refresh_token),
+        )
+        .await?;
+
+        Ok(WithTokenHeaders(resp.bytes().await.map_err(AppError::other)?, token_headers))
     }
 }

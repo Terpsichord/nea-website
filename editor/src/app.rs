@@ -1,7 +1,7 @@
 use crate::{
     buffer::{Buffer, BufferError, Buffers, FileData},
-    explorer::Explorer,
-    platform,
+    explorer::{Explorer, ExplorerAction},
+    platform::{self, FileSystemTrait as _, RunnerTrait as _},
 };
 
 use core::f32;
@@ -12,12 +12,12 @@ use std::{
 
 use eframe::egui;
 use egui::{
-    containers::modal::Modal, Align, Button, CentralPanel, Id, Layout, ScrollArea, SidePanel,
-    TopBottomPanel, ViewportCommand,
+    Align, Button, CentralPanel, Id, Key, Layout, MenuBar, ScrollArea, SidePanel, TopBottomPanel,
+    ViewportCommand, containers::modal::Modal,
 };
-use egui_console::{ConsoleBuilder, ConsoleWindow};
+// use egui_console::{ConsoleBuilder, ConsoleWindow};
 use egui_extras::syntax_highlighting;
-use eyre::{bail, OptionExt};
+use eyre::OptionExt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -87,20 +87,24 @@ enum BottomPanelState {
 #[derive(Default, Serialize, Deserialize)]
 pub struct App {
     editor_settings: EditorSettings,
+    #[serde(skip)] // FIXME
     project: Option<platform::Project>,
+    #[serde(skip)]
+    fs: platform::FileSystem,
     #[serde(skip)]
     runner: platform::Runner,
     buffers: Buffers,
     /// Current [`syntax_highlighting::CodeTheme`] for the editor
     code_theme: syntax_highlighting::CodeTheme,
     /// [`Explorer`] side panel
+    #[serde(skip)] // FIXME
     explorer: Option<Explorer>,
     bottom_panel_state: Option<BottomPanelState>,
     /// Contents of the output panel
     /// This must be wrapped in an `Arc<Mutex<_>>` so that it can be shared to and modified across threads, including the `running_command` thread.
     output: Arc<Mutex<String>>,
-    #[serde(skip)]
-    console: Option<ConsoleWindow>,
+    // #[serde(skip)]
+    // console: Option<ConsoleWindow>,
     #[serde(skip)]
     error_message: Option<String>,
     /// Current state of the save modal, as described in [`SaveModalState`]
@@ -111,6 +115,9 @@ pub struct App {
     modal_action: Option<ModalAction>,
     #[serde(skip)]
     ignore_dirty: bool,
+    #[cfg(target_arch = "wasm32")]
+    #[serde(skip)]
+    pending_ops: platform::PendingOperations,
 }
 
 impl eframe::App for App {
@@ -133,22 +140,33 @@ impl eframe::App for App {
 
         let max_left_panel_width = 0.8;
         if let Some(explorer) = self.explorer.as_mut() {
-            let explorer_response = SidePanel::left("explorer_panel")
+            let response = SidePanel::left("explorer_panel")
                 .resizable(true)
                 .max_width(max_left_panel_width * ctx.available_rect().width())
-                .show(ctx, |ui| explorer.show(ui))
-                .inner;
+                .show(ctx, |ui| explorer.show(ui, &self.fs));
 
-            match explorer_response {
+            if response.response.clicked_elsewhere() {
+                explorer.highlighted = None;
+            }
+
+            match response.inner {
                 Ok(explorer_response) => {
-                    if let Some(path) = explorer_response.open_file {
-                        // TODO: abstract open file to `platform` module
-                        #[cfg(not(target_arch = "wasm32"))]
-                        self.open_file(Some(path));
+                    if let Some(action) = explorer_response.action {
+                        match action {
+                            ExplorerAction::OpenFile(path) => self.open_file(path),
+                            ExplorerAction::NewFolder(path) => todo!(), //self.new_folder(path),
+                            ExplorerAction::Delete(path) => todo!(),    // self.delete_file(path),
+                        }
                     }
                 }
                 Err(err) => self.error_message = Some(err.to_string()),
             }
+        }
+
+        if let Some(path) = self.explorer.as_ref().and_then(|e| e.highlighted.clone())
+            && ctx.input(|i| i.key_pressed(Key::Delete))
+        {
+            self.delete(path.as_path());
         }
 
         if let Some(ref bottom_panel_state) = self.bottom_panel_state {
@@ -168,7 +186,7 @@ impl eframe::App for App {
         let buffers_response = CentralPanel::default()
             .show(ctx, |ui| {
                 self.buffers
-                    .show(&self.editor_settings, ui, &self.code_theme)
+                    .show(&self.editor_settings, ui, &self.code_theme, &self.fs)
             })
             .inner;
         if let Some(action) = buffers_response.save_modal_action {
@@ -198,20 +216,27 @@ impl eframe::App for App {
         }
 
         self.runner.update();
+
+        #[cfg(target_arch = "wasm32")]
+        self.handle_pending();
     }
 }
 
 impl App {
     #[cfg(target_arch = "wasm32")]
-    pub fn new(project_id: String) -> Self {
+    pub fn new(user: String, repo: String) -> Self {
+        let project = platform::Project::new(user, repo).expect("failed to create project");
+        let fs = platform::FileSystem::new(project.handle().clone());
+
         Self {
-            project: Some(platform::Project::new(project_id)),
+            project: Some(project),
+            fs,
             ..Self::default()
         }
     }
 
     fn menu_bar(&mut self, ui: &mut egui::Ui) {
-        egui::menu::bar(ui, |ui| {
+        MenuBar::new().ui(ui, |ui| {
             // TODO: clean up and properly organise this and all the other random cfg target_arch's
             #[cfg(not(target_arch = "wasm32"))]
             ui.menu_button("File", |ui| {
@@ -220,7 +245,7 @@ impl App {
                 }
                 ui.separator();
                 if ui.button("Open file").clicked() {
-                    self.open_file(None);
+                    self.open_file_dialog();
                 }
                 if ui.button("Open folder").clicked() {
                     self.open_folder();
@@ -266,11 +291,25 @@ impl App {
                 if ui.button("Settings").clicked() {}
             });
             ui.menu_button("View", |ui| {
-                if ui.add_enabled(self.explorer.is_some(), Button::new("Show output")).clicked() {
-                    self.bottom_panel_state = Some(BottomPanelState::Output)
+                if ui
+                    .add_enabled(self.explorer.is_some(), Button::new("Show output"))
+                    .clicked()
+                {
+                    if let Some(BottomPanelState::Output) = self.bottom_panel_state {
+                        self.bottom_panel_state = None;
+                    } else {
+                        self.bottom_panel_state = Some(BottomPanelState::Output)
+                    }
                 }
-                if ui.add_enabled(self.explorer.is_some(), Button::new("Show console")).clicked() {
-                    self.bottom_panel_state = Some(BottomPanelState::Console)
+                if ui
+                    .add_enabled(self.explorer.is_some(), Button::new("Show console"))
+                    .clicked()
+                {
+                    if let Some(BottomPanelState::Console) = self.bottom_panel_state {
+                        self.bottom_panel_state = None;
+                    } else {
+                        self.bottom_panel_state = Some(BottomPanelState::Console)
+                    }
                 }
             });
             ui.menu_button("Run", |ui| {
@@ -309,9 +348,9 @@ impl App {
     }
 
     fn console(&self, ui: &mut egui::Ui, size: egui::Vec2) {
-        if let Some(console) = self.console {
-            console.draw(ui);
-        }
+        // if let Some(console) = self.console {
+        //     console.draw(ui);
+        // }
     }
 
     /// Saves the current contents of the code buffer to a file.
@@ -325,7 +364,7 @@ impl App {
     #[cfg(not(target_arch = "wasm32"))]
     fn save_file(&mut self) -> Result<(), SaveError> {
         match self.buffers.current_buffer_mut() {
-            Some(buffer) => match buffer.save() {
+            Some(buffer) => match buffer.save(&self.fs) {
                 Ok(_) => Ok(()),
                 Err(_) => self.save_as(),
             },
@@ -348,7 +387,7 @@ impl App {
 
         // If the current buffer has no file, associate it with the file
         // Otherwise, create a new buffer with the new file (unless the file hasn't changed)
-        match &buffer.file_data {
+        match buffer.file_data() {
             Some(FileData { path: old_path, .. }) => {
                 if &path != old_path {
                     self.buffers.add(Buffer::new(
@@ -383,8 +422,9 @@ impl App {
 
         for id in dirty_buffers {
             // unwrap is safe here as `id` is guaranteed to be associated with a buffer
+
             let buffer = self.buffers.get_mut_by_id(id).unwrap();
-            if let Err(BufferError::NoAssociatedFile) = buffer.save() {
+            if let Err(BufferError::NoAssociatedFile) = buffer.save(&self.fs) {
                 self.buffers.select(id);
                 // if no file is selected, ignore it and continue saving all
                 // TODO: make it so the ui updates (to show which tab is selected) in between individual calls to `save_as`
@@ -394,24 +434,36 @@ impl App {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn open_file(&mut self, path: Option<PathBuf>) {
-        let Some(path) = path.or_else(|| rfd::FileDialog::new().pick_file()) else {
+    fn open_file_dialog(&mut self) {
+        let Some(path) = rfd::FileDialog::new().pick_file() else {
             log::info!("no file selected to open");
             return;
         };
 
+        self.open_file(path);
+    }
+
+    fn open_file(&mut self, path: PathBuf) {
         // Don't open a new tab if the file is already open
         if let Some(buffer) = self.buffers.get_by_path(&path) {
             self.buffers.select(buffer.id());
             return;
         }
 
-        match Buffer::from_path(path) {
-            Ok(buffer) => self.buffers.add(buffer),
-            Err(err) => self.error_message = Some(err.to_string()),
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            match Buffer::from_path(path, &self.fs) {
+                Ok(buffer) => self.buffers.add(buffer),
+                Err(err) => self.error_message = Some(err.to_string()),
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            // self.fs.read()
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn open_folder(&mut self) {
         if !self.ignore_dirty && self.buffers.is_dirty() {
             self.save_modal_state = SaveModalState::SaveAllOpen;
@@ -419,18 +471,12 @@ impl App {
             return;
         }
 
-        #[cfg(target_arch = "wasm32")]
-        panic!("files not supported on wasm");
+        let Some(path) = rfd::FileDialog::new().pick_folder() else {
+            log::info!("no folder selected to open");
+            return;
+        };
 
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let Some(path) = rfd::FileDialog::new().pick_folder() else {
-                log::info!("no folder selected to open");
-                return;
-            };
-
-            self.open_project(path);
-        }
+        self.open_project(path);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -451,18 +497,28 @@ impl App {
 
         self.project = Some(Project::new(path.clone(), settings));
 
-        self.console = Some(
-            ConsoleBuilder::new()
-                .prompt(&format!("{}$", path.display()))
-                .build(),
-        );
+        // self.console = Some(
+        //     ConsoleBuilder::new()
+        //         .prompt(&format!("{}$", path.display()))
+        //         .build(),
+        // );
 
-        match Explorer::new(path) {
+        match Explorer::new(path, &self.fs) {
             Ok(explorer) => {
                 self.explorer = Some(explorer);
                 self.buffers = Buffers::default();
             }
             Err(err) => self.error_message = Some(err.to_string()),
+        }
+    }
+
+    fn delete(&mut self, path: &Path) {
+        if let Some(buffer) = self.buffers.get_by_path(path) {
+            self.buffers.delete_buffer(buffer.id());
+        }
+
+        if let Err(err) = self.fs.delete(path) {
+            self.error_message = Some(err.to_string());
         }
     }
 
@@ -472,7 +528,7 @@ impl App {
 
         #[cfg(not(target_arch = "wasm32"))]
         match action {
-            ModalAction::OpenFile => self.open_file(None),
+            ModalAction::OpenFile => self.open_file_dialog(),
             ModalAction::OpenFolder => self.open_folder(),
             ModalAction::DeleteBuffer(id) => self.buffers.delete_buffer(id),
             ModalAction::Close => {
@@ -542,5 +598,10 @@ impl App {
         self.runner.run(project, self.output.clone())?;
 
         Ok(())
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn handle_pending(&mut self) {
+        todo!()
     }
 }

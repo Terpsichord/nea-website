@@ -3,9 +3,11 @@ use eyre::bail;
 use eyre::OptionExt;
 use std::{
     process::{Child, Stdio},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
+
+use crate::platform::RunnerTrait;
 
 use super::{
     pipe_reader::{read_piped, PipedLine},
@@ -23,8 +25,8 @@ struct RunningCommand {
     thread: JoinHandle<()>,
 }
 
-impl Runner {
-    pub fn run(&mut self, project: &mut Project, output: Arc<Mutex<String>>) -> eyre::Result<()> {
+impl RunnerTrait for Runner {
+    fn run(&mut self, project: &mut Project, output: Arc<Mutex<String>>) -> eyre::Result<()> {
         // update project settings
         match ProjectSettings::read_from(&project.path) {
             Ok(settings) => project.settings = settings,
@@ -89,7 +91,7 @@ impl Runner {
         Ok(())
     }
 
-    pub fn update(&mut self) {
+    fn update(&mut self) {
         if self
             .running_command
             .as_ref()
@@ -99,11 +101,11 @@ impl Runner {
         }
     }
 
-    pub fn is_running(&self) -> bool {
+    fn is_running(&self) -> bool {
         self.running_command.is_some()
     }
 
-    pub fn stop(&mut self) {
+    fn stop(&mut self) {
         if let Some(mut running_command) = self.running_command.take() {
             running_command
                 .process

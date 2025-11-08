@@ -1,13 +1,16 @@
 use std::{
-    cmp::Ordering,
     path::{Path, PathBuf},
+    cmp::Ordering,
 };
 
-use egui::{CollapsingHeader, Response, ScrollArea};
+use egui::{CollapsingHeader, Response, ScrollArea, Popup};
 use eyre::WrapErr;
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+use crate::platform::{FileSystem, FileSystemTrait as _};
+
+// FIXME
+// #[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub enum TreeNode {
     UnexploredDir {
         path: PathBuf,
@@ -19,23 +22,26 @@ pub enum TreeNode {
     File {
         path: PathBuf,
     },
+    // NewFile {
+    //     name: String,
+    // },
 }
 
 impl TreeNode {
     const INITIAL_DEPTH: usize = 2;
 
-    fn new(path: PathBuf) -> eyre::Result<Self> {
-        Self::new_recursive(path, Self::INITIAL_DEPTH)
+    fn new(path: PathBuf, fs: &FileSystem) -> eyre::Result<Self> {
+        Self::new_recursive(path, Self::INITIAL_DEPTH, fs)
     }
 
     // post-order recursive tree traversal algorithm, i think
-    fn new_recursive(path: PathBuf, max_depth: usize) -> eyre::Result<Self> {
+    fn new_recursive(path: PathBuf, max_depth: usize, fs: &FileSystem) -> eyre::Result<Self> {
         Ok(if path.is_file() {
             TreeNode::File { path }
         } else if max_depth == 0 {
             TreeNode::UnexploredDir { path }
         } else {
-            let children = Self::read_children(&path, max_depth)?;
+            let children = Self::read_children(&path, max_depth, fs)?;
             TreeNode::ExploredDir { path, children }
         })
     }
@@ -58,15 +64,16 @@ impl TreeNode {
         Self::name_from_path(self.path())
     }
 
-    fn read_children(path: &Path, max_depth: usize) -> eyre::Result<Vec<TreeNode>> {
+    fn read_children(path: &Path, max_depth: usize, fs: &FileSystem) -> eyre::Result<Vec<TreeNode>> {
         let error_msg = || format!("Failed to read directory: {}", path.to_string_lossy());
 
         let mut children = vec![];
-        let dir_entries = std::fs::read_dir(path).wrap_err_with(error_msg)?;
-        for entry in dir_entries {
+        let dir_paths = fs.read_dir(path).wrap_err_with(error_msg)?;
+        for path in dir_paths {
             children.push(Self::new_recursive(
-                entry.wrap_err_with(error_msg)?.path(),
+                path.wrap_err_with(error_msg)?,
                 max_depth - 1,
+                fs,
             )?);
         }
         children.sort_by(|a, b| match (a, b) {
@@ -83,22 +90,31 @@ impl TreeNode {
         Ok(children)
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui) -> eyre::Result<ExplorerResponse> {
+    fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        highlighted: &mut Option<PathBuf>,
+        fs: &FileSystem,
+    ) -> eyre::Result<ExplorerResponse> {
         Ok(match self {
             TreeNode::UnexploredDir { .. } => {
                 unreachable!(); // hopefully
             }
             TreeNode::ExploredDir { children, path } => {
-                Self::directory_ui(ui, Self::name_from_path(path), children)?
+                Self::directory_ui(ui, TreeNode::name_from_path(path), path, children, highlighted, fs)?
             }
-            TreeNode::File { path } => Self::file_ui(ui, Self::name_from_path(path), path),
+            TreeNode::File { path } => {
+                Self::file_ui(ui, TreeNode::name_from_path(path), path, highlighted)
+            }
+            // TreeNode::NewFile { path, name } => {
+            //     self.new_file_ui(ui, path, name)
+            // }
         })
     }
-
-    fn explore(&mut self) -> eyre::Result<()> {
+    fn explore(&mut self, fs: &FileSystem) -> eyre::Result<()> {
         if let TreeNode::UnexploredDir { path } = self {
             // TODO: only read children when the header is clicked
-            let children = TreeNode::read_children(path, 1)?;
+            let children = TreeNode::read_children(path, 1, fs)?;
             *self = TreeNode::ExploredDir {
                 path: std::mem::take(path),
                 children,
@@ -111,71 +127,144 @@ impl TreeNode {
     fn directory_ui(
         ui: &mut egui::Ui,
         name: &str,
+        path: &Path,
         children: &mut [TreeNode],
+        highlighted: &mut Option<PathBuf>,
+        fs: &FileSystem
     ) -> eyre::Result<ExplorerResponse> {
-        let mut child_open_file = None;
+        let mut action = None;
         let response = CollapsingHeader::new(name).show(ui, |ui| {
             for child in children {
-                child.explore()?;
-                let response = child.ui(ui)?;
+                child.explore(fs)?;
+                let response = child.ui(ui, highlighted, fs)?;
 
-                if let Some(open_file) = response.open_file {
-                    child_open_file = Some(open_file);
+                if let Some(child_action) = response.action {
+                    action = Some(child_action);
                 }
             }
             Ok(())
         });
 
+        if response.header_response.clicked() {
+            *highlighted = Some(path.to_owned());
+        }
+
         if let Some(Err(err)) = response.body_returned {
             return Err(err);
         }
 
+        Popup::context_menu(&response.header_response).show(|ui| {
+            // if ui.button("New file").clicked() {
+            //     action = Some(ExplorerAction::NewFile(path.to_owned()));
+            // }
+            if ui.button("Rename").clicked() {
+                todo!();
+            }
+            if ui.button("Delete").clicked() {
+                action = Some(ExplorerAction::Delete(path.to_owned()));
+            }
+        });
+
         Ok(ExplorerResponse {
-            open_file: child_open_file,
+            action,
             response: response.header_response,
         })
     }
 
-    fn file_ui(ui: &mut egui::Ui, name: &str, path: &Path) -> ExplorerResponse {
-        let button = ui.button(name);
-        ExplorerResponse {
-            open_file: button.double_clicked().then(|| path.to_owned()),
-            response: button,
-        }
+    fn file_ui(
+        ui: &mut egui::Ui,
+        name: &str,
+        path: &Path,
+        highlighted: &mut Option<PathBuf>,
+    ) -> ExplorerResponse {
+        ui.scope(|ui| {
+            if highlighted.as_deref() == Some(path) {
+                ui.visuals_mut().button_frame = true;
+            }
+
+            let button = ui.button(name);
+
+            if button.clicked() {
+                *highlighted = Some(path.to_owned());
+            }
+
+            ExplorerResponse {
+                action: button.double_clicked().then(|| ExplorerAction::OpenFile(path.to_owned())),
+                response: button,
+            }
+        })
+        .inner
     }
+
+
+}
+
+pub enum ExplorerAction {
+    OpenFile(PathBuf),
+    // NewFile(PathBuf),
+    NewFolder(PathBuf),
+    Delete(PathBuf),
 }
 
 pub struct ExplorerResponse {
     pub response: Response,
     /// The file to be opened, if any
-    pub open_file: Option<PathBuf>,
+    pub action: Option<ExplorerAction>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+// #[derive(Serialize, Deserialize, Debug)]
+// FIXME
+#[derive(Debug)]
 pub struct Explorer {
     pub root_node: TreeNode,
+    pub highlighted: Option<PathBuf>,
+    pub new_item: Option<(PathBuf, String)>,
 }
 
 impl Explorer {
-    pub fn new(path: PathBuf) -> eyre::Result<Self> {
+    pub fn new(path: PathBuf, fs: &FileSystem) -> eyre::Result<Self> {
         Ok(Self {
-            root_node: TreeNode::new(path)?,
+            root_node: TreeNode::new(path, fs)?,
+            highlighted: None,
+            new_item: None,
         })
     }
 
     pub fn root_path(&self) -> &Path {
         match &self.root_node {
             TreeNode::UnexploredDir { path } | TreeNode::ExploredDir { path, .. } => path,
-            TreeNode::File { .. } => panic!("explorer root node isn't a directory")
+            TreeNode::File { .. } => panic!("explorer root node isn't a directory"),
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui) -> eyre::Result<ExplorerResponse> {
-        ScrollArea::vertical()
+    pub fn show(&mut self, ui: &mut egui::Ui, fs: &FileSystem) -> eyre::Result<ExplorerResponse> {
+        let explorer = ScrollArea::vertical()
             .show(ui, |ui| {
                 ui.style_mut().visuals.button_frame = false;
-                self.root_node.ui(ui)
+                self.root_node.ui(ui, &mut self.highlighted, fs)
             })
-            .inner
+            .inner?;
+
+        // FIXME
+        // if explorer.response.clicked_elsewhere() {
+        //     self.highlighted = None;
+        // }
+
+        Ok(explorer)
     }
+
+    // fn new_file_ui(&mut self, path: &Path, name: &mut String, ui: &mut egui::Ui, fs: &FileSystem) -> ExplorerResponse {
+    //     let response = ui.text_edit_singleline(name);
+
+    //     if response.lost_focus() {
+    //         let new_path = path.join(name);
+    //         fs.new_file(&new_path);
+
+    //     }
+
+    //     ExplorerResponse {
+    //         action: None,
+    //         response, 
+    //     }
+    // }
 }

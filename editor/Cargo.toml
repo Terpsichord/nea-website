@@ -1,21 +1,21 @@
 [package]
 name = "my-ide"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 color-eyre = { version = "0.6.3", default-features = false }
 crossbeam-channel = "0.5.14"
 # TODO: update to 0.32.2, update pop-up modal code
-eframe = { version = "0.31.1", features = ["serde"] }
-egui = { version = "0.31.1", features = ["persistence"] }
+eframe = { version = "0.33.0", features = ["serde"] }
+egui = { version = "0.33.0", features = ["persistence"] }
 # egui_console = "0.2.0"
 # egui_console = { version = "0.3.0", path = "../../egui_console" }
-egui_extras = { version = "0.31.1", default-features = false, features = ["serde", "syntect"] }
+egui_extras = { version = "0.33.0", default-features = false, features = ["serde", "syntect"] }
 eyre = "0.6.12"
 itertools = "0.14.0"
 log = "0.4.27"
-rfd = "0.15.3"
+pollster = "0.4.0"
 serde = "1.0.219"
 shell-words = "1.1.0"
 
@@ -24,9 +24,14 @@ toml = { version = "0.8.20", features = ["parse"], default-features = false }
 uuid = { version = "1.16.0", features = ["v4", "serde", "js"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rfd = "0.15.3"
 env_logger = "0.11.7"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3.70", features = ["Location", "UrlSearchParams"] }
 gloo-net = "0.6.0"
+futures = "0.3.31"
+pollster = "0.4.0"
+ws_stream_wasm = "0.7.5"
+ws_messages = { path = "../ws_messages" }

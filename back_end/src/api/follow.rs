@@ -1,13 +1,17 @@
 use axum::{
+    Extension, Json, Router,
     extract::{Path, State},
     middleware,
     routing::{get, post},
-    Extension, Json, Router,
 };
 use tracing::instrument;
 
 use crate::{
-    api::UserResponse, db::DatabaseConnector, error::AppError, middlewares::auth::{auth_middleware, AuthUser}, AppState
+    AppState,
+    auth::middleware::{AuthUser, auth_middleware},
+    api::UserResponse,
+    db::DatabaseConnector,
+    error::AppError,
 };
 
 pub fn follow_router(state: AppState) -> Router<AppState> {
@@ -27,7 +31,7 @@ async fn get_follow_list() -> Result<Json<Vec<UserResponse>>, AppError> {
 #[instrument(skip(db))]
 async fn get_follow(
     Path(username): Path<String>,
-    Extension(AuthUser { github_id }): Extension<AuthUser>,
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
     State(db): State<DatabaseConnector>,
 ) -> Result<Json<bool>, AppError> {
     let follows = sqlx::query_scalar!(
@@ -52,7 +56,7 @@ async fn get_follow(
 #[instrument(skip(db))]
 async fn post_follow(
     Path(username): Path<String>,
-    Extension(AuthUser { github_id }): Extension<AuthUser>,
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
     State(db): State<DatabaseConnector>,
 ) -> Result<(), AppError> {
     sqlx::query!(
@@ -74,7 +78,7 @@ async fn post_follow(
 #[instrument(skip(db))]
 async fn post_unfollow(
     Path(username): Path<String>,
-    Extension(AuthUser { github_id }): Extension<AuthUser>,
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
     State(db): State<DatabaseConnector>,
 ) -> Result<(), AppError> {
     sqlx::query!(
@@ -94,7 +98,7 @@ async fn post_unfollow(
 
 #[instrument(skip(db))]
 async fn get_followers(
-    Extension(AuthUser { github_id }): Extension<AuthUser>,
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
     State(db): State<DatabaseConnector>,
 ) -> Result<Json<Vec<UserResponse>>, AppError> {
     let followers = sqlx::query_as!(

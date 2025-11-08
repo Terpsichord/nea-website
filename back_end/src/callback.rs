@@ -5,9 +5,9 @@ use serde::Deserialize;
 use tracing::{info, instrument};
 
 use crate::{
-    auth::{
-        SharedTokenInfo, TokenHeaders,
-    }, error::AppError, github::access_tokens::TokenRequestType, AppState 
+    AppState, auth::{
+        SharedTokenInfo, TokenHeaders, WithTokenHeaders,
+    }, error::AppError, github::access_tokens::TokenRequestType 
 };
 
 #[derive(Deserialize)]
@@ -15,12 +15,12 @@ pub struct UserCode {
     code: String,
 }
 
-#[instrument(skip(client, db))]
+#[instrument(skip(token_info, client, db))]
 /// Callback that the user is redirected to after authenticating with Github
 pub async fn github_callback(
     Query(UserCode { code }): Query<UserCode>,
     Extension(token_info): Extension<SharedTokenInfo>,
-    State(AppState { client, db }): State<AppState>,
+    State(AppState { client, db, .. }): State<AppState>,
 ) -> Result<(TokenHeaders, Redirect), AppError> {
     info!("handling Github auth callback");
 
@@ -28,7 +28,7 @@ pub async fn github_callback(
 
     // TODO: cache each refresh token's `expires_in` to avoid making a request with an already expired refresh token
 
-    let user = client.get_user(&tokens.access_unencrypted).await?;
+    let WithTokenHeaders(user, _) = client.get_user(&tokens.access_unencrypted, None).await?;
 
     db.add_user(&user).await?;
 

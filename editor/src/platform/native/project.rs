@@ -1,5 +1,5 @@
 use std::{
-    io::{self, ErrorKind},
+    io::ErrorKind,
     path::{Path, PathBuf},
 };
 

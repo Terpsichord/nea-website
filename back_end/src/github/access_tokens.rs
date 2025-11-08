@@ -64,6 +64,7 @@ pub struct Tokens {
     pub refresh_token: String,
     pub refresh_expiry: DateTime<Utc>,
     pub access_unencrypted: String,
+    pub refresh_unencrypted: String,
 }
 
 impl GithubClient {
@@ -115,6 +116,7 @@ impl GithubClient {
             refresh_token: encrypted_refresh_token,
             refresh_expiry: refresh_expiry_date,
             access_unencrypted: access_token,
+            refresh_unencrypted: refresh_token,
         })
     }
 }

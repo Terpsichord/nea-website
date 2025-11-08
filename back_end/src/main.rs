@@ -7,10 +7,9 @@ use std::sync::LazyLock;
 
 use anyhow::Context;
 use api::api_router;
-use auth::SharedTokenInfo;
+use auth::{middleware::redirect_auth_middleware, SharedTokenInfo};
 use axum::{extract::FromRef, middleware, routing::get, Router};
 use base64::{prelude::BASE64_STANDARD, Engine};
-use middlewares::auth::redirect_auth_middleware;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::{
     add_extension::AddExtensionLayer,
@@ -19,16 +18,16 @@ use tower_http::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::{db::DatabaseConnector, github::GithubClient};
+use crate::{db::DatabaseConnector, editor::session::EditorSessionManager, github::GithubClient};
 
 mod api;
 mod auth;
 mod callback;
 mod crypto;
 mod db;
+mod editor;
 mod error;
 mod github;
-mod middlewares;
 
 const FRONT_PUBLIC: &str = "./front_end/dist";
 const CLIENT_USER_AGENT: &str = "nea-website";
@@ -66,6 +65,7 @@ impl Config {
 struct AppState {
     pub client: GithubClient,
     pub db: DatabaseConnector,
+    pub session_mgr: EditorSessionManager,
 }
 
 impl AppState {
@@ -73,6 +73,7 @@ impl AppState {
         Self {
             client: GithubClient::default(),
             db: DatabaseConnector::new(pool),
+            session_mgr: EditorSessionManager::default(),
         }
     }
 }

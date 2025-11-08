@@ -8,7 +8,8 @@ use serde::Deserialize;
 use tracing::{info, instrument};
 
 use crate::{
-    api::{user::ProjectInfo, UserResponse}, db::DatabaseConnector, error::AppError, middlewares::auth::{auth_middleware, AuthUser}, AppState
+    auth::middleware::{auth_middleware, AuthUser},
+    api::{ProjectInfo, UserResponse}, db::DatabaseConnector, error::AppError, AppState
 };
 
 pub fn profile_router(state: AppState) -> Router<AppState> {
@@ -21,7 +22,7 @@ pub fn profile_router(state: AppState) -> Router<AppState> {
 
 #[instrument(skip(db))]
 async fn get_profile(
-    Extension(AuthUser { github_id }): Extension<AuthUser>,
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
     State(db): State<DatabaseConnector>,
 ) -> Result<Json<UserResponse>, AppError> {
     let user = sqlx::query_as!(
@@ -42,7 +43,7 @@ struct UpdateBio {
 
 #[instrument(skip(db))]
 async fn update_bio(
-    Extension(AuthUser { github_id }): Extension<AuthUser>,
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
     State(db): State<DatabaseConnector>,
     Json(UpdateBio { bio }): Json<UpdateBio>,
 ) -> Result<(), AppError> {
@@ -59,7 +60,7 @@ async fn update_bio(
 
 #[instrument(skip(db))]
 async fn get_projects(
-    Extension(AuthUser { github_id }): Extension<AuthUser>,
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
     State(db): State<DatabaseConnector>,
 ) -> Result<Json<Vec<ProjectInfo>>, AppError> {
     info!("getting projects");

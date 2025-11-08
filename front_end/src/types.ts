@@ -22,6 +22,7 @@ export interface Project extends ProjectInfo {
     githubUrl: string,
     uploadTime: string,
     public: boolean,
+    owned: boolean,
 }
 
 export interface ProjectComment {
