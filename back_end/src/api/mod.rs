@@ -12,6 +12,7 @@ use sqlx::prelude::FromRow;
 use crate::{db::Project, AppState};
 use crate::auth::ACCESS_COOKIE;
 
+mod comment;
 mod follow;
 mod profile;
 mod project;
@@ -22,7 +23,8 @@ pub fn api_router(state: AppState) -> Router<AppState> {
         .merge(profile::profile_router(state.clone()))
         .merge(user::user_router())
         .merge(follow::follow_router(state.clone()))
-        .merge(project::project_router(state))
+        .merge(project::project_router(state.clone()))
+        .merge(comment::comment_router(state))
         .route("/auth", get(auth_handler))
         .route("/signout", post(sign_out))
 }
