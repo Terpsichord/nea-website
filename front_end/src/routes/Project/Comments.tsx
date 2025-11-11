@@ -16,11 +16,11 @@ function Comments({ project }: { project: { username: string, id: string } }) {
 
     const [replyingTo, setReplyingTo] = useState<ProjectComment | null>(null);
 
-    const [comments] = useApi<ProjectComment[]>(`/project/${project.username}/${project.id}/comments`, { deps: [id] });
+    const [comments] = useApi<ProjectComment[]>(`/comment/${project.username}/${project.id}`, { deps: [id] });
 
     const maxCommentLength = 100;
     async function submitComment(contents: string) {
-        await fetchApi(`/project/${project.username}/${project.id}/comment`, {
+        await fetchApi(`/comment/${project.username}/${project.id}`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
