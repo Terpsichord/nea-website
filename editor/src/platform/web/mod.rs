@@ -68,7 +68,7 @@ impl BackendHandle {
                 WsMessage::Binary(bytes) => {
                     let resp = ServerMessage::decode(&bytes).expect("TODO: failed to decode");
                     self.pending.add_resp(resp);
-                },
+                }
                 WsMessage::Text(_text) => todo!(),
             }
         }

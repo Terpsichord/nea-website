@@ -31,13 +31,8 @@ fn main() {
     wasm_bindgen_futures::spawn_local(async {
         let window = web_sys::window().expect("no window");
 
-        let path = window
-            .location()
-            .pathname()
-            .expect("no path");
-        let path_end = path
-            .strip_prefix("/editor/")
-            .expect("invalid path");
+        let path = window.location().pathname().expect("no path");
+        let path_end = path.strip_prefix("/editor/").expect("invalid path");
         let mut path_parts = path_end.split("/");
 
         let user = path_parts.next().expect("invalid path").to_string();

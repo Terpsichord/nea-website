@@ -1,13 +1,16 @@
 use axum::{
-    extract::{Query, State}, response::Redirect, Extension
+    Extension,
+    extract::{Query, State},
+    response::Redirect,
 };
 use serde::Deserialize;
 use tracing::{info, instrument};
 
 use crate::{
-    AppState, auth::{
-        SharedTokenInfo, TokenHeaders, WithTokenHeaders,
-    }, error::AppError, github::access_tokens::TokenRequestType 
+    AppState,
+    auth::{SharedTokenInfo, TokenHeaders},
+    error::AppError,
+    github::access_tokens::{TokenRequestType, WithTokens},
 };
 
 #[derive(Deserialize)]
@@ -24,17 +27,21 @@ pub async fn github_callback(
 ) -> Result<(TokenHeaders, Redirect), AppError> {
     info!("handling Github auth callback");
 
-    let tokens = client.get_tokens(TokenRequestType::Callback { code }).await?;
+    let tokens = client
+        .get_tokens(TokenRequestType::Callback { code })
+        .await?;
 
     // TODO: cache each refresh token's `expires_in` to avoid making a request with an already expired refresh token
 
-    let WithTokenHeaders(user, _) = client.get_user(&tokens.access_unencrypted, None).await?;
+    let WithTokens(user, _) = client.get_user(&tokens.access_unencrypted, None).await?;
 
     db.add_user(&user).await?;
 
     let headers = TokenHeaders::from(&tokens);
 
-    token_info.cache_user_token(&user, tokens.access_token, Some(tokens.access_expiry)).await;
+    token_info
+        .cache_user_token(&user, tokens.access_token, Some(tokens.access_expiry))
+        .await;
 
     Ok((headers, Redirect::to("/")))
 }

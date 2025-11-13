@@ -1,13 +1,18 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     routing::get,
-    Json, Router,
 };
 use serde::Serialize;
 use sqlx::FromRow;
 use tracing::instrument;
 
-use crate::{api::{ProjectInfo, UserResponse}, db::DatabaseConnector, error::AppError, AppState};
+use crate::{
+    AppState,
+    api::{ProjectInfo, UserResponse},
+    db::DatabaseConnector,
+    error::AppError,
+};
 
 pub fn user_router() -> Router<AppState> {
     Router::new()

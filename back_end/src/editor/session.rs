@@ -1,26 +1,25 @@
 use std::{
-    collections::HashMap, io, ops::{Deref, DerefMut}, sync::{Arc, RwLock}
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+    sync::{Arc, RwLock},
 };
 
-use base64::{Engine as _, prelude::BASE64_STANDARD};
 use bollard::{
-    Docker, body_full, body_try_stream,
+    Docker, body_full,
     query_parameters::{
         CreateContainerOptions, CreateImageOptionsBuilder, StartContainerOptions,
         StopContainerOptions, UploadToContainerOptions,
     },
     secret::{ContainerCreateBody, HostConfig, Mount, MountTypeEnum},
 };
-use chrono::{DateTime, Duration, Utc};
-use futures::{executor::block_on, future};
+use futures::executor::block_on;
 use futures_util::StreamExt as _;
 use tokio::time::Sleep;
 use tracing::{debug, info, instrument, warn};
 
 use crate::{
-    auth::{TokenHeaders, WithTokenHeaders},
     error::AppError,
-    github::GithubClient,
+    github::{GithubClient, access_tokens::WithTokens},
 };
 
 #[derive(Debug)]
@@ -168,7 +167,7 @@ impl EditorSessionManager {
         repo_name: &str,
         access_token: &str,
         refresh_token: &str,
-    ) -> Result<WithTokenHeaders<()>, AppError> {
+    ) -> Result<WithTokens<()>, AppError> {
         let image = self.get_image().await?;
 
         let mount = Mount {
@@ -208,7 +207,7 @@ impl EditorSessionManager {
             .map_err(AppError::other)?;
 
         debug!("fetching files");
-        let WithTokenHeaders(tarball, headers) = self
+        let WithTokens(tarball, headers) = self
             .client
             .get_project_tarball(access_token, refresh_token, username, repo_name)
             .await?;
@@ -237,7 +236,7 @@ impl EditorSessionManager {
             },
         );
 
-        Ok(WithTokenHeaders((), headers))
+        Ok(WithTokens((), headers))
     }
 
     async fn get_image(&self) -> Result<String, AppError> {

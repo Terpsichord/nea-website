@@ -2,26 +2,31 @@ use std::cmp::Reverse;
 
 use axum::{
     Extension, Json, Router,
-    extract::{Path, State, WebSocketUpgrade, ws::{Message, WebSocket}},
+    extract::{
+        Path, State, WebSocketUpgrade,
+        ws::{Message, WebSocket},
+    },
+    http::StatusCode,
     middleware,
-    response::Response,
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use crate::{
     AppState,
     api::ProjectResponse,
     auth::{
-        SharedTokenInfo,
+        SharedTokenInfo, TokenHeaders,
         middleware::{AuthUser, auth_middleware, optional_auth_middleware},
     },
     db::DatabaseConnector,
     error::AppError,
+    github::{CreateRepoResponse, access_tokens::WithTokens},
 };
 
 use super::ProjectInfo;
@@ -29,6 +34,7 @@ use super::ProjectInfo;
 pub fn project_router(state: AppState) -> Router<AppState> {
     let auth = Router::new()
         .route("/project/open/{username}/{repo_name}", get(open_project))
+        .route("/project/new", post(new_project))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -340,6 +346,124 @@ fn get_comment_replies(id: i32, comments: &mut [Comment]) -> Vec<Comment> {
     children
 }
 
+#[derive(Deserialize)]
+struct NewProjectBody {
+    title: String,
+    lang: String, // FIXME
+    private: bool,
+}
+
+#[derive(Serialize)]
+struct NewProjectResponse {
+    username: String,
+    repo_name: String,
+}
+
+#[instrument(skip(db, access, refresh))]
+async fn new_project(
+    State(AppState { db, client, .. }): State<AppState>,
+    Extension(AuthUser {
+        github_id,
+        access_token: access,
+        refresh_token: refresh,
+    }): Extension<AuthUser>,
+    Json(NewProjectBody {
+        title,
+        lang,
+        private,
+    }): Json<NewProjectBody>,
+) -> Result<Json<NewProjectResponse>, AppError> {
+    let mut access_token = &*access;
+    let mut refresh_token = &*refresh;
+    let mut tokens = None;
+
+    let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE github_id = $1", github_id)
+        .fetch_one(&*db)
+        .await?;
+    info!("user_id: {}", user_id);
+
+    // check if project with same name exists for user
+    let exists = sqlx::query_scalar!(
+        r#"
+        SELECT EXISTS (
+            SELECT 1
+            FROM projects
+            WHERE title = $1
+            AND user_id = $2
+        ) as "exists!"
+        "#,
+        title,
+        user_id
+    )
+    .fetch_one(&*db)
+    .await?;
+    info!("exists: {}", exists);
+
+    if exists {
+        return Err(AppError::ProjectExists);
+    }
+
+    let username = sqlx::query_scalar!("SELECT username FROM users WHERE id = $1", user_id)
+        .fetch_one(&*db)
+        .await?;
+
+    // create the github repo for the project
+    let WithTokens(
+        CreateRepoResponse {
+            repo_name,
+            already_exists,
+        },
+        new_tokens,
+    ) = client
+        .create_repo(access_token, refresh_token, &username, &title, private)
+        .await?;
+    info!("repo_name: {}", repo_name);
+
+    tokens = new_tokens;
+    if let Some(ref tokens) = tokens {
+        (access_token, refresh_token) = tokens.unencrypted();
+    }
+
+    let readme = if already_exists {
+        let WithTokens(readme, new_tokens) = client
+            .get_readme(access_token, refresh_token, &username, &repo_name)
+            .await?;
+        info!("readme: {}", repo_name);
+
+        tokens = new_tokens;
+        if let Some(ref tokens) = tokens {
+            (access_token, refresh_token) = tokens.unencrypted();
+        }
+
+        Some(readme)
+    } else {
+        None
+    }
+    .unwrap_or_default();
+
+    // insert project details into db
+    sqlx::query!(
+        r#"
+        INSERT INTO projects (title, user_id, repo_name, readme, public)
+        VALUES ($1, $2, $3, $4, $5)
+        "#,
+        title,
+        user_id,
+        repo_name,
+        readme,
+        !private
+    )
+    .execute(&*db)
+    .await?;
+
+    // FIXME: this function should return the token cookie headers
+    // i'm not sure what the return type should be
+    Ok(Json(NewProjectResponse {
+        username,
+        repo_name,
+    }))
+}
+
 #[instrument(skip(db, session_mgr, access_token, refresh_token))]
 async fn open_project(
     Path((username, repo_name)): Path<(String, String)>,
@@ -373,8 +497,7 @@ async fn open_project(
     Ok(ws.on_upgrade(handle_editor_ws))
 }
 
-async fn handle_editor_ws(ws: WebSocket) {
-}
+async fn handle_editor_ws(ws: WebSocket) {}
 
 // async fn connect_session(
 //     Path((username, repo_name, code)): Path<(String, String, String)>,

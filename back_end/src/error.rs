@@ -1,8 +1,8 @@
 use anyhow::anyhow;
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -18,6 +18,7 @@ pub enum AppError {
     SessionConflict,
     NotFound,
     Unauthorized,
+    ProjectExists,
     // try to avoid using this
     // generally prefer creating a new variant instead
     // TODO: remove this probably
@@ -62,6 +63,7 @@ impl IntoResponse for AppError {
             NotFound => return StatusCode::NOT_FOUND.into_response(),
             Unauthorized => return StatusCode::UNAUTHORIZED.into_response(),
             SessionConflict => return StatusCode::CONFLICT.into_response(),
+            ProjectExists => return StatusCode::UNPROCESSABLE_ENTITY.into_response(),
             InvalidAuth(e) => e.into(),
             Database(e) => e.into(),
             GithubAuth(e) => anyhow!("Github auth failed: {}", e.message),

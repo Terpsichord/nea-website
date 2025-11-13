@@ -1,15 +1,18 @@
 use axum::{
+    Extension, Json, Router,
     extract::State,
     middleware,
     routing::{get, patch},
-    Extension, Json, Router,
 };
 use serde::Deserialize;
 use tracing::{info, instrument};
 
 use crate::{
-    auth::middleware::{auth_middleware, AuthUser},
-    api::{ProjectInfo, UserResponse}, db::DatabaseConnector, error::AppError, AppState
+    AppState,
+    api::{ProjectInfo, UserResponse},
+    auth::middleware::{AuthUser, auth_middleware},
+    db::DatabaseConnector,
+    error::AppError,
 };
 
 pub fn profile_router(state: AppState) -> Router<AppState> {

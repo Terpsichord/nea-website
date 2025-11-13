@@ -1,7 +1,7 @@
 use super::BackendHandle;
+use eyre::WrapErr as _;
 use serde::{Deserialize, Serialize};
 use web_sys::WebSocket;
-use eyre::WrapErr as _;
 
 // #[derive(Debug, Serialize, Deserialize)]
 // FIXME

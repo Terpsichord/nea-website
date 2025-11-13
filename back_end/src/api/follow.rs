@@ -8,8 +8,8 @@ use tracing::instrument;
 
 use crate::{
     AppState,
-    auth::middleware::{AuthUser, auth_middleware},
     api::UserResponse,
+    auth::middleware::{AuthUser, auth_middleware},
     db::DatabaseConnector,
     error::AppError,
 };

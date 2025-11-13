@@ -1,5 +1,5 @@
+use super::{BackendHandle, Project};
 use std::sync::{Arc, Mutex};
-use super::{Project, BackendHandle};
 use ws_messages::Command;
 
 #[derive(Default)]
@@ -14,7 +14,7 @@ impl Runner {
     }
 
     pub fn update(&mut self) {
-        todo!()   
+        todo!()
     }
 
     pub fn is_running(&self) -> bool {
