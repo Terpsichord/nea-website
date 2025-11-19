@@ -24,7 +24,7 @@ pub fn follow_router(state: AppState) -> Router<AppState> {
 }
 
 async fn get_follow_list() -> Result<Json<Vec<UserResponse>>, AppError> {
-    todo!()
+    todo!("get list of users followed by auth user")
 }
 
 /// Checks if the authenticated user currently follows the given user
