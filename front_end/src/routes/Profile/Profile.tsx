@@ -20,7 +20,7 @@ function Profile() {
     }, [isAuth]);
 
     const [user] = useApi<User>(isAuth ? "/profile" : null) ?? [undefined];
-    const [followers] = useApi<User[]>(isAuth ? "/followers" : null) ?? [undefined];
+    const [followers] = useApi<User[]>(isAuth ? "/follow/followers" : null) ?? [undefined];
 
     if (user === undefined) {
         return <Loading />;
