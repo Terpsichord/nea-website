@@ -20,7 +20,7 @@ impl Project {
 }
 
 impl ProjectSettings {
-    const PATH: &str = ".myide/project.toml";
+    const PATH: &str = ".ide/project.toml";
 
     pub fn read_from(path: &Path) -> Result<Option<ProjectSettings>, ProjectSettingsError> {
         let y = path.join(Self::PATH);

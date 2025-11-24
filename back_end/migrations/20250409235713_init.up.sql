@@ -10,6 +10,7 @@ CREATE TABLE users (
 CREATE TABLE projects (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
+    lang VARCHAR(10) NOT NULL,
     user_id INT NOT NULL REFERENCES users(id),
     repo_name VARCHAR(255) NOT NULL,
     readme TEXT NOT NULL DEFAULT '',

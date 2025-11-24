@@ -2,12 +2,14 @@ use std::iter;
 
 use anyhow::anyhow;
 use axum::http::HeaderValue;
+use base64::{Engine as _, prelude::BASE64_STANDARD};
 use bytes::Bytes;
 use reqwest::{RequestBuilder, Response, StatusCode, header::USER_AGENT};
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
+    api::ProjectLang,
     error::{AppError, GithubUserError},
     github::access_tokens::{TokenRequestType, WithTokens},
 };
@@ -148,7 +150,9 @@ impl GithubClient {
         let is_valid = |c: char| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-';
 
         // remove all invalid characters and make lowercase
-        name.replace(" ", "_").replace(|c| !is_valid(c), "").to_lowercase()
+        name.replace(" ", "_")
+            .replace(|c| !is_valid(c), "")
+            .to_lowercase()
     }
 
     pub async fn create_repo(
@@ -157,6 +161,7 @@ impl GithubClient {
         mut refresh_token: &str,
         username: &str,
         title: &str,
+        lang: ProjectLang,
         private: bool,
     ) -> Result<WithTokens<CreateRepoResponse>, AppError> {
         let repo_name = Self::sanitize_repo_name(title);
@@ -191,15 +196,20 @@ impl GithubClient {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(AppError::other(anyhow!("failed to create project: {}", resp.text().await.unwrap())));
+            return Err(AppError::other(anyhow!(
+                "failed to create project: {}",
+                resp.text().await.unwrap()
+            )));
         }
+
+        let WithTokens(_, new_tokens) = self.add_repo_files(access_token, refresh_token, username, &repo_name, lang).await?;
 
         Ok(WithTokens(
             CreateRepoResponse {
                 repo_name,
                 already_exists: false,
             },
-            tokens,
+            new_tokens.or(tokens),
         ))
     }
 
@@ -224,6 +234,78 @@ impl GithubClient {
         Ok(WithTokens(exists, tokens))
     }
 
+    async fn add_repo_files(
+        &self,
+        mut access_token: &str,
+        mut refresh_token: &str,
+        username: &str,
+        repo_name: &str,
+        lang: ProjectLang,
+    ) -> Result<WithTokens<()>, AppError> {
+        let project_toml = lang.get_project_toml().map_err(AppError::other)?;
+        let WithTokens(_, tokens) = self
+            .add_file(
+                access_token,
+                refresh_token,
+                username,
+                repo_name,
+                ".ide/project.toml",
+                &project_toml,
+            )
+            .await?;
+        if let Some(ref tokens) = tokens {
+            access_token = &tokens.access_unencrypted;
+            refresh_token = &tokens.refresh_unencrypted;
+        }
+
+        let (init_path, init_content) = lang.get_initial_file().map_err(AppError::other)?;
+        let WithTokens(_, new_tokens) = self
+            .add_file(
+                access_token,
+                refresh_token,
+                username,
+                repo_name,
+                init_path,
+                &init_content,
+            )
+            .await?;
+
+        Ok(WithTokens((), new_tokens.or(tokens)))
+    }
+
+    async fn add_file(
+        &self,
+        access_token: &str,
+        refresh_token: &str,
+        username: &str,
+        repo_name: &str,
+        path: &str,
+        content: &str,
+    ) -> Result<WithTokens<()>, AppError> {
+        let WithTokens(resp, tokens) = self
+            .send_authenticated(
+                self.client
+                    .put(Self::api_url(&format!(
+                        "/repos/{username}/{repo_name}/contents/{path}"
+                    )))
+                    .json(&json!({
+                        "message": format!("Add {path}"),
+                        "content": BASE64_STANDARD.encode(content)
+                    })),
+                access_token,
+                Some(refresh_token),
+            )
+            .await?;
+
+        if resp.status().is_success() {
+            Ok(WithTokens((), tokens))
+        } else {
+            Err(AppError::other(anyhow!(
+                "failed to add file: {}",
+                resp.text().await.unwrap()
+            )))
+        }
+    }
     pub async fn get_readme(
         &self,
         mut access_token: &str,

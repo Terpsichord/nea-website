@@ -66,7 +66,7 @@ function Dashboard() {
                         <option value="c">C</option>
                         <option value="cpp">C++</option>
                         <option value="cs">C#</option>
-                        <option value="bash">Bash</option>
+                        <option value="sh">Bash</option>
                         <option value="java">Java</option>
                     </select>
 

@@ -1,27 +1,20 @@
-use std::cmp::Reverse;
-
 use axum::{
     Extension, Json, Router,
     extract::{
         Path, State, WebSocketUpgrade,
-        ws::{Message, WebSocket},
+        ws::WebSocket,
     },
-    http::StatusCode,
     middleware,
-    response::{IntoResponse, Response},
+    response::Response,
     routing::{get, post},
 };
-use base64::{Engine, prelude::BASE64_STANDARD};
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
 use tracing::{info, instrument};
 
 use crate::{
     AppState,
-    api::ProjectResponse,
+    api::{ProjectLang, ProjectResponse},
     auth::{
-        SharedTokenInfo, TokenHeaders,
         middleware::{AuthUser, auth_middleware, optional_auth_middleware},
     },
     db::DatabaseConnector,
@@ -198,17 +191,17 @@ async fn unlike(
 #[derive(Deserialize)]
 struct NewProjectBody {
     title: String,
-    lang: String, // FIXME
+    lang: ProjectLang, 
     private: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct NewProjectResponse {
     username: String,
     repo_name: String,
 }
 
-#[instrument(skip(db, access, refresh))]
+#[instrument(skip(db, client, access, refresh))]
 async fn new_project(
     State(AppState { db, client, .. }): State<AppState>,
     Extension(AuthUser {
@@ -224,7 +217,7 @@ async fn new_project(
 ) -> Result<Json<NewProjectResponse>, AppError> {
     let mut access_token = &*access;
     let mut refresh_token = &*refresh;
-    let mut tokens = None;
+    let mut tokens;
 
     let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE github_id = $1", github_id)
         .fetch_one(&*db)
@@ -264,7 +257,7 @@ async fn new_project(
         },
         new_tokens,
     ) = client
-        .create_repo(access_token, refresh_token, &username, &title, private)
+        .create_repo(access_token, refresh_token, &username, &title, lang, private)
         .await?;
     info!("repo_name: {}", repo_name);
 
@@ -293,10 +286,11 @@ async fn new_project(
     // insert project details into db
     sqlx::query!(
         r#"
-        INSERT INTO projects (title, user_id, repo_name, readme, public)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO projects (title, lang, user_id, repo_name, readme, public)
+        VALUES ($1, $2, $3, $4, $5, $6)
         "#,
         title,
+        lang.to_string(),
         user_id,
         repo_name,
         readme,
@@ -330,7 +324,8 @@ async fn open_project(
         .get_project(&username, &repo_name, Some(github_id), true)
         .await?;
 
-    session_mgr
+    // todo: return these tokens
+    let WithTokens((), _) = session_mgr
         .open(
             project.user_id,
             project.id,

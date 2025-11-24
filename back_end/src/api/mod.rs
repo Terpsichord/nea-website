@@ -1,3 +1,5 @@
+use std::{fmt::Display, fs, io};
+
 use axum::{
     Json, Router,
     http::{HeaderName, header},
@@ -5,7 +7,7 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use chrono::{NaiveDate, DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::prelude::FromRow;
 
@@ -82,4 +84,69 @@ pub struct UserResponse {
     pub picture_url: String,
     pub bio: String,
     pub join_date: NaiveDate,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum ProjectLang {
+    #[serde(rename = "py")]
+    Python,
+    #[serde(rename = "js")]
+    JavaScript,
+    #[serde(rename = "ts")]
+    TypeScript,
+    #[serde(rename = "rs")]
+    Rust,
+    #[serde(rename = "c")]
+    C,
+    #[serde(rename = "cpp")]
+    CPlusPlus,
+    #[serde(rename = "cs")]
+    CSharp,
+    #[serde(rename = "sh")]
+    Bash,
+    #[serde(rename = "java")]
+    Java,
+}
+
+impl Display for ProjectLang {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            ProjectLang::Python => "py",
+            ProjectLang::JavaScript => "js",
+            ProjectLang::TypeScript => "ts",
+            ProjectLang::Rust => "rs",
+            ProjectLang::C => "c",
+            ProjectLang::CPlusPlus => "cpp",
+            ProjectLang::CSharp => "cs",
+            ProjectLang::Bash => "sh",
+            ProjectLang::Java => "java",
+        })
+    }
+}
+
+impl ProjectLang {
+    const LANG_PATH: &'static str = "./back_end/languages";
+
+    pub fn get_project_toml(self) -> io::Result<String> {
+        fs::read_to_string(format!("{}/{}/project.toml", Self::LANG_PATH, self))
+    }
+
+    pub fn get_initial_file(self) -> io::Result<(&'static str, String)> {
+        let name = match self {
+            ProjectLang::Python => "main.py",
+            ProjectLang::JavaScript => "main.js",
+            ProjectLang::TypeScript => "main.ts",
+            ProjectLang::C => "main.c",
+            ProjectLang::CPlusPlus => "main.cpp",
+            ProjectLang::Bash => "main.sh",
+            ProjectLang::Java => "main.java",
+            // these languages have readmes with instructions on how to get started 
+            ProjectLang::Rust | ProjectLang::CSharp => "README.md",
+        };
+
+        let content = fs::read_to_string(format!("{}/{}/init", Self::LANG_PATH, self))?;
+
+    
+        Ok((name, content))
+    }
 }

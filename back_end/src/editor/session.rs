@@ -112,7 +112,7 @@ impl EditorSessionManager {
         repo_name: &str,
         access_token: &str,
         refresh_token: &str,
-    ) -> Result<(), AppError> {
+    ) -> Result<WithTokens<()>, AppError> {
         let mut reactivate = false;
         let mut close = false;
 
@@ -135,7 +135,7 @@ impl EditorSessionManager {
                 .unwrap()
                 .entry(user_id)
                 .and_modify(|state| state.mode = SessionMode::Active);
-            return Ok(());
+            return Ok(WithTokens::default());
         }
 
         if close {
@@ -143,17 +143,16 @@ impl EditorSessionManager {
         }
 
         info!("creating session");
-        self.create_session(
-            user_id,
-            project_id,
-            username,
-            repo_name,
-            access_token,
-            refresh_token,
-        )
-        .await?;
-
-        Ok(())
+        Ok(self
+            .create_session(
+                user_id,
+                project_id,
+                username,
+                repo_name,
+                access_token,
+                refresh_token,
+            )
+            .await?)
     }
 
     const WORKSPACE_PATH: &'static str = "/home/workspace";

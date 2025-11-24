@@ -62,6 +62,7 @@ struct AccessTokenResponse {
 
 // Struct used to pass new tokens up the call stack after tokens have been refreshed
 #[derive(Default)]
+#[must_use]
 pub struct WithTokens<T>(pub T, pub Option<Tokens>);
 
 impl<T> WithTokens<T> {

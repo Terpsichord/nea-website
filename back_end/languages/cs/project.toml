@@ -1,0 +1,2 @@
+run_command = "dotnet run"
+format_command = "dotnet format"
