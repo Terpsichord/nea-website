@@ -3,12 +3,9 @@ import ProjectView from "../components/ProjectView";
 import { faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { FormEvent, useState } from "react";
 import { fetchApi } from "../utils";
-import { useNavigate } from "react-router";
 
 function Dashboard() {
     const [showModal, setShowModal] = useState(false);
-
-    const navigate = useNavigate();
 
     async function createProject(e: FormEvent<HTMLFormElement>) {
         e.preventDefault();
