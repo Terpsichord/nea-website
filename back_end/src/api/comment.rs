@@ -1,20 +1,23 @@
-use serde::Deserialize;
+use std::cmp::Reverse;
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use axum::{
     Extension, Json, Router,
     extract::{Path, State},
     middleware,
-    response::Response,
     routing::{get, post},
 };
+use tracing::instrument;
 
 use crate::{
     AppState,
-    middleware::{AuthUser, auth_middleware},
+    auth::middleware::{AuthUser, auth_middleware},
     db::DatabaseConnector,
     error::AppError,
 };
 
-pub fn comment_router() -> Router<AppState> {
+pub fn comment_router(state: AppState) -> Router<AppState> {
     let auth = Router::new()
         .route("/comment/{username}/{repo_name}", post(post_comment))
         .layer(middleware::from_fn_with_state(
