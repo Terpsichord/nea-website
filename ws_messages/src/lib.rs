@@ -4,7 +4,7 @@ use bincode::config;
 use serde_derive::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClientMessage {
     pub id: Uuid,
     pub cmd: Command,
@@ -25,7 +25,7 @@ impl ClientMessage {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Command {
     ReadFile { path: PathBuf },
     ReadDir { path: PathBuf },
@@ -33,9 +33,10 @@ pub enum Command {
     WriteFile { path: PathBuf, contents: String },
     Delete { path: PathBuf },
     Run,
+    StopRunning,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ServerMessage {
     pub id: Uuid,
     pub resp: Response,
@@ -47,8 +48,10 @@ impl ServerMessage {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Response {
-    FileContents { path: PathBuf, contents: String },
+    FileContents { contents: String },
     DirContents { contents_paths: Vec<PathBuf> },
+    Output { output: String },
+    Success,
 }

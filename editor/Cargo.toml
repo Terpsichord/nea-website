@@ -1,7 +1,11 @@
 [package]
-name = "my-ide"
+name = "editor"
 version = "0.1.0"
 edition = "2024"
+
+[target.'cfg(target_arch = "wasm32")'.lib]
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
 
 [dependencies]
 color-eyre = { version = "0.6.3", default-features = false }
@@ -15,7 +19,6 @@ egui_extras = { version = "0.33.0", default-features = false, features = ["serde
 eyre = "0.6.12"
 itertools = "0.14.0"
 log = "0.4.27"
-pollster = "0.4.0"
 serde = "1.0.219"
 shell-words = "1.1.0"
 
@@ -28,10 +31,11 @@ rfd = "0.15.3"
 env_logger = "0.11.7"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.105"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3.70", features = ["Location", "UrlSearchParams"] }
 gloo-net = "0.6.0"
 futures = "0.3.31"
-pollster = "0.4.0"
+poll-promise = { version = "0.3.0", features = ["web"] } 
 ws_stream_wasm = "0.7.5"
 ws_messages = { path = "../ws_messages" }

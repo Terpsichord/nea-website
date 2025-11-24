@@ -4,9 +4,9 @@ use futures::{
     future::FutureExt as _,
     sink::{Send, SinkExt as _},
 };
-use pollster::FutureExt as _;
+use poll_promise::Promise;
 use std::{
-    cell::{OnceCell, RefCell},
+    cell::{OnceCell, RefCell, RefMut},
     collections::HashMap,
     panic::AssertUnwindSafe,
     rc::Rc,
@@ -55,9 +55,9 @@ pub struct BackendHandle {
 }
 
 impl BackendHandle {
-    pub fn new(url: &str) -> Result<Self, WsErr> {
+    pub async fn new(url: &str) -> Result<Self, WsErr> {
         Ok(Self {
-            ws: WebSocketHandle::new(url)?,
+            ws: WebSocketHandle::new(url).await?,
             pending: Default::default(),
         })
     }
@@ -79,30 +79,49 @@ impl BackendHandle {
     }
 
     pub fn send(&self, cmd: Command) {
-        let msg = ClientMessage::new(cmd);
+        let msg = ClientMessage::new(cmd.clone());
         let binary = msg.encode().expect("TODO: return encode error");
 
-        let send = self.ws.stream().send(WsMessage::Binary(binary));
-        self.pending.send(send);
+        self.pending.send(cmd, self.ws.clone(), WsMessage::Binary(binary));
     }
 }
 
 #[derive(Default, Debug, Clone)]
-struct WebSocketHandle(Option<Rc<(WsMeta, WsStream)>>);
+struct WebSocketHandle(Option<Rc<RefCell<(WsMeta, WsStream)>>>);
 
 impl WebSocketHandle {
-    fn new(url: &str) -> Result<Self, WsErr> {
-        let ws = WsMeta::connect(url).block_on()?;
+    pub async fn new(url: &str) -> Result<Self, WsErr> {
+        let url = url.to_string();
+        let ws = WsMeta::connect(url, None).await?;
 
-        Ok(Self(Some(Rc::new(ws))))
+        // let mut ws;
+        // let mut connected = false;
+        // // FIXME: i think this is, like, a pretty bad thing to do
+        // while !connected {
+        //     if let Some(result) = promise.ready() {
+        //         ws = result?;
+        //         connected = true;
+        //     }
+        // }
+
+        Ok(Self(Some(Rc::new(RefCell::new(ws)))))
     }
 
-    fn stream(&mut self) -> &mut WsStream {
-        &mut self.0.as_mut().expect("no websocket").1
+    fn stream(&self) -> RefMut<'_, WsStream> {
+        RefMut::map(self.0.as_ref().expect("no websocket").borrow_mut(), |(_, stream)| stream)
     }
 
-    fn next_ready(&mut self) -> Option<WsMessage> {
-        let mut next = self.stream().next();
+    pub fn send(&self, msg: WsMessage) -> impl Future<Output = Result<(), WsErr>> {
+        let handle = self.clone();
+        async move {
+            let mut stream = handle.stream();
+            stream.send(msg).await
+        }
+    }
+
+    pub fn next_ready(&mut self) -> Option<WsMessage> {
+        let mut stream = self.stream();
+        let mut next = stream.next();
         (&mut next).now_or_never().flatten()
     }
 }
@@ -115,12 +134,13 @@ impl PendingOperations {
         Self::default()
     }
 
-    pub fn send(&self, cmd: Command, send: Send<'static, WsStream, WsMessage>, id: Uuid) {
+    fn send(&self, cmd: Command, ws: WebSocketHandle, msg: WsMessage) {
+        let id = Uuid::new_v4();
         self.0.borrow_mut().messages.insert(id, cmd);
 
         let sender = self.0.clone();
         spawn_local(async move {
-            if let Err(err) = send.await {
+            if let Err(err) = ws.send(msg).await {
                 sender.borrow_mut().push_send_err((id, err));
             }
         });

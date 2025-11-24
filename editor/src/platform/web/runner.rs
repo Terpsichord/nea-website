@@ -10,7 +10,7 @@ pub struct Runner {
 impl Runner {
     pub fn run(&mut self, _project: &mut Project, _output: Arc<Mutex<String>>) -> eyre::Result<()> {
         self.handle.send(Command::Run);
-        todo!()
+        Ok(())
     }
 
     pub fn update(&mut self) {

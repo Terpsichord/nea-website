@@ -257,6 +257,7 @@ impl Buffer {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn from_path(path: PathBuf, fs: &FileSystem) -> eyre::Result<Self> {
         let contents = fs.read_file(&path).wrap_err("Failed to read file")?;
 

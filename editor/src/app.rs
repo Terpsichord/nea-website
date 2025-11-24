@@ -117,7 +117,7 @@ pub struct App {
     ignore_dirty: bool,
     #[cfg(target_arch = "wasm32")]
     #[serde(skip)]
-    pending_ops: platform::PendingOperations,
+    backend_handle: platform::BackendHandle,
 }
 
 impl eframe::App for App {
@@ -224,8 +224,8 @@ impl eframe::App for App {
 
 impl App {
     #[cfg(target_arch = "wasm32")]
-    pub fn new(user: String, repo: String) -> Self {
-        let project = platform::Project::new(user, repo).expect("failed to create project");
+    pub async fn new(user: String, repo: String) -> Self {
+        let project = platform::Project::new(user, repo).await.expect("failed to create project");
         let fs = platform::FileSystem::new(project.handle().clone());
 
         Self {
@@ -459,7 +459,7 @@ impl App {
         }
         #[cfg(target_arch = "wasm32")]
         {
-            // self.fs.read()
+            let _ = self.fs.read_file(&path);
         }
     }
 
@@ -602,6 +602,33 @@ impl App {
 
     #[cfg(target_arch = "wasm32")]
     fn handle_pending(&mut self) {
-        todo!()
+        use ws_messages::{Command::*, Response::*};
+
+        for resp in self.backend_handle.responses() {
+            match resp.expect("FIXME: proper error handling") {
+                (ReadFile { path }, FileContents { contents }) => {
+                    
+                }
+                (ReadDir { path }, DirContents { contents_paths }) => {
+                    
+                }
+                (Rename { from, to }, Success) => {
+                    
+                }
+                (WriteFile { path, contents }, Success) => {
+                    
+                }
+                (Delete { path }, Success) => {
+                    
+                }
+                (Run, Output { output }) => {
+                    
+                }
+                (StopRunning, Success) => {
+                        
+                }
+                _ => { panic!("FIXME: error handle here or something") }
+            }
+        }
     }
 }

@@ -1,29 +1,20 @@
 #![warn(clippy::expect_used)]
 
+pub use app::App;
+
 mod app;
 mod buffer;
 mod explorer;
 mod platform;
 
-#[cfg(not(target_arch = "wasm32"))]
-fn main() -> eframe::Result {
-    env_logger::init();
-
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1080.0, 608.0]),
-        ..Default::default()
-    };
-    eframe::run_native(
-        "My IDE",
-        options,
-        Box::new(|_| Ok(Box::<app::App>::default())),
-    )
-}
+#[cfg(target_arch = "wasm32")]
+use {
+    eframe::wasm_bindgen::JsCast as _, wasm_bindgen::prelude::*, wasm_bindgen_futures::spawn_local,
+};
 
 #[cfg(target_arch = "wasm32")]
-fn main() {
-    use eframe::wasm_bindgen::JsCast;
-
+#[wasm_bindgen(start)]
+pub async fn start() {
     eframe::WebLogger::init(log::LevelFilter::Debug).ok();
 
     let options = eframe::WebOptions::default();
@@ -49,12 +40,10 @@ fn main() {
             .dyn_into::<web_sys::HtmlCanvasElement>()
             .expect("element with id canvas was not a HtmlCanvasElement");
 
+        let new_app = app::App::new(user, repo).await;
+
         let result = eframe::WebRunner::new()
-            .start(
-                canvas,
-                options,
-                Box::new(move |_| Ok(Box::new(app::App::new(user, repo)))),
-            )
+            .start(canvas, options, Box::new(move |_| Ok(Box::new(new_app))))
             .await;
 
         if let Some(loading_text) = document.get_element_by_id("loading_text") {

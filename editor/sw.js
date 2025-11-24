@@ -2,8 +2,8 @@ var cacheName = 'my-ide-pwa';
 var filesToCache = [
   './',
   './index.html',
-  './my-ide.js',
-  './my-ide.wasm',
+  './editor.js',
+  './editor.wasm',
 ];
 
 /* Start the service worker and cache all of the app's content */
