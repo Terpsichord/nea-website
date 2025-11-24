@@ -143,7 +143,8 @@ impl EditorSessionManager {
         }
 
         info!("creating session");
-        Ok(self
+
+        self
             .create_session(
                 user_id,
                 project_id,
@@ -152,7 +153,7 @@ impl EditorSessionManager {
                 access_token,
                 refresh_token,
             )
-            .await?)
+            .await
     }
 
     const WORKSPACE_PATH: &'static str = "/home/workspace";
