@@ -1,8 +1,8 @@
 use aes_gcm::{
-    aead::{generic_array::GenericArray, Aead, AeadMutInPlace, OsRng},
     AeadCore, Aes256Gcm, Key, KeyInit,
+    aead::{Aead, AeadMutInPlace, OsRng, generic_array::GenericArray},
 };
-use base64::{prelude::BASE64_STANDARD, Engine};
+use base64::{Engine, prelude::BASE64_STANDARD};
 
 use crate::CONFIG;
 

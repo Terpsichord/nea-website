@@ -1,4 +1,9 @@
-use std::{fmt::Debug, io, ops::Deref, path::{Path, PathBuf}};
+use std::{
+    fmt::Debug,
+    io,
+    ops::Deref,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     app::{EditorSettings, ModalAction},
@@ -84,9 +89,11 @@ impl Buffers {
         }
 
         let mut save_modal_action = None;
-        
+
         // If there is a buffer to delete
-        if let Some(id) = delete_id && let Some(buffer) = self.get_by_id(id) {
+        if let Some(id) = delete_id
+            && let Some(buffer) = self.get_by_id(id)
+        {
             // If buffer is dirty, then firstly show an "unsaved changes" modal, and then continue with deletion
             // Otherwise, just delete the buffer
             if buffer.is_dirty() {
@@ -322,7 +329,8 @@ impl Buffer {
             .as_mut()
             .ok_or(BufferError::NoAssociatedFile)?;
 
-        fs.write(&file.path, &self.contents).map_err(BufferError::IoError)?;
+        fs.write(&file.path, &self.contents)
+            .map_err(BufferError::IoError)?;
         file.contents = self.contents.clone();
 
         Ok(())
@@ -338,7 +346,8 @@ impl Buffer {
         // TODO: santise the new name and check for errors
         new_path.set_file_name(new_name);
 
-        fs.rename(&file.path, &new_path).map_err(BufferError::IoError)?;
+        fs.rename(&file.path, &new_path)
+            .map_err(BufferError::IoError)?;
 
         file.path = new_path;
 

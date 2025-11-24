@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 
 use crate::{api::ProjectInfo, error::AppError, github::GithubUser};
@@ -21,7 +21,7 @@ pub struct Project {
     pub user_id: i32,
     pub info: ProjectInfo,
     pub github_url: String,
-    pub upload_time: NaiveDateTime,
+    pub upload_time: DateTime<Utc>,
     pub public: bool,
     pub owned: bool,
 }

@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
-use std::{io, sync::{Arc, Mutex}};
-use thiserror::Error;
 use std::path::{Path, PathBuf};
+use std::{
+    io,
+    sync::{Arc, Mutex},
+};
+use thiserror::Error;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use native::*;
@@ -12,7 +15,6 @@ pub use web::*;
 mod native;
 #[cfg(target_arch = "wasm32")]
 mod web;
-
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct ProjectSettings {
@@ -30,13 +32,12 @@ pub enum ProjectSettingsError {
 // TODO: implement this trait for the web and native structs
 pub trait RunnerTrait {
     // TODO: should this just require &ProjectSettings (maybe with &mut Project in update() instead?)
-    // actually maybe for the best to just leave it how it is now 
+    // actually maybe for the best to just leave it how it is now
     fn run(&mut self, project: &mut Project, output: Arc<Mutex<String>>) -> eyre::Result<()>;
     fn stop(&mut self);
     fn update(&mut self);
     fn is_running(&self) -> bool;
 }
-
 
 pub trait FileSystemTrait {
     type ReadDir: Iterator<Item = io::Result<PathBuf>>;

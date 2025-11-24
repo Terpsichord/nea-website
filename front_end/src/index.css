@@ -9,6 +9,7 @@
 }
 
 @theme {
+  --color-dark-gray: #0e0f17;
   --color-light-gray: #d9dfe5;
   --color-gray: #a5aaae;
   --color-github-gray: #18191a;

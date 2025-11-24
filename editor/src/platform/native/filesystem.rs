@@ -27,7 +27,7 @@ impl FileSystemTrait for FileSystem {
     fn write(&self, path: &Path, contents: &str) -> Result<()> {
         fs::write(path, contents)
     }
-    
+
     fn delete(&self, path: &Path) -> std::io::Result<()> {
         if path.is_file() {
             fs::remove_file(path)

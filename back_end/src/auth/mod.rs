@@ -7,7 +7,8 @@ use crate::{
     crypto,
     error::{AppError, InvalidAuthError},
     github::{
-        access_tokens::TokenRequestType, GithubClient
+        GithubClient,
+        access_tokens::{TokenRequestType, WithTokens},
     },
 };
 use middleware::AuthUser;
@@ -25,7 +26,7 @@ pub async fn get_auth_user(
     Extension(token_info): Extension<SharedTokenInfo>,
     State(client): State<GithubClient>,
     jar: &CookieJar,
-) -> Result<Option<WithTokenHeaders<AuthUser>>, AppError> {
+) -> Result<Option<WithTokens<AuthUser>>, AppError> {
     let Some(access_cookie) = jar.get(ACCESS_COOKIE) else {
         return Ok(None);
     };
@@ -34,7 +35,7 @@ pub async fn get_auth_user(
     let encrypted_access_token = access_cookie.value().to_string();
     let mut access_token = decode_token(&encrypted_access_token)?;
 
-    // Extract and decode the refresh token 
+    // Extract and decode the refresh token
     let Some(refresh_cookie) = jar.get(REFRESH_COOKIE) else {
         Err(InvalidAuthError::MissingRefreshToken)?
     };
@@ -43,7 +44,7 @@ pub async fn get_auth_user(
 
     let maybe_info = token_info.get_token_info(&encrypted_access_token).await;
 
-    let mut new_token_headers = None;
+    let mut new_tokens = None;
 
     // If cached token has expired
     if let Some(info) = maybe_info
@@ -59,9 +60,9 @@ pub async fn get_auth_user(
             .await?;
 
         // Update the access and refresh tokens
-        new_token_headers = Some((&tokens).into());
-        access_token = tokens.access_unencrypted;
-        refresh_token = tokens.refresh_unencrypted;
+        access_token.clone_from(&tokens.access_unencrypted);
+        refresh_token.clone_from(&tokens.refresh_unencrypted);
+        new_tokens = Some(tokens);
     }
 
     // Get the Github ID from SharedTokenInfo if it is cached there
@@ -69,8 +70,8 @@ pub async fn get_auth_user(
         info.github_id
     // Otherwise fetch it from Github and cache it for future use
     } else {
-        let WithTokenHeaders(user, headers) = client.get_user(&access_token, Some(&refresh_token)).await?;
-        new_token_headers = headers.or(new_token_headers);
+        let WithTokens(user, tokens) = client.get_user(&access_token, Some(&refresh_token)).await?;
+        new_tokens = tokens.or(new_tokens);
         token_info
             .cache_user_token(&user, encrypted_access_token, None)
             .await;
@@ -78,7 +79,14 @@ pub async fn get_auth_user(
         user.id
     };
 
-    Ok(Some(WithTokenHeaders(AuthUser { github_id, access_token, refresh_token }, new_token_headers)))
+    Ok(Some(WithTokens(
+        AuthUser {
+            github_id,
+            access_token,
+            refresh_token,
+        },
+        new_tokens,
+    )))
 }
 
 fn decode_token(encrypted_token: &str) -> Result<String, InvalidAuthError> {

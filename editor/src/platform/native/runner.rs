@@ -1,6 +1,6 @@
 use crossbeam_channel as crossbeam;
-use eyre::bail;
 use eyre::OptionExt;
+use eyre::bail;
 use std::{
     process::{Child, Stdio},
     sync::{Arc, Mutex},
@@ -10,8 +10,8 @@ use std::{
 use crate::platform::RunnerTrait;
 
 use super::{
-    pipe_reader::{read_piped, PipedLine},
     Project, ProjectSettings,
+    pipe_reader::{PipedLine, read_piped},
 };
 
 #[derive(Default)]

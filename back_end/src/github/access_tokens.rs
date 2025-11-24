@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use super::GithubClient;
 
 use anyhow::Context;
@@ -58,6 +60,24 @@ struct AccessTokenResponse {
     refresh_token_expires_in: u64,
 }
 
+// Struct used to pass new tokens up the call stack after tokens have been refreshed
+#[derive(Default)]
+pub struct WithTokens<T>(pub T, pub Option<Tokens>);
+
+impl<T> WithTokens<T> {
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> WithTokens<U> {
+        WithTokens(f(self.0), self.1)
+    }
+}
+
+impl<T> Deref for WithTokens<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 pub struct Tokens {
     pub access_token: String,
     pub access_expiry: DateTime<Utc>,
@@ -65,6 +85,12 @@ pub struct Tokens {
     pub refresh_expiry: DateTime<Utc>,
     pub access_unencrypted: String,
     pub refresh_unencrypted: String,
+}
+
+impl Tokens {
+    pub fn unencrypted(&self) -> (&str, &str) {
+        (&self.access_unencrypted, &self.refresh_unencrypted)
+    }
 }
 
 impl GithubClient {

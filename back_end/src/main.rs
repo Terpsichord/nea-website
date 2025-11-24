@@ -7,14 +7,15 @@ use std::sync::LazyLock;
 
 use anyhow::Context;
 use api::api_router;
-use auth::{middleware::redirect_auth_middleware, SharedTokenInfo};
-use axum::{extract::FromRef, middleware, routing::get, Router};
-use base64::{prelude::BASE64_STANDARD, Engine};
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use auth::{SharedTokenInfo, middleware::redirect_auth_middleware};
+use axum::{Router, extract::FromRef, middleware, routing::get};
+use base64::{Engine, prelude::BASE64_STANDARD};
+use sqlx::{PgPool, postgres::PgPoolOptions};
 use tower_http::{
     add_extension::AddExtensionLayer,
     catch_panic::CatchPanicLayer,
-    services::{ServeDir, ServeFile}, trace::TraceLayer,
+    services::{ServeDir, ServeFile},
+    trace::TraceLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -81,8 +82,9 @@ impl AppState {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| "nea_website=debug,tower_http=warn".into()),
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "nea_website=debug,tower_http=warn".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();

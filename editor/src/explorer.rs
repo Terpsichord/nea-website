@@ -1,9 +1,9 @@
 use std::{
-    path::{Path, PathBuf},
     cmp::Ordering,
+    path::{Path, PathBuf},
 };
 
-use egui::{CollapsingHeader, Response, ScrollArea, Popup};
+use egui::{CollapsingHeader, Popup, Response, ScrollArea};
 use eyre::WrapErr;
 
 use crate::platform::{FileSystem, FileSystemTrait as _};
@@ -64,7 +64,11 @@ impl TreeNode {
         Self::name_from_path(self.path())
     }
 
-    fn read_children(path: &Path, max_depth: usize, fs: &FileSystem) -> eyre::Result<Vec<TreeNode>> {
+    fn read_children(
+        path: &Path,
+        max_depth: usize,
+        fs: &FileSystem,
+    ) -> eyre::Result<Vec<TreeNode>> {
         let error_msg = || format!("Failed to read directory: {}", path.to_string_lossy());
 
         let mut children = vec![];
@@ -100,15 +104,19 @@ impl TreeNode {
             TreeNode::UnexploredDir { .. } => {
                 unreachable!(); // hopefully
             }
-            TreeNode::ExploredDir { children, path } => {
-                Self::directory_ui(ui, TreeNode::name_from_path(path), path, children, highlighted, fs)?
-            }
+            TreeNode::ExploredDir { children, path } => Self::directory_ui(
+                ui,
+                TreeNode::name_from_path(path),
+                path,
+                children,
+                highlighted,
+                fs,
+            )?,
             TreeNode::File { path } => {
                 Self::file_ui(ui, TreeNode::name_from_path(path), path, highlighted)
-            }
-            // TreeNode::NewFile { path, name } => {
-            //     self.new_file_ui(ui, path, name)
-            // }
+            } // TreeNode::NewFile { path, name } => {
+              //     self.new_file_ui(ui, path, name)
+              // }
         })
     }
     fn explore(&mut self, fs: &FileSystem) -> eyre::Result<()> {
@@ -130,7 +138,7 @@ impl TreeNode {
         path: &Path,
         children: &mut [TreeNode],
         highlighted: &mut Option<PathBuf>,
-        fs: &FileSystem
+        fs: &FileSystem,
     ) -> eyre::Result<ExplorerResponse> {
         let mut action = None;
         let response = CollapsingHeader::new(name).show(ui, |ui| {
@@ -189,14 +197,14 @@ impl TreeNode {
             }
 
             ExplorerResponse {
-                action: button.double_clicked().then(|| ExplorerAction::OpenFile(path.to_owned())),
+                action: button
+                    .double_clicked()
+                    .then(|| ExplorerAction::OpenFile(path.to_owned())),
                 response: button,
             }
         })
         .inner
     }
-
-
 }
 
 pub enum ExplorerAction {
@@ -264,7 +272,7 @@ impl Explorer {
 
     //     ExplorerResponse {
     //         action: None,
-    //         response, 
+    //         response,
     //     }
     // }
 }

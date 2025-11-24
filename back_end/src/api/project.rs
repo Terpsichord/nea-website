@@ -2,26 +2,31 @@ use std::cmp::Reverse;
 
 use axum::{
     Extension, Json, Router,
-    extract::{Path, State, WebSocketUpgrade, ws::{Message, WebSocket}},
+    extract::{
+        Path, State, WebSocketUpgrade,
+        ws::{Message, WebSocket},
+    },
+    http::StatusCode,
     middleware,
-    response::Response,
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use crate::{
     AppState,
     api::ProjectResponse,
     auth::{
-        SharedTokenInfo,
+        SharedTokenInfo, TokenHeaders,
         middleware::{AuthUser, auth_middleware, optional_auth_middleware},
     },
     db::DatabaseConnector,
     error::AppError,
+    github::{CreateRepoResponse, access_tokens::WithTokens},
 };
 
 use super::ProjectInfo;
@@ -29,6 +34,7 @@ use super::ProjectInfo;
 pub fn project_router(state: AppState) -> Router<AppState> {
     let auth = Router::new()
         .route("/project/open/{username}/{repo_name}", get(open_project))
+        .route("/project/new", post(new_project))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -222,8 +228,7 @@ async fn open_project(
     Ok(ws.on_upgrade(handle_editor_ws))
 }
 
-async fn handle_editor_ws(ws: WebSocket) {
-}
+async fn handle_editor_ws(ws: WebSocket) {}
 
 // async fn connect_session(
 //     Path((username, repo_name, code)): Path<(String, String, String)>,

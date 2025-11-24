@@ -8,8 +8,8 @@ use tracing::instrument;
 
 use crate::{
     AppState,
-    auth::middleware::{AuthUser, auth_middleware},
     api::UserResponse,
+    auth::middleware::{AuthUser, auth_middleware},
     db::DatabaseConnector,
     error::AppError,
 };
@@ -19,12 +19,12 @@ pub fn follow_router(state: AppState) -> Router<AppState> {
         .route("/follow", get(get_follow_list))
         .route("/follow/{username}", get(get_follow).post(post_follow))
         .route("/follow/{username}/unfollow", post(post_unfollow))
-        .route("/followers", get(get_followers))
+        .route("/follow/followers", get(get_followers))
         .route_layer(middleware::from_fn_with_state(state, auth_middleware))
 }
 
 async fn get_follow_list() -> Result<Json<Vec<UserResponse>>, AppError> {
-    todo!()
+    todo!("get list of users followed by auth user")
 }
 
 /// Checks if the authenticated user currently follows the given user

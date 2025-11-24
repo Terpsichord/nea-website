@@ -1,16 +1,16 @@
 use axum::{
-    http::{header, HeaderName},
-    routing::{get, post},
     Json, Router,
+    http::{HeaderName, header},
+    routing::{get, post},
 };
 use axum_extra::extract::CookieJar;
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{NaiveDate, DateTime, Utc};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sqlx::prelude::FromRow;
 
-use crate::{db::Project, AppState};
 use crate::auth::ACCESS_COOKIE;
+use crate::{AppState, db::Project};
 
 mod comment;
 mod follow;
@@ -58,7 +58,7 @@ pub struct ProjectResponse {
     #[serde(flatten)]
     pub info: ProjectInfo,
     pub github_url: String,
-    pub upload_time: NaiveDateTime,
+    pub upload_time: DateTime<Utc>,
     pub public: bool,
     pub owned: bool,
 }

@@ -1,11 +1,15 @@
-use std::{io::{Error, ErrorKind, Result}, vec::IntoIter, path::{Path, PathBuf}};
-use super::{BackendHandle, WebSocketHandle, PendingOperations};
+use super::{BackendHandle, PendingOperations, WebSocketHandle};
 use crate::platform::FileSystemTrait;
+use std::{
+    io::{Error, ErrorKind, Result},
+    path::{Path, PathBuf},
+    vec::IntoIter,
+};
 use ws_messages::Command;
 
 #[derive(Default)]
 pub struct FileSystem {
-    handle: BackendHandle
+    handle: BackendHandle,
 }
 
 impl FileSystem {
@@ -19,7 +23,7 @@ impl FileSystemTrait for FileSystem {
 
     fn read_file(&self, path: &Path) -> Result<String> {
         self.handle.send(Command::ReadFile { path: path.into() });
-        
+
         Err(ErrorKind::WouldBlock)?
     }
 
@@ -43,7 +47,7 @@ impl FileSystemTrait for FileSystem {
             path: path.into(),
             contents: contents.into(),
         });
-        
+
         Err(ErrorKind::WouldBlock)?
     }
 
@@ -63,4 +67,3 @@ impl Iterator for ReadDir {
         self.0.next()
     }
 }
-
