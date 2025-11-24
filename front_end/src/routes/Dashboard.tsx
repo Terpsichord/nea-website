@@ -12,20 +12,22 @@ function Dashboard() {
 
         const projectData = new FormData(e.target as HTMLFormElement);
         const title = projectData.get("title") as string;
-        const visibility = projectData.get("title") as string;
+        const visibility = projectData.get("visibility") as string;
+        const lang = projectData.get("lang") as string;
 
         const response = await fetchApi("/project/new", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ title, lang: "// TODO", private: visibility == "private" })
+            body: JSON.stringify({ title, lang, private: visibility == "private" })
         });
 
         console.log({ response });
         if (response.ok) {
-            const { username, repo_name } = await response.json();
-            window.location.href = `/editor/${username}/${repo_name}`
+            // const { username, repo_name } = await response.json();
+            // window.location.href = `/editor/${username}/${repo_name}`
+            // TODO: uncomment above once the editor is working
         } else {
             // TODO: error handling
         }
@@ -54,6 +56,19 @@ function Dashboard() {
 
                     <label className="text-xl mt-3" htmlFor="title">Project title</label>
                     <input className="h-10 px-3 rounded-lg bg-dark-gray" type="text" name="title" />
+
+                    <label className="text-xl mt-3" htmlFor="lang">Language</label>
+                    <select className="h-10 px-3 rounded-lg bg-dark-gray" name="lang">
+                        <option value="py">Python</option>
+                        <option value="js">JavaScript</option>
+                        <option value="ts">TypeScript</option>
+                        <option value="rs">Rust</option>
+                        <option value="c">C</option>
+                        <option value="cpp">C++</option>
+                        <option value="cs">C#</option>
+                        <option value="bash">Bash</option>
+                        <option value="java">Java</option>
+                    </select>
 
                     <label className="text-xl mt-3" htmlFor="visibility">Visibility</label>
                     <select className="h-10 px-3 rounded-lg bg-dark-gray" name="visibility">
