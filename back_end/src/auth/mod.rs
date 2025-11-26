@@ -4,7 +4,6 @@ use base64::prelude::{BASE64_STANDARD, Engine};
 use chrono::Utc;
 
 use crate::{
-    crypto,
     error::{AppError, InvalidAuthError},
     github::{
         GithubClient,
@@ -17,6 +16,7 @@ pub use cookies::*;
 pub use token_info::*;
 
 mod cookies;
+pub mod crypto;
 pub mod middleware;
 mod token_info;
 
