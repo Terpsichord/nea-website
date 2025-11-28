@@ -9,9 +9,9 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
-    api::ProjectLang,
     error::{AppError, GithubUserError},
     github::access_tokens::{TokenRequestType, WithTokens},
+    lang::ProjectLang,
 };
 
 pub mod access_tokens;
@@ -150,7 +150,7 @@ impl GithubClient {
         let is_valid = |c: char| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-';
 
         // remove all invalid characters and make lowercase
-        name.replace(" ", "_")
+        name.replace(' ', "_")
             .replace(|c| !is_valid(c), "")
             .to_lowercase()
     }
@@ -166,7 +166,7 @@ impl GithubClient {
     ) -> Result<WithTokens<CreateRepoResponse>, AppError> {
         let repo_name = Self::sanitize_repo_name(title);
 
-        let WithTokens(exists, tokens) = self
+        let WithTokens(exists, mut tokens) = self
             .repo_exists(access_token, refresh_token, username, &repo_name)
             .await?;
 
@@ -181,11 +181,10 @@ impl GithubClient {
         }
 
         if let Some(ref tokens) = tokens {
-            access_token = &tokens.access_unencrypted;
-            refresh_token = &tokens.refresh_unencrypted;
+            (access_token, refresh_token) = tokens.unencrypted();
         }
 
-        let WithTokens(resp, tokens) = self
+        let WithTokens(resp, new_tokens) = self
             .send_authenticated(
                 self.client
                     .post(Self::api_url("/user/repos"))
@@ -195,6 +194,12 @@ impl GithubClient {
             )
             .await?;
 
+        if let Some(new_tokens) = new_tokens {
+            tokens = Some(new_tokens);
+            // FIXME: it's so stupid that this works
+            (access_token, refresh_token) = tokens.as_ref().unwrap().unencrypted();
+        }
+
         if !resp.status().is_success() {
             return Err(AppError::other(anyhow!(
                 "failed to create project: {}",
@@ -202,14 +207,15 @@ impl GithubClient {
             )));
         }
 
-        let WithTokens(_, new_tokens) = self.add_repo_files(access_token, refresh_token, username, &repo_name, lang).await?;
+        let WithTokens((), new_tokens) = self.add_repo_files(access_token, refresh_token, username, &repo_name, lang).await?;
+        tokens = new_tokens.or(tokens);
 
         Ok(WithTokens(
             CreateRepoResponse {
                 repo_name,
                 already_exists: false,
             },
-            new_tokens.or(tokens),
+            tokens,
         ))
     }
 
@@ -243,7 +249,7 @@ impl GithubClient {
         lang: ProjectLang,
     ) -> Result<WithTokens<()>, AppError> {
         let project_toml = lang.get_project_toml().map_err(AppError::other)?;
-        let WithTokens(_, tokens) = self
+        let WithTokens((), tokens) = self
             .add_file(
                 access_token,
                 refresh_token,
@@ -254,12 +260,11 @@ impl GithubClient {
             )
             .await?;
         if let Some(ref tokens) = tokens {
-            access_token = &tokens.access_unencrypted;
-            refresh_token = &tokens.refresh_unencrypted;
+            (access_token, refresh_token) = tokens.unencrypted();
         }
 
         let (init_path, init_content) = lang.get_initial_file().map_err(AppError::other)?;
-        let WithTokens(_, new_tokens) = self
+        let WithTokens((), new_tokens) = self
             .add_file(
                 access_token,
                 refresh_token,
@@ -329,8 +334,7 @@ impl GithubClient {
             .map_err(AppError::other)?;
 
         if let Some(ref tokens) = tokens {
-            access_token = &tokens.access_unencrypted;
-            refresh_token = &tokens.refresh_unencrypted;
+            (access_token, refresh_token) = tokens.unencrypted();
         }
 
         let WithTokens(resp, tokens) = self
@@ -344,6 +348,32 @@ impl GithubClient {
         let readme = resp.text().await.map_err(AppError::other)?;
 
         Ok(WithTokens(readme, tokens))
+    }
+    
+    pub async fn fork_repo(
+        &self,
+        access_token: &str,
+        refresh_token: &str,
+        username: &str,
+        repo_name: &str,
+    ) -> Result<WithTokens<()>, AppError> {
+        let WithTokens(resp, tokens) = self.send_authenticated(
+            self.client.post(Self::api_url(&format!(
+                "/repos/{username}/{repo_name}/forks"
+            ))),
+            access_token,
+            Some(refresh_token),
+        )
+        .await?;
+
+        if !resp.status().is_success() {
+            return Err(AppError::other(anyhow!(
+                "failed to fork repo: {}",
+                resp.text().await.unwrap()
+            )));
+        }
+
+        Ok(WithTokens((), tokens))
     }
 }
 

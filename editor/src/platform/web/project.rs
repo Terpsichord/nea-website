@@ -19,7 +19,7 @@ struct ProjectInfo {
 
 impl Project {
     pub fn new(username: String, repo_name: String) -> eyre::Result<Self> {
-        let endpoint = format!("/api/project/open/{username}/{repo_name}");
+        let endpoint = format!("/api/project/{username}/{repo_name}/open");
         let handle = BackendHandle::new(&endpoint).wrap_err("failed to create websocket")?;
 
         Ok(Self {

@@ -39,10 +39,9 @@ pub async fn optional_auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    let WithTokens(maybe_auth_user, tokens) = match get_auth_user(token_info, client, &jar).await? {
-        Some(user) => user.map(Some),
-        None => Default::default(),
-    };
+    let WithTokens(maybe_auth_user, tokens) = get_auth_user(token_info, client, &jar)
+        .await?
+        .map_or_else(Default::default, |user| user.map(Some));
 
     req.extensions_mut().insert(maybe_auth_user);
 

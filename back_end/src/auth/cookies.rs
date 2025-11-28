@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use axum::{
     http::{HeaderName, HeaderValue},
     response::{IntoResponseParts, ResponseParts},

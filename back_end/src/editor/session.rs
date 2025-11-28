@@ -85,9 +85,9 @@ pub struct EditorSessionManager {
 impl Default for EditorSessionManager {
     fn default() -> Self {
         Self {
-            table: Default::default(),
+            table: Arc::default(),
             docker: Docker::connect_with_local_defaults().expect("failed to connect to docker"),
-            client: Default::default(),
+            client: GithubClient::default(),
         }
     }
 }

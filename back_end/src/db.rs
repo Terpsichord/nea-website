@@ -3,7 +3,12 @@ use std::ops::Deref;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 
-use crate::{api::ProjectInfo, error::AppError, github::GithubUser};
+use crate::{
+    api::ProjectInfo,
+    error::AppError,
+    github::GithubUser,
+    lang::ProjectLang,
+};
 
 #[derive(Clone)]
 pub struct DatabaseConnector(PgPool);
@@ -20,10 +25,21 @@ pub struct Project {
     pub id: i32,
     pub user_id: i32,
     pub info: ProjectInfo,
+    pub lang: ProjectLang,
     pub github_url: String,
     pub upload_time: DateTime<Utc>,
     pub public: bool,
     pub owned: bool,
+}
+
+pub struct NewProject {
+    pub title: String,
+    pub repo_name: String,
+    pub lang: ProjectLang,
+    pub user_id: i32,
+    pub readme: String,
+    pub public: bool,
+    pub tags: Vec<String>,
 }
 
 impl DatabaseConnector {
@@ -50,6 +66,39 @@ impl DatabaseConnector {
         Ok(())
     }
 
+    pub async fn add_project(&self, project: &NewProject) -> sqlx::Result<()> {
+        let id: i32 = sqlx::query_scalar!(
+            r#"
+            INSERT INTO projects (title, lang, user_id, repo_name, readme, public)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+            "#,
+            project.title,
+            project.lang.to_string(),
+            project.user_id,
+            project.repo_name,
+            project.readme,
+            project.public,
+        )
+        .fetch_one(&self.0)
+        .await?;
+
+        if !project.tags.is_empty() {
+            sqlx::query!(
+                r#"
+                INSERT INTO project_tags (project_id, tag)
+                VALUES ($1, UNNEST($2::text[]))
+                "#,
+                id,
+                &project.tags
+            )
+            .execute(&self.0)
+            .await?;
+        }
+
+        Ok(())
+    }
+
     pub async fn get_project(
         &self,
         username: &str,
@@ -65,6 +114,7 @@ impl DatabaseConnector {
                 p.user_id,
                 (p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo",
                 pi.github_url as "github_url!",
+                p.lang as "lang: ProjectLang",
                 p.upload_time,
                 p.public,
                 pi.github_id = $3 as "owned!"
@@ -83,5 +133,24 @@ impl DatabaseConnector {
         // TODO: (i think), make this fetch 0 or 1 and show error if 0
 
         Ok(project)
+    }
+
+    pub async fn project_exists(&self, user_id: i32, title: &str) -> Result<bool, AppError> {
+        let exists = sqlx::query_scalar!(
+            r#"
+            SELECT EXISTS (
+                SELECT 1
+                FROM projects
+                WHERE title = $1
+                AND user_id = $2
+            ) as "exists!"
+            "#,
+            title,
+            user_id
+        )
+        .fetch_one(&self.0)
+        .await?;
+
+        Ok(exists)
     }
 }

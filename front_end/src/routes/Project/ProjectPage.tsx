@@ -61,6 +61,21 @@ function ProjectPage() {
         menuItems.push(<a href={`/editor/${params.username}/${params.id}`}>View in editor</a>);
     }
 
+    const remixProject = async () => {
+        const response = await fetchApi(`/project/${params.username}/${params.id}/remix`, { method: "POST" });
+
+        if (response.ok) {
+            const { username, repo_name } = await response.json();
+            window.location.href = `/editor/${username}/${repo_name}`
+        } else {
+            // TODO: error handling
+        }
+    };
+
+    if (isAuth && !project.owned) {
+        menuItems.push(<a onClick={remixProject} href={`/project/${params.username}/${params.id}/remix`}>Remix</a>);
+    }
+
 
     const onLikeClick = () => {
         if (!isAuth) return;

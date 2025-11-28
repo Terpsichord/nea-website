@@ -3,8 +3,6 @@ use axum::{
     extract::{Path, State},
     routing::get,
 };
-use serde::Serialize;
-use sqlx::FromRow;
 use tracing::instrument;
 
 use crate::{

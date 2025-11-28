@@ -7,8 +7,6 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::editor::session;
-
 pub enum AppError {
     InvalidAuth(InvalidAuthError),
     // TODO: maybe merge this into `AuthFailed`
@@ -28,8 +26,9 @@ pub enum AppError {
 #[derive(Deserialize)]
 pub struct GithubUserError {
     pub message: String,
-    pub documentation_url: String,
-    pub status: String,
+    // TODO: probably remove these fields
+    // pub documentation_url: String,
+    // pub status: String,
 }
 
 #[derive(Debug, thiserror::Error)]
