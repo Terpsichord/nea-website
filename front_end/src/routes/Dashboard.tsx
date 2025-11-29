@@ -25,7 +25,7 @@ function Dashboard() {
 
         console.log({ response });
         if (response.ok) {
-            // const { username, repo_name } = await response.json();
+            // const { username, repoName } = await response.json();
             // window.location.href = `/editor/${username}/${repo_name}`
             // TODO: uncomment above once the editor is working
         } else {
@@ -49,7 +49,7 @@ function Dashboard() {
             <div className="fixed top-0 left-0 w-full h-full bg-black/45">
                 <form onSubmit={createProject} className="flex flex-col py-8 px-10 rounded-3xl m-10 bg-blue-gray">
                     <button onClick={() => setShowModal(false)} className="absolute right-16 top-16 text-2xl">
-                        <FontAwesomeIcon icon={faXmark} />
+                        <FontAwesomeIcon icon={faXmark} className="cursor-pointer" />
                     </button>
 
                     <h2 className="text-3xl mb-3">Create new project</h2>

@@ -2,7 +2,7 @@ import { PropsWithChildren } from "react";
 
 interface ButtonProps {
     color?: "default" | "red";
-    onClick: () => void;
+    onClick?: () => void;
 }
 
 function Button({ children, color = "default", onClick }: PropsWithChildren<ButtonProps>) {
@@ -12,7 +12,7 @@ function Button({ children, color = "default", onClick }: PropsWithChildren<Butt
     };
 
     return (
-        <button className={`block outline rounded-xl px-2 ${colorStyles[color]}`} onClick={onClick}>
+        <button className={`block outline rounded-xl px-2 cursor-pointer ${colorStyles[color]}`} onClick={onClick} type="submit">
             {children}
         </button>
     );

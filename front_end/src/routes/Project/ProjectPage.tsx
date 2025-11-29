@@ -3,7 +3,7 @@ import { faHeart as faHeartRegular } from "@fortawesome/free-regular-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useEffect, useRef, useState } from "react";
 import ContextMenu from "../../components/ContextMenu";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { fetchApi, formatDate, useApi } from "../../utils";
 import { Project } from "../../types";
 import Loading from "../../components/Loading";
@@ -59,25 +59,26 @@ function ProjectPage() {
 
     if (project.owned) {
         menuItems.push(<a href={`/editor/${params.username}/${params.id}`}>View in editor</a>);
+        menuItems.push(<Link to={`/project/${params.username}/${params.id}/settings`}>Go to settings</Link>)
     }
 
-    const remixProject = async () => {
+    async function remixProject() {
         const response = await fetchApi(`/project/${params.username}/${params.id}/remix`, { method: "POST" });
 
         if (response.ok) {
-            const { username, repo_name } = await response.json();
-            window.location.href = `/editor/${username}/${repo_name}`
+            const { username, repoName } = await response.json();
+            window.location.href = `/editor/${username}/${repoName}`
         } else {
             // TODO: error handling
         }
-    };
+    }
 
     if (isAuth && !project.owned) {
-        menuItems.push(<a onClick={remixProject} href={`/project/${params.username}/${params.id}/remix`}>Remix</a>);
+        menuItems.push(<button className="cursor-pointer" onClick={remixProject}>Remix</button>);
     }
 
 
-    const onLikeClick = () => {
+    function onLikeClick() {
         if (!isAuth) return;
 
         if (liked) {
@@ -107,7 +108,7 @@ function ProjectPage() {
                 }</div>
 
                 <div ref={menuParent} className="ml-auto" onClick={() => setShowMenu(true)}>
-                    <FontAwesomeIcon icon={faEllipsisV} className="px-3" size="lg" />
+                    <FontAwesomeIcon icon={faEllipsisV} className="cursor-pointer px-3" size="lg" />
                     {showMenu &&
                         <ContextMenu items={menuItems} parent={menuParent} setShow={setShowMenu} />
                     }
@@ -122,7 +123,7 @@ function ProjectPage() {
             <div className="flex text-gray">
                 <span>Uploaded {uploadDate}</span>
                 <span className="ml-auto mr-1">
-                    <FontAwesomeIcon icon={liked ? faHeartSolid : faHeartRegular} onClick={onLikeClick} className="mr-1" />
+                    <FontAwesomeIcon icon={liked ? faHeartSolid : faHeartRegular} onClick={onLikeClick} className="mr-1 cursor-pointer" />
                     {likeCount} like{likeCount === 1 ? "" : "s"}
                 </span>
             </div>

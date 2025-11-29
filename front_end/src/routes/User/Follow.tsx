@@ -30,14 +30,14 @@ function Follow({ username, setShow }: { username: string, setShow: Dispatch<boo
 
     if (isFollowed) {
         return (
-            <button onClick={unfollow} className="bg-black mt-2 px-2.5 py-0.5 rounded-xl">
+            <button onClick={unfollow} className="cursor-pointer bg-black mt-2 px-2.5 py-0.5 rounded-xl">
                 <FontAwesomeIcon icon={faCheck} size="xl" className="pr-1.5 pb-0.5" />
                 <span className="text-2xl font-medium">Unfollow</span>
             </button>
         );
     } else if (canFollow) {
         return (
-            <button onClick={follow} className="bg-white text-black mt-2 px-2.5 py-0.5 rounded-xl">
+            <button onClick={follow} className="cursor-pointer bg-white text-black mt-2 px-2.5 py-0.5 rounded-xl">
                 <FontAwesomeIcon icon={faPlus} size="xl" className="pr-1.5 pb-0.5" />
                 <span className="text-2xl font-medium">Follow</span>
             </button>

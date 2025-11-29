@@ -28,7 +28,7 @@ function TextArea({ ref, value: defaultValue = "", subtext, maxLength, inputFilt
     const onClick = () => onSubmit(contents);
 
     function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-        if (event.ctrlKey && event.key == "Enter") {
+        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
             onSubmit(contents);
         }
     }
@@ -41,7 +41,7 @@ function TextArea({ ref, value: defaultValue = "", subtext, maxLength, inputFilt
             </div>
             <div className="flex justify-between">
                 {subtext}
-                <button className={`${submitClass} ml-auto self-start`} onClick={onClick}>{submitText}</button>
+                <button className={`${submitClass} ml-auto self-start cursor-pointer`} onClick={onClick}>{submitText}</button>
             </div>
         </div>
     )

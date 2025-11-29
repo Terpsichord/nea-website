@@ -10,7 +10,7 @@ function ProjectCard({ project }: { project: ProjectInfo }) {
 
     const readmeHtml = DOMPurify.sanitize(marked.parse(project.readme, { async: false }));
     return (
-        <button onClick={goToProject} className="rounded-lg bg-blue-gray text-left content-start select-text font-light p-5 w-96 h-72">
+        <button onClick={goToProject} className="cursor-pointer rounded-lg bg-blue-gray text-left content-start select-text font-light p-5 w-96 h-72">
             <h4 className="text-3xl">{project.title}</h4>
             <div className="my-2 space-x-1">
                 {project.tags.map(tag => <Tag contents={tag} />)}

@@ -117,7 +117,7 @@ impl DatabaseConnector {
                 p.lang as "lang: ProjectLang",
                 p.upload_time,
                 p.public,
-                pi.github_id = $3 as "owned!"
+                COALESCE(pi.github_id = $3, 'false') as "owned!"
             FROM projects p
             INNER JOIN project_info pi ON pi.id = p.id
             WHERE pi.username = $1

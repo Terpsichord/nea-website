@@ -375,6 +375,19 @@ impl GithubClient {
 
         Ok(WithTokens((), tokens))
     }
+
+    pub async fn user_installed(&self, access_token: &str) -> Result<bool, AppError> {
+        let WithTokens(resp, tokens) = self.send_authenticated(
+            self.client.get(Self::api_url("/user/installations")),
+            access_token,
+            None,
+        )
+        .await?;
+
+        let installation_count = resp.json::<InstallationsResponse>().await.map_err(AppError::other)?.total_count;
+
+        Ok(installation_count > 0)
+    }
 }
 
 #[derive(Deserialize)]
@@ -385,4 +398,9 @@ struct GithubReadmeResponse {
 pub struct CreateRepoResponse {
     pub repo_name: String,
     pub already_exists: bool,
+}
+
+#[derive(Deserialize)]
+struct InstallationsResponse {
+    total_count: u32,
 }

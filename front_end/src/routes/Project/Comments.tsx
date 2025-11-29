@@ -47,7 +47,7 @@ function Comments({ project }: { project: { username: string, id: string } }) {
                         replyingTo ?
                             <div className="mb-4 text-gray">
                                 Replying to {replyingTo.user.username}: <i className="truncate">{replyingTo.contents}</i>
-                                <FontAwesomeIcon icon={faXmark} className="ml-2" onClick={() => setReplyingTo(null)} />
+                                <FontAwesomeIcon icon={faXmark} className="ml-2 cursor-pointer" onClick={() => setReplyingTo(null)} />
                             </div> :
                             undefined
                     } />

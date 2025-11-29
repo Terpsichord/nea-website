@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State, WebSocketUpgrade, ws::WebSocket},
     middleware,
     response::Response,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use serde::{Deserialize, Serialize};
 use tracing::{info, instrument};
@@ -25,6 +25,7 @@ pub fn project_router(state: AppState) -> Router<AppState> {
         .route("/project/{username}/{repo_name}/open", get(open_project))
         .route("/project/new", post(new_project))
         .route("/project/{username}/{repo_name}/remix", post(remix_project))
+        .route("/project/{username}/{repo_name}", put(update_project))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -191,6 +192,7 @@ struct NewProjectBody {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct NewProjectResponse {
     username: String,
     repo_name: String,
@@ -297,20 +299,23 @@ async fn remix_project(
         refresh_token,
     }): Extension<AuthUser>,
 ) -> Result<Json<NewProjectResponse>, AppError> {
+    info!("remixing");
     let project = db
-        .get_project(&username, &repo_name, Some(github_id), true)
+        .get_project(&username, &repo_name, None, false)
         .await?;
+    info!("found project {}", project.info.title);
 
     let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE github_id = $1", github_id)
         .fetch_one(&*db)
         .await?;
+    info!("user_id: {}", user_id);
 
     if db.project_exists(user_id, &project.info.title).await? {
         return Err(AppError::ProjectExists);
     }
 
     // create a fork of the github repo for the project
-    let WithTokens(_, tokens) = client
+    let WithTokens((), tokens) = client
         .fork_repo(&access_token, &refresh_token, &username, &repo_name)
         .await?;
     info!("repo_name: {}", repo_name);
@@ -344,6 +349,82 @@ async fn remix_project(
     }))
 }
 
+#[derive(Deserialize)]
+struct UpdateProjectBody {
+    title: String,
+    private: bool,
+    tags: Vec<String>,
+}
+
+async fn update_project(
+    Path((username, repo_name)): Path<(String, String)>,
+    State(AppState { db, .. }): State<AppState>,
+    Json(UpdateProjectBody {
+        title,
+        private,
+        tags,
+    }): Json<UpdateProjectBody>,
+) -> Result<(), AppError> {
+    sqlx::query!(
+        r#"
+        UPDATE projects
+        SET title = $1, public = $2
+        WHERE id = 
+        (
+            SELECT p.id
+            FROM projects p
+            INNER JOIN users u ON u.id = p.user_id
+            WHERE u.username = $3
+            AND p.repo_name = $4
+        )
+        "#,
+        title,
+        !private,
+        username,
+        repo_name,
+    )
+    .execute(&*db)
+    .await?;
+
+    // remove all old tags
+    sqlx::query!(
+        r#"
+        DELETE FROM project_tags
+        WHERE project_id = 
+        (
+            SELECT p.id
+            FROM projects p
+            INNER JOIN users u ON u.id = p.user_id
+            WHERE u.username = $1
+            AND p.repo_name = $2
+        )
+        "#,
+        username,
+        repo_name
+    )
+    .execute(&*db)
+    .await?;
+
+    // and add new tags
+    sqlx::query!(
+        r#"
+        INSERT INTO project_tags (project_id, tag)
+        SELECT p.id, UNNEST($1::text[])
+        FROM projects p
+        INNER JOIN users u ON u.id = p.user_id
+        WHERE u.username = $2
+        AND p.repo_name = $3
+        "#,
+        &tags,
+        username,
+        repo_name,
+    )
+    .execute(&*db)
+    .await?;
+
+    Ok(())
+}
+
 #[instrument(skip(db, session_mgr, access_token, refresh_token))]
 async fn open_project(
     Path((username, repo_name)): Path<(String, String)>,
@@ -368,6 +449,7 @@ async fn open_project(
             project.id,
             &username,
             &repo_name,
+            project.lang,
             &access_token,
             &refresh_token,
         )

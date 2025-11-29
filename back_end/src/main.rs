@@ -38,6 +38,7 @@ mod lang;
 const FRONT_PUBLIC: &str = "./front_end/dist";
 // todo: check where this used to be used (probs delete it)
 const CLIENT_USER_AGENT: &str = "nea-website"; 
+const GITHUB_APP_SLUG: &str = "nea-website";
 const EDITOR_PATH: &str = "./editor/dist";
 const SOCKET_ADDRESS: &str = "0.0.0.0:8080";
 

@@ -19,7 +19,7 @@ use tracing::{debug, info, instrument, warn};
 
 use crate::{
     error::AppError,
-    github::{GithubClient, access_tokens::WithTokens},
+    github::{GithubClient, access_tokens::WithTokens}, lang::ProjectLang,
 };
 
 #[derive(Debug)]
@@ -104,12 +104,14 @@ impl EditorSessionManager {
     //     code
     // }
 
+    #[allow(clippy::too_many_arguments)] // FIXME
     pub async fn open(
         &self,
         user_id: i32,
         project_id: i32,
         username: &str,
         repo_name: &str,
+        lang: ProjectLang,
         access_token: &str,
         refresh_token: &str,
     ) -> Result<WithTokens<()>, AppError> {
@@ -150,6 +152,7 @@ impl EditorSessionManager {
                 project_id,
                 username,
                 repo_name,
+                lang,
                 access_token,
                 refresh_token,
             )
@@ -159,16 +162,18 @@ impl EditorSessionManager {
     const WORKSPACE_PATH: &'static str = "/home/workspace";
 
     #[instrument(skip(self, access_token, refresh_token))]
+    #[allow(clippy::too_many_arguments)] // FIXME
     async fn create_session(
         &self,
         user_id: i32,
         project_id: i32,
         username: &str,
         repo_name: &str,
+        lang: ProjectLang,
         access_token: &str,
         refresh_token: &str,
     ) -> Result<WithTokens<()>, AppError> {
-        let image = self.get_image().await?;
+        let image = self.get_image(lang).await?;
 
         let mount = Mount {
             target: Some(Self::WORKSPACE_PATH.into()),
@@ -239,7 +244,7 @@ impl EditorSessionManager {
         Ok(WithTokens((), headers))
     }
 
-    async fn get_image(&self) -> Result<String, AppError> {
+    async fn get_image(&self, lang: ProjectLang) -> Result<String, AppError> {
         // TODO: change this to actually get the right image, depending on the language used by the project
         let image = "python:3".to_string();
 

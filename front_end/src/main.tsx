@@ -9,6 +9,7 @@ import SignIn from './routes/SignIn/SignIn.tsx';
 import Profile from './routes/Profile/Profile.tsx';
 import User from './routes/User/User.tsx';
 import ProjectPage from './routes/Project/ProjectPage.tsx';
+import ProjectSettings from './routes/Settings/ProjectSettings.tsx';
 import Explore from './routes/Explore.tsx';
 import About from './routes/About.tsx';
 
@@ -27,6 +28,7 @@ ReactDOM.createRoot(root).render(
           <Route path="/profile" element={ <Profile /> } />
           <Route path="/user/:username" element={<User />} />
           <Route path="/project/:username/:id" element={<ProjectPage />}/>
+          <Route path="/project/:username/:id/settings" element={<ProjectSettings />}/>
         </Routes>
       </AuthProvider>
     </BrowserRouter>

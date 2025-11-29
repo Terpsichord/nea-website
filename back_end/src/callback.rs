@@ -11,6 +11,7 @@ use crate::{
     auth::{SharedTokenInfo, TokenHeaders},
     error::AppError,
     github::access_tokens::{TokenRequestType, WithTokens},
+    GITHUB_APP_SLUG,
 };
 
 #[derive(Deserialize)]
@@ -24,7 +25,7 @@ pub async fn github_callback(
     Query(UserCode { code }): Query<UserCode>,
     Extension(token_info): Extension<SharedTokenInfo>,
     State(AppState { client, db, .. }): State<AppState>,
-) -> Result<(TokenHeaders, Redirect), AppError> {
+) -> Result<(Option<TokenHeaders>, Redirect), AppError> {
     info!("handling Github auth callback");
 
     let tokens = client
@@ -43,5 +44,9 @@ pub async fn github_callback(
         .cache_user_token(&user, tokens.access_token, Some(tokens.access_expiry))
         .await;
 
-    Ok((headers, Redirect::to("/")))
+    Ok(if client.user_installed(&tokens.access_unencrypted).await? {
+        (Some(headers), Redirect::to("/"))
+    } else {
+        (None, Redirect::to(&format!("https://github.com/apps/{GITHUB_APP_SLUG}/installations/new")))
+    })
 }
