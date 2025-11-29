@@ -11,7 +11,7 @@ CREATE TABLE projects (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     lang VARCHAR(10) NOT NULL,
-    user_id INT NOT NULL REFERENCES users(id),
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     repo_name VARCHAR(255) NOT NULL,
     readme TEXT NOT NULL DEFAULT '',
     public BOOLEAN NOT NULL,
@@ -21,14 +21,14 @@ CREATE TABLE projects (
 );
 
 CREATE TABLE project_tags (
-    project_id INT NOT NULL REFERENCES projects(id),
+    project_id INT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     tag VARCHAR(30) NOT NULL,
     PRIMARY KEY (project_id, tag)
 );
 
 CREATE TABLE follows (
-    follower_id INT NOT NULL REFERENCES users(id),
-    followee_id INT NOT NULL REFERENCES users(id),
+    follower_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    followee_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY (follower_id, followee_id),
     CHECK (follower_id != followee_id)
 );
@@ -36,9 +36,9 @@ CREATE TABLE follows (
 CREATE TABLE comments (
     id SERIAL PRIMARY KEY,
     contents VARCHAR(100) NOT NULL,
-    user_id INT REFERENCES users(id),
-    project_id INT NOT NULL REFERENCES projects(id),
-    parent_id INT REFERENCES comments(id),
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    project_id INT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    parent_id INT REFERENCES comments(id) ON DELETE CASCADE,
     upload_time TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -46,8 +46,8 @@ CREATE TABLE likes (
     user_id INT NOT NULL,
     project_id INT NOT NULL,
     PRIMARY KEY (user_id, project_id),
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (project_id) REFERENCES projects(id)
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
 CREATE VIEW project_info
@@ -70,7 +70,7 @@ CREATE TABLE color_schemes (
 );
 
 CREATE TABLE editor_configs (
-    user_id INT NOT NULL REFERENCES users(id),
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     color_schemes INT REFERENCES color_schemes(id)
     -- TODO: add more columns here
 );

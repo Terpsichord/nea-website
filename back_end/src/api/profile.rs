@@ -2,7 +2,7 @@ use axum::{
     Extension, Json, Router,
     extract::State,
     middleware,
-    routing::{get, patch},
+    routing::{delete, get, patch},
 };
 use serde::Deserialize;
 use tracing::{info, instrument};
@@ -20,6 +20,7 @@ pub fn profile_router(state: AppState) -> Router<AppState> {
         .route("/profile", get(get_profile))
         .route("/profile/bio", patch(update_bio))
         .route("/profile/projects", get(get_projects))
+        .route("/profile/delete", delete(delete_profile))
         .layer(middleware::from_fn_with_state(state, auth_middleware))
 }
 
@@ -66,7 +67,6 @@ async fn get_projects(
     Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
     State(db): State<DatabaseConnector>,
 ) -> Result<Json<Vec<ProjectInfo>>, AppError> {
-    info!("getting projects");
     let projects = sqlx::query_as!(
         ProjectInfo,
         r#"
@@ -88,4 +88,21 @@ async fn get_projects(
     .await?;
 
     Ok(Json(projects))
+}
+
+
+async fn delete_profile(
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
+    State(db): State<DatabaseConnector>,
+) -> Result<(), AppError> {
+    sqlx::query!(
+        "DELETE FROM users WHERE github_id = $1",
+        github_id
+    )
+    .execute(&*db)
+    .await?;
+
+    // we don't need to delete anything else as the user deletion will cascade to the other tables
+
+    Ok(())
 }

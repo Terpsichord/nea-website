@@ -26,8 +26,6 @@ pub async fn github_callback(
     Extension(token_info): Extension<SharedTokenInfo>,
     State(AppState { client, db, .. }): State<AppState>,
 ) -> Result<(Option<TokenHeaders>, Redirect), AppError> {
-    info!("handling Github auth callback");
-
     let tokens = client
         .get_tokens(TokenRequestType::Callback { code })
         .await?;
