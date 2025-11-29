@@ -28,7 +28,6 @@ use crate::{db::DatabaseConnector, editor::session::EditorSessionManager, github
 mod api;
 mod auth;
 mod callback;
-mod crypto;
 mod db;
 mod editor;
 mod error;
