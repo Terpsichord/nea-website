@@ -23,8 +23,25 @@ pub fn follow_router(state: AppState) -> Router<AppState> {
         .route_layer(middleware::from_fn_with_state(state, auth_middleware))
 }
 
-async fn get_follow_list() -> Result<Json<Vec<UserResponse>>, AppError> {
-    todo!("get list of users followed by auth user")
+async fn get_follow_list(
+    Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
+    State(db): State<DatabaseConnector>,
+) -> Result<Json<Vec<UserResponse>>, AppError> {
+    let following = sqlx::query_as!(
+        UserResponse,
+        r#"
+        SELECT u.username, u.picture_url, u.bio, u.join_date
+        FROM users u
+        INNER JOIN follows f ON u.id = f.followee_id
+        INNER JOIN users fo ON f.follower_id = fo.id
+        WHERE fo.github_id = $1
+        "#,
+        github_id
+    )
+    .fetch_all(&*db)
+    .await?;
+
+    Ok(Json(following))
 }
 
 /// Checks if the authenticated user currently follows the given user
