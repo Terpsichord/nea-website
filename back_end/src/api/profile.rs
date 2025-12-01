@@ -1,11 +1,16 @@
 use axum::{
     Extension, Json, Router,
     extract::State,
+    http::{HeaderName, header},
     middleware,
     routing::{delete, get, patch},
 };
+use axum_extra::extract::CookieJar;
 use serde::Deserialize;
+use serde_json::{Value, json};
 use tracing::{info, instrument};
+
+use crate::auth::ACCESS_COOKIE;
 
 use crate::{
     AppState,
@@ -16,12 +21,17 @@ use crate::{
 };
 
 pub fn profile_router(state: AppState) -> Router<AppState> {
-    Router::new()
+    let auth = Router::new()
         .route("/profile", get(get_profile))
         .route("/profile/bio", patch(update_bio))
         .route("/profile/projects", get(get_projects))
         .route("/profile/delete", delete(delete_profile))
-        .layer(middleware::from_fn_with_state(state, auth_middleware))
+        .layer(middleware::from_fn_with_state(state, auth_middleware));
+
+    Router::new()
+        .route("/profile/auth", get(auth_handler))
+        .route("/profile/signout", post(sign_out))
+        .merge(auth)
 }
 
 #[instrument(skip(db))]
@@ -38,6 +48,10 @@ async fn get_profile(
     .await?;
 
     Ok(Json(user))
+}
+
+async fn auth_handler(jar: CookieJar) -> Json<Value> {
+    Json(json!({ "isAuth": jar.get(ACCESS_COOKIE).is_some() }))
 }
 
 #[derive(Deserialize)]
@@ -88,6 +102,13 @@ async fn get_projects(
     .await?;
 
     Ok(Json(projects))
+}
+
+async fn sign_out() -> [(HeaderName, String); 1] {
+    [(
+        header::SET_COOKIE,
+        format!("{ACCESS_COOKIE}=; Max-Age=0; Path=/"),
+    )]
 }
 
 
