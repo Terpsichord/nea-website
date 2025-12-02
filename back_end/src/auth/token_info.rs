@@ -19,6 +19,7 @@ pub struct TokenInfo {
 
 #[derive(Clone, Debug, Default)]
 /// Table of `TokenInfo` cached with encrypted access tokens
+// TODO: Rename to TokenCache, and reimplement as LRU
 pub struct SharedTokenInfo(Arc<RwLock<HashMap<String, TokenInfo>>>);
 
 impl SharedTokenInfo {
