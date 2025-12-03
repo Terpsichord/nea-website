@@ -17,6 +17,8 @@ pub struct TokenInfo {
     pub expiry_date: Option<DateTime<Utc>>,
 }
 
+// TODO: Add a Token type that the TokenCache uses instead of String as a key, but also let it dereference directly to a string
+
 #[derive(Clone, Debug, Default)]
 /// Table of `TokenInfo` cached with encrypted access tokens
 pub struct SharedTokenInfo(Arc<RwLock<HashMap<String, TokenInfo>>>);
