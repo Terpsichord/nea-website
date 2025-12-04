@@ -19,6 +19,7 @@ mod web;
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct ProjectSettings {
     pub run_command: String,
+    // TODO: add format_command: Option<String> and debug_command: Option<String>
 }
 
 #[derive(Debug, Error)]
