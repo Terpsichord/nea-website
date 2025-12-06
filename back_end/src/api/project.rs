@@ -13,6 +13,7 @@ use crate::{
     api::ProjectResponse,
     auth::middleware::{AuthUser, auth_middleware, optional_auth_middleware},
     db::{DatabaseConnector, NewProject},
+    editor::websocket::WebSocketHandler,
     error::AppError,
     github::{CreateRepoResponse, access_tokens::WithTokens},
     lang::ProjectLang,
@@ -300,9 +301,7 @@ async fn remix_project(
     }): Extension<AuthUser>,
 ) -> Result<Json<NewProjectResponse>, AppError> {
     info!("remixing");
-    let project = db
-        .get_project(&username, &repo_name, None, false)
-        .await?;
+    let project = db.get_project(&username, &repo_name, None, false).await?;
     info!("found project {}", project.info.title);
 
     let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE github_id = $1", github_id)
@@ -343,8 +342,12 @@ async fn remix_project(
 
     db.add_project(&new_project).await?;
 
+    let new_username = sqlx::query_scalar!("SELECT username FROM users WHERE id = $1", user_id)
+        .fetch_one(&*db)
+        .await?;
+
     Ok(Json(NewProjectResponse {
-        username,
+        username: new_username,
         repo_name: new_project.repo_name,
     }))
 }
@@ -425,7 +428,7 @@ async fn update_project(
     Ok(())
 }
 
-#[instrument(skip(db, session_mgr, access_token, refresh_token))]
+#[instrument(skip(db, ws, session_mgr, access_token, refresh_token))]
 async fn open_project(
     Path((username, repo_name)): Path<(String, String)>,
     State(AppState {
@@ -443,7 +446,7 @@ async fn open_project(
         .await?;
 
     // todo: return these tokens
-    let WithTokens((), _) = session_mgr
+    let WithTokens(container_id, _) = session_mgr
         .open(
             project.user_id,
             project.id,
@@ -457,29 +460,12 @@ async fn open_project(
 
     // let code = session_mgr.create_code(project.user_id);
 
-    Ok(ws.on_upgrade(handle_editor_ws))
+    Ok(ws.on_upgrade(move |ws| handle_editor_ws(ws, container_id)))
 }
 
-async fn handle_editor_ws(ws: WebSocket) {}
+async fn handle_editor_ws(ws: WebSocket, container_id: String) {
+    let handler = WebSocketHandler::new(container_id).expect("TODO");
 
-// async fn connect_session(
-//     Path((username, repo_name, code)): Path<(String, String, String)>,
-//     State(AppState {
-//         db, session_mgr, ..
-//     }): State<AppState>,
-//     ws: WebSocketUpgrade,
-// ) -> Result<Response, AppError> {
-//     let user_id = sqlx::query_scalar!(
-//         r#"
-//         SELECT id
-//         FROM users
-//         WHERE username = $1
-//         "#,
-//         username
-//     )
-//     .execute(&*db)
-//     .fetch_one()
-//     .await?;
-
-//     Ok(ws.on_upgrade(||))
-// }
+    // handler.handle(ws).await;
+    todo!();
+}

@@ -23,13 +23,16 @@ impl ProjectSettings {
     const PATH: &str = ".ide/project.toml";
 
     pub fn read_from(path: &Path) -> Result<Option<ProjectSettings>, ProjectSettingsError> {
-        let y = path.join(Self::PATH);
-        let contents = match std::fs::read_to_string(y) {
+        let full_path = path.join(Self::PATH);
+
+        let contents = match std::fs::read_to_string(full_path) {
             Ok(contents) => contents,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
             err => err?,
         };
-        let x = toml::from_str(&contents)?;
-        Ok(x)
+
+        let settings = toml::from_str(&contents)?;
+
+        Ok(settings)
     }
 }

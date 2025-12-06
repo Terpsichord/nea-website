@@ -82,7 +82,7 @@ impl BackendHandle {
         let msg = ClientMessage::new(cmd.clone());
         let binary = msg.encode().expect("TODO: return encode error");
 
-        self.pending.send(cmd, self.ws.clone(), WsMessage::Binary(binary));
+        self.pending.send(msg, self.ws.clone(), WsMessage::Binary(binary));
     }
 }
 
@@ -92,17 +92,9 @@ struct WebSocketHandle(Option<Rc<RefCell<(WsMeta, WsStream)>>>);
 impl WebSocketHandle {
     pub async fn new(url: &str) -> Result<Self, WsErr> {
         let url = url.to_string();
-        let ws = WsMeta::connect(url, None).await?;
-
-        // let mut ws;
-        // let mut connected = false;
-        // // FIXME: i think this is, like, a pretty bad thing to do
-        // while !connected {
-        //     if let Some(result) = promise.ready() {
-        //         ws = result?;
-        //         connected = true;
-        //     }
-        // }
+        let ws = WsMeta::connect(url.clone(), None).await?;
+    
+        web_sys::console::log_1(&format!("connected to {url}: {ws:?}").into());
 
         Ok(Self(Some(Rc::new(RefCell::new(ws)))))
     }
@@ -134,14 +126,13 @@ impl PendingOperations {
         Self::default()
     }
 
-    fn send(&self, cmd: Command, ws: WebSocketHandle, msg: WsMessage) {
-        let id = Uuid::new_v4();
-        self.0.borrow_mut().messages.insert(id, cmd);
+    fn send(&self, client_msg: ClientMessage, ws: WebSocketHandle, ws_msg: WsMessage) {
+        self.0.borrow_mut().messages.insert(client_msg.id, client_msg.cmd);
 
         let sender = self.0.clone();
         spawn_local(async move {
-            if let Err(err) = ws.send(msg).await {
-                sender.borrow_mut().push_send_err((id, err));
+            if let Err(err) = ws.send(ws_msg).await {
+                sender.borrow_mut().push_send_err((client_msg.id, err));
             }
         });
     }
@@ -175,10 +166,12 @@ impl PendingInner {
     }
 
     fn response_pair(&self, msg: ServerMessage) -> eyre::Result<(Command, Response)> {
+        web_sys::console::log_1(&format!("finding pair for {:?} in {:?}", msg, self.messages).into());
+
         Ok((
             self.messages
                 .get(&msg.id)
-                .ok_or_eyre("recieved invalid message from server")?
+                .ok_or_eyre("received invalid message from server")?
                 .clone(),
             msg.resp,
         ))

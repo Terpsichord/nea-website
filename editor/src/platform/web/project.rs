@@ -2,6 +2,7 @@ use super::BackendHandle;
 use eyre::WrapErr as _;
 use serde::{Deserialize, Serialize};
 use web_sys::WebSocket;
+use ws_messages::Command;
 
 // #[derive(Debug, Serialize, Deserialize)]
 // FIXME
@@ -19,8 +20,11 @@ struct ProjectInfo {
 
 impl Project {
     pub async fn new(username: String, repo_name: String) -> eyre::Result<Self> {
+        web_sys::console::log_1(&format!("opening project {username}/{repo_name}").into());
         let endpoint = format!("/api/project/{username}/{repo_name}/open");
         let handle = BackendHandle::new(&endpoint).await.wrap_err("failed to create websocket")?;
+
+        handle.send(Command::OpenProject);
 
         Ok(Self {
             username,

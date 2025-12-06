@@ -114,7 +114,7 @@ impl EditorSessionManager {
         lang: ProjectLang,
         access_token: &str,
         refresh_token: &str,
-    ) -> Result<WithTokens<()>, AppError> {
+    ) -> Result<WithTokens<String>, AppError> {
         let mut reactivate = false;
         let mut close = false;
 
@@ -157,6 +157,8 @@ impl EditorSessionManager {
                 refresh_token,
             )
             .await
+
+        
     }
 
     const WORKSPACE_PATH: &'static str = "/home/workspace";
@@ -172,7 +174,7 @@ impl EditorSessionManager {
         lang: ProjectLang,
         access_token: &str,
         refresh_token: &str,
-    ) -> Result<WithTokens<()>, AppError> {
+    ) -> Result<WithTokens<String>, AppError> {
         let image = self.get_image(lang).await?;
 
         let mount = Mount {
@@ -235,13 +237,13 @@ impl EditorSessionManager {
             SessionState {
                 handle: SessionHandle {
                     project_id,
-                    container_id,
+                    container_id: container_id.clone(),
                 },
                 mode: SessionMode::Active,
             },
         );
 
-        Ok(WithTokens((), headers))
+        Ok(WithTokens(container_id, headers))
     }
 
     async fn get_image(&self, lang: ProjectLang) -> Result<String, AppError> {

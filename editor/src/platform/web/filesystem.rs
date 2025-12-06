@@ -1,20 +1,38 @@
 use super::{BackendHandle, PendingOperations, WebSocketHandle};
 use crate::platform::FileSystemTrait;
 use std::{
+    collections::HashMap,
     io::{Error, ErrorKind, Result},
     path::{Path, PathBuf},
     vec::IntoIter,
 };
-use ws_messages::Command;
+use ws_messages::{Command, ProjectTree};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct FileSystem {
     handle: BackendHandle,
+    cached_dirs: HashMap<PathBuf, Vec<PathBuf>>,
 }
 
 impl FileSystem {
     pub fn new(handle: BackendHandle) -> Self {
-        Self { handle }
+        Self { handle, cached_dirs: HashMap::new() }
+    }
+
+    pub fn cache(&mut self, tree: ProjectTree) {
+        if let ProjectTree::Directory { path, children } = tree {
+            let child_paths = children.iter().map(|c| c.path()).cloned().collect();
+            self.cached_dirs.insert(path, child_paths);        
+            for child in children {
+                self.cache(child);
+            }
+        }
+    }
+
+    pub fn get_cached(&self, path: &Path) -> Option<ReadDir> {
+        self.cached_dirs
+            .get(path)
+            .map(|p| ReadDir::new(p.clone().into_iter().map(Ok).collect()))
     }
 }
 
@@ -28,6 +46,10 @@ impl FileSystemTrait for FileSystem {
     }
 
     fn read_dir(&self, path: &Path) -> Result<ReadDir> {
+        if let Some(read_dir) =  self.get_cached(path) {
+            return Ok(read_dir);
+        }
+
         self.handle.send(Command::ReadDir { path: path.into() });
 
         Err(ErrorKind::WouldBlock)?
@@ -59,6 +81,12 @@ impl FileSystemTrait for FileSystem {
 }
 
 pub struct ReadDir(IntoIter<Result<PathBuf>>);
+
+impl ReadDir {
+    pub fn new(paths: Vec<Result<PathBuf>>) -> Self {
+        Self(paths.into_iter())
+    }
+}
 
 impl Iterator for ReadDir {
     type Item = Result<PathBuf>;

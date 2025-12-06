@@ -225,12 +225,18 @@ impl eframe::App for App {
 impl App {
     #[cfg(target_arch = "wasm32")]
     pub async fn new(user: String, repo: String) -> Self {
-        let project = platform::Project::new(user, repo).await.expect("failed to create project");
+        let project = platform::Project::new(user, repo)
+            .await
+            .expect("failed to create project");
         let fs = platform::FileSystem::new(project.handle().clone());
+        let runner = platform::Runner::new(project.handle().clone());
+        let backend_handle = project.handle().clone();
 
         Self {
             project: Some(project),
             fs,
+            runner,
+            backend_handle,
             ..Self::default()
         }
     }
@@ -602,32 +608,27 @@ impl App {
 
     #[cfg(target_arch = "wasm32")]
     fn handle_pending(&mut self) {
-        use ws_messages::{Command::*, Response::*};
+        use ws_messages::{Command::*, ProjectTree, Response::*};
+
+        self.backend_handle.update();
 
         for resp in self.backend_handle.responses() {
             match resp.expect("FIXME: proper error handling") {
-                (ReadFile { path }, FileContents { contents }) => {
-                    
+                (OpenProject, ProjectContents { contents }) => {
+                    let path = contents.path().clone();
+                    self.fs.cache(contents);
+                    self.explorer = Some(Explorer::new(path, &self.fs).expect("TODO: i think(?) this never fails"));
                 }
-                (ReadDir { path }, DirContents { contents_paths }) => {
-                    
+                (ReadFile { path }, FileContents { contents }) => {}
+                (ReadDir { path }, DirContents { contents_paths }) => {}
+                (Rename { from, to }, Success) => {}
+                (WriteFile { path, contents }, Success) => {}
+                (Delete { path }, Success) => {}
+                (Run, Output { output }) => {}
+                (StopRunning, Success) => {}
+                _ => {
+                    panic!("FIXME: error handle here or something")
                 }
-                (Rename { from, to }, Success) => {
-                    
-                }
-                (WriteFile { path, contents }, Success) => {
-                    
-                }
-                (Delete { path }, Success) => {
-                    
-                }
-                (Run, Output { output }) => {
-                    
-                }
-                (StopRunning, Success) => {
-                        
-                }
-                _ => { panic!("FIXME: error handle here or something") }
             }
         }
     }

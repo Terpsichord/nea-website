@@ -7,6 +7,10 @@ build-editor:
 run: 
     cargo run --bin nea-website
 
+run-npm: build-npm run
+
+run-editor: build-editor run
+
 full-run: build-npm build-editor run
 
 editor:
