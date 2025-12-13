@@ -2,7 +2,8 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import ProjectView from "../components/ProjectView";
 import { faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { FormEvent, useState } from "react";
-import { fetchApi } from "../utils";
+import { fetchApi, useApi } from "../utils";
+import { ProjectInfo } from "../types";
 
 function Dashboard() {
     const [showModal, setShowModal] = useState(false);
@@ -32,6 +33,8 @@ function Dashboard() {
             // TODO: error handling
         }
     };
+    
+    const [projects, error] = useApi<ProjectInfo[]>("/projects");
 
     return <>
         <div className="container mx-auto">
@@ -42,7 +45,7 @@ function Dashboard() {
                 </button>
             </div>
             <h2 className="text-4xl mb-5">Your projects</h2>
-            <ProjectView dashboard className="lg:grid-cols-2 grid-cols-1 gap-x-20 gap-y-14" />
+            <ProjectView projects={projects} error={error} className="lg:grid-cols-2 grid-cols-1 gap-x-20 gap-y-14" />
         </div>
         {
             showModal &&

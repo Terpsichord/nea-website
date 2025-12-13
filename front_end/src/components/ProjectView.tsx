@@ -1,19 +1,9 @@
 import ProjectCard from "./ProjectCard";
 import { ProjectInfo } from "../types";
-import { useApi } from "../utils";
+import { ApiError } from "../utils";
 import Loading from "./Loading";
 
-function ProjectView({ username, dashboard, className }: { username?: string, dashboard?: boolean, className: string }) {
-    let projects, error;
-    if (dashboard) {
-        [projects, error] = useApi<ProjectInfo[]>(`/profile/projects`);
-    }
-    else if (username === undefined) {
-        [projects, error] = useApi<ProjectInfo[]>("/projects");
-    } else {
-        [projects, error] = useApi<ProjectInfo[]>(`/user/${username}/projects`);
-    }
-
+function ProjectView({ projects, error, className }: { projects: ProjectInfo[] | undefined, error?: ApiError, className: string }) {
     if (projects === undefined) {
         return <Loading />
     }

@@ -27,6 +27,7 @@ mod runner;
 pub use filesystem::*;
 pub use project::*;
 pub use runner::*;
+pub use super::{ProjectSettings, ProjectSettingsError};
 
 pub struct Task<T>(Rc<OnceCell<thread::Result<T>>>);
 
@@ -79,6 +80,7 @@ impl BackendHandle {
     }
 
     pub fn send(&self, cmd: Command) {
+        log::info!("sending command: {cmd:?}");
         let msg = ClientMessage::new(cmd.clone());
         let binary = msg.encode().expect("TODO: return encode error");
 

@@ -464,8 +464,7 @@ async fn open_project(
 }
 
 async fn handle_editor_ws(ws: WebSocket, container_id: String) {
-    let handler = WebSocketHandler::new(container_id).expect("TODO");
+    let mut handler = WebSocketHandler::new(container_id).expect("TODO");
 
-    // handler.handle(ws).await;
-    todo!();
+    handler.handle(ws).await;
 }

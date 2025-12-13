@@ -33,15 +33,23 @@ impl ClientMessage {
     }
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum RunAction {
+    Run,
+    Debug,
+    Format,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Command {
     OpenProject,
+    ReadSettings { action: RunAction },
     ReadFile { path: PathBuf },
     ReadDir { path: PathBuf },
     Rename { from: PathBuf, to: PathBuf },
     WriteFile { path: PathBuf, contents: String },
     Delete { path: PathBuf },
-    Run,
+    Run { command: String },
     StopRunning,
 }
 
@@ -63,7 +71,6 @@ impl ServerMessage {
     }
 }
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ProjectTree {
     Directory {
@@ -72,6 +79,19 @@ pub enum ProjectTree {
     },
     File {
         path: PathBuf,
+    },
+}
+
+impl From<PathBuf> for ProjectTree {
+    fn from(path: PathBuf) -> Self {
+        if path.to_string_lossy().ends_with("/") {
+            ProjectTree::Directory {
+                path,
+                children: vec![],
+            }
+        } else {
+            ProjectTree::File { path }
+        }
     }
 }
 
@@ -84,10 +104,10 @@ impl ProjectTree {
     }
 }
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Response {
     ProjectContents { contents: ProjectTree },
+    ProjectSettings { contents: String },
     FileContents { contents: String },
     DirContents { contents_paths: Vec<PathBuf> },
     Output { output: String },
@@ -99,7 +119,9 @@ impl<E: Display> From<Result<Response, E>> for Response {
     fn from(res: Result<Response, E>) -> Self {
         match res {
             Ok(resp) => resp,
-            Err(err) => Response::Error { msg: err.to_string() },
+            Err(err) => Response::Error {
+                msg: err.to_string(),
+            },
         }
     }
 }

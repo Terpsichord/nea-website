@@ -1,7 +1,7 @@
 import { useParams } from "react-router";
 import { formatDate, useApi } from "../../utils";
 import Loading from "../../components/Loading";
-import { User } from "../../types";
+import { ProjectInfo, User } from "../../types";
 import ProjectView from "../../components/ProjectView";
 import { useState } from "react";
 import Follow from "./Follow";
@@ -12,8 +12,10 @@ function UserPage() {
 
     const { isAuth } = useAuth();
     const [user, error] = useApi<User>("/user/" + params.username);
+    const [projects, projectError] = useApi<ProjectInfo[]>(user ? `/user/${user.username}/projects` : null) ?? [undefined];
 
     const [showFollow, setShowFollow] = useState(false);
+
 
     if (user === undefined) {
         return <Loading />;
@@ -39,7 +41,7 @@ function UserPage() {
             <p className="pl-4 my-6 text-gray text-2xl">{user.bio}</p>
             <h2 className="text-4xl">Projects</h2>
             <div className="mt-5">
-                <ProjectView username={user.username} className="lg:grid-cols-2 grid-cols-1 gap-x-20 gap-y-14" />
+                <ProjectView projects={projects} error={projectError} className="lg:grid-cols-2 grid-cols-1 gap-x-20 gap-y-14" />
             </div>
         </div>
     )

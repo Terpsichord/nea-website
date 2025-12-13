@@ -161,7 +161,7 @@ impl EditorSessionManager {
         
     }
 
-    const WORKSPACE_PATH: &'static str = "/home/workspace";
+    pub const WORKSPACE_PATH: &'static str = "/home/workspace";
 
     #[instrument(skip(self, access_token, refresh_token))]
     #[allow(clippy::too_many_arguments)] // FIXME

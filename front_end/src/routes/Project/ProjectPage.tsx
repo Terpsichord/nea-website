@@ -110,7 +110,11 @@ function ProjectPage() {
                 <div ref={menuParent} className="ml-auto" onClick={() => setShowMenu(true)}>
                     <FontAwesomeIcon icon={faEllipsisV} className="cursor-pointer px-3" size="lg" />
                     {showMenu &&
-                        <ContextMenu items={menuItems} parent={menuParent} setShow={setShowMenu} />
+                        <ContextMenu parent={menuParent} setShow={setShowMenu} >
+                            <ul>
+                                {menuItems.map(item => <li>{item}</li>)}
+                            </ul>
+                        </ContextMenu>
                     }
                 </div>
             </div>

@@ -608,23 +608,52 @@ impl App {
 
     #[cfg(target_arch = "wasm32")]
     fn handle_pending(&mut self) {
-        use ws_messages::{Command::*, ProjectTree, Response::*};
+        use ws_messages::{Command::*, ProjectTree, Response::*, RunAction};
 
         self.backend_handle.update();
 
         for resp in self.backend_handle.responses() {
+            use std::io::Read;
+
             match resp.expect("FIXME: proper error handling") {
                 (OpenProject, ProjectContents { contents }) => {
                     let path = contents.path().clone();
                     self.fs.cache(contents);
-                    self.explorer = Some(Explorer::new(path, &self.fs).expect("TODO: i think(?) this never fails"));
+                    log::info!("opened project: {}", path.display());
+                    self.explorer = Some(
+                        Explorer::new(path, &self.fs).expect("TODO: i think(?) this never fails"),
+                    );
                 }
-                (ReadFile { path }, FileContents { contents }) => {}
+                (ReadSettings { action }, ProjectSettings { contents }) => {
+                    if contents.is_empty() {
+                        self.error_message = Some("No settings found".to_string());
+                        continue;
+                    }
+                    let settings = match platform::ProjectSettings::from_contents(&contents) {
+                        Ok(settings) => settings,
+                        Err(err) => {
+                            self.error_message = Some(err.to_string());
+                            continue;
+                        }
+                    };
+                    self.runner.run_action(&settings, action);
+                    self.project.as_mut().unwrap().set_settings(settings);
+                }
+                (ReadFile { path }, FileContents { contents }) => self.buffers.add(Buffer::new(
+                    contents.clone(),
+                    Some(FileData {
+                        contents,
+                        path: path.clone(),
+                    }),
+                )),
                 (ReadDir { path }, DirContents { contents_paths }) => {}
                 (Rename { from, to }, Success) => {}
                 (WriteFile { path, contents }, Success) => {}
                 (Delete { path }, Success) => {}
-                (Run, Output { output }) => {}
+                (Run { .. }, Output { output }) => {
+                    self.runner.set_finished();
+                    self.output.lock().unwrap().push_str(&output);
+                }
                 (StopRunning, Success) => {}
                 _ => {
                     panic!("FIXME: error handle here or something")

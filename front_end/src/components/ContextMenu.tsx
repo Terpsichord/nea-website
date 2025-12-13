@@ -1,6 +1,11 @@
-import { Dispatch, ReactNode, RefObject, useEffect } from "react";
+import { Dispatch, PropsWithChildren, RefObject, useEffect } from "react";
 
-function ContextMenu({ items, parent, setShow }: { items: ReactNode[], parent: RefObject<HTMLElement | null>, setShow: Dispatch<boolean> }) {
+interface ContextMenuProps {
+    parent: RefObject<HTMLElement | null>;
+    setShow: Dispatch<boolean>
+}
+
+function ContextMenu({ children, parent, setShow }: PropsWithChildren<ContextMenuProps>) {
     // hide the context menu if clicked away from
     useEffect(() => {
         const handleClick = (e: MouseEvent) => {
@@ -16,9 +21,7 @@ function ContextMenu({ items, parent, setShow }: { items: ReactNode[], parent: R
 
     return (
         <div className="absolute w-52 bg-blue-gray outline outline-gray rounded-xl p-4 -translate-x-11/12 z-10">
-            <ul>
-                {items.map(item => <li>{item}</li>)}
-            </ul>
+            {children}
         </div>
     );
 

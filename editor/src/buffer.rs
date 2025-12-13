@@ -330,8 +330,11 @@ impl Buffer {
             .as_mut()
             .ok_or(BufferError::NoAssociatedFile)?;
 
-        fs.write(&file.path, &self.contents)
-            .map_err(BufferError::IoError)?;
+        let result = fs.write(&file.path, &self.contents);
+
+        #[cfg(not(target_arch = "wasm32"))]
+        result.map_err(BufferError::IoError)?;
+
         file.contents = self.contents.clone();
 
         Ok(())

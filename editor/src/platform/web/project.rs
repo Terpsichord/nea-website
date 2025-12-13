@@ -1,4 +1,4 @@
-use super::BackendHandle;
+use super::{BackendHandle, ProjectSettings, ProjectSettingsError};
 use eyre::WrapErr as _;
 use serde::{Deserialize, Serialize};
 use web_sys::WebSocket;
@@ -11,6 +11,7 @@ pub struct Project {
     username: String,
     repo_name: String,
     handle: BackendHandle,
+    settings: Option<ProjectSettings>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -30,10 +31,21 @@ impl Project {
             username,
             repo_name,
             handle,
+            settings: None,
         })
     }
 
     pub fn handle(&self) -> &BackendHandle {
         &self.handle
+    }
+
+    pub fn set_settings(&mut self, settings: ProjectSettings) {
+        self.settings = Some(settings);
+    }
+}
+
+impl ProjectSettings {
+    pub fn from_contents(contents: &str) -> Result<ProjectSettings, ProjectSettingsError> {
+        Ok(toml::from_str(&contents)?)
     }
 }

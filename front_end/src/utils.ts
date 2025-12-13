@@ -2,7 +2,7 @@ import { DependencyList, useEffect, useState } from "react";
 
 type Args = RequestInit & { deps?: DependencyList };
 
-type ApiError = { status: number } | undefined;
+export type ApiError = { status: number } | undefined;
 
 export function useApi<T>(url: null, args?: Args): undefined;
 export function useApi<T>(url: string, args?: Args): [T | undefined, ApiError];

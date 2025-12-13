@@ -46,6 +46,8 @@ impl FileSystemTrait for FileSystem {
     }
 
     fn read_dir(&self, path: &Path) -> Result<ReadDir> {
+        // info!("reading dir: {}", path.display());
+        // info!("looking in cache: {}", self.cached_dirs.keys().map(|p| p.display()).collect::<Vec<_>>().join(", ")););
         if let Some(read_dir) =  self.get_cached(path) {
             return Ok(read_dir);
         }
@@ -80,6 +82,7 @@ impl FileSystemTrait for FileSystem {
     }
 }
 
+#[derive(Debug)]
 pub struct ReadDir(IntoIter<Result<PathBuf>>);
 
 impl ReadDir {

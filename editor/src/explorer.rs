@@ -27,8 +27,9 @@ pub enum TreeNode {
     // },
 }
 
+
 impl TreeNode {
-    const INITIAL_DEPTH: usize = 2;
+    const INITIAL_DEPTH: usize = 2; 
 
     fn new(path: PathBuf, fs: &FileSystem) -> eyre::Result<Self> {
         Self::new_recursive(path, Self::INITIAL_DEPTH, fs)
@@ -36,7 +37,7 @@ impl TreeNode {
 
     // post-order recursive tree traversal algorithm, i think
     fn new_recursive(path: PathBuf, max_depth: usize, fs: &FileSystem) -> eyre::Result<Self> {
-        Ok(if path.is_file() {
+        Ok(if Self::path_is_file(&path) {
             TreeNode::File { path }
         } else if max_depth == 0 {
             TreeNode::UnexploredDir { path }
@@ -44,6 +45,16 @@ impl TreeNode {
             let children = Self::read_children(&path, max_depth, fs)?;
             TreeNode::ExploredDir { path, children }
         })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn path_is_file(path: &Path) -> bool {
+        path.is_file()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn path_is_file(path: &Path) -> bool {
+        !path.to_string_lossy().ends_with("/")
     }
 
     pub fn path(&self) -> &PathBuf {
@@ -69,13 +80,13 @@ impl TreeNode {
         max_depth: usize,
         fs: &FileSystem,
     ) -> eyre::Result<Vec<TreeNode>> {
-        let error_msg = || format!("Failed to read directory: {}", path.to_string_lossy());
+        let err_msg = || format!("Failed to read directory: {}", path.to_string_lossy());
 
         let mut children = vec![];
-        let dir_paths = fs.read_dir(path).wrap_err_with(error_msg)?;
+        let dir_paths = fs.read_dir(path).wrap_err_with(err_msg)?;
         for path in dir_paths {
             children.push(Self::new_recursive(
-                path.wrap_err_with(error_msg)?,
+                path.wrap_err_with(err_msg)?,
                 max_depth - 1,
                 fs,
             )?);

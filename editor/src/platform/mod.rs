@@ -21,6 +21,10 @@ pub struct ProjectSettings {
     pub run_command: String,
 }
 
+impl ProjectSettings {
+    const PATH: &str = ".ide/project.toml";
+}
+
 #[derive(Debug, Error)]
 pub enum ProjectSettingsError {
     #[error("Failed to read project.toml")]
