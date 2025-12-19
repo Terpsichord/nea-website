@@ -97,6 +97,7 @@ impl WebSocketHandle {
         Ok(Self(Some(Rc::new(ws))))
     }
 
+    // TODO: rename get stream
     fn stream(&mut self) -> &mut WsStream {
         &mut self.0.as_mut().expect("no websocket").1
     }
