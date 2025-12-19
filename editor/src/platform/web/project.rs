@@ -12,6 +12,7 @@ pub struct Project {
     handle: BackendHandle,
 }
 
+// TODO: i think remove this unless its used anywhere
 #[derive(Debug, Serialize, Deserialize)]
 struct ProjectInfo {
     github_url: String,
