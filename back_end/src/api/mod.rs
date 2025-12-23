@@ -16,6 +16,7 @@ mod comment;
 mod follow;
 mod profile;
 mod project;
+mod search;
 mod user;
 
 pub fn api_router(state: AppState) -> Router<AppState> {
@@ -40,7 +41,7 @@ async fn sign_out() -> [(HeaderName, String); 1] {
     )]
 }
 
-#[derive(Serialize, FromRow, sqlx::Type)]
+#[derive(Debug, Serialize, FromRow, sqlx::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectInfo {
     pub title: String,
@@ -52,10 +53,11 @@ pub struct ProjectInfo {
     pub like_count: i64,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectResponse {
     #[serde(flatten)]
+    #[sqlx(flatten)]
     pub info: ProjectInfo,
     pub github_url: String,
     pub upload_time: DateTime<Utc>,

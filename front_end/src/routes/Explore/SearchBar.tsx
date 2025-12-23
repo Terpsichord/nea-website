@@ -4,17 +4,19 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 
 function SearchBar() {
-    const [params, setParams] = useSearchParams();
+    const [_, setParams] = useSearchParams();
     const [query, setQuery] = useState("");
 
     function search() {
         if (query.trim()) {
-            params.set("search", query);
+            setParams(prev => {
+                prev.set("search", query);
+                return prev;
+            });
         } else {
-            params.delete("search");
+            setParams({});
         }
 
-        setParams(params);
     }
 
     return (

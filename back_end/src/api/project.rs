@@ -5,12 +5,13 @@ use axum::{
     response::Response,
     routing::{get, post, put},
 };
+use axum_extra::extract::Query;
 use serde::{Deserialize, Serialize};
 use tracing::{info, instrument};
 
 use crate::{
     AppState,
-    api::ProjectResponse,
+    api::{ProjectResponse, search},
     auth::middleware::{AuthUser, auth_middleware, optional_auth_middleware},
     db::{DatabaseConnector, NewProject},
     editor::websocket::WebSocketHandler,
@@ -18,8 +19,6 @@ use crate::{
     github::{CreateRepoResponse, access_tokens::WithTokens},
     lang::ProjectLang,
 };
-
-use super::ProjectInfo;
 
 pub fn project_router(state: AppState) -> Router<AppState> {
     let auth = Router::new()
@@ -33,7 +32,7 @@ pub fn project_router(state: AppState) -> Router<AppState> {
         ));
 
     Router::new()
-        .route("/projects", get(get_project_list))
+        .route("/project/search", get(search::search_projects))
         .merge(auth)
         .nest(
             "/project/{username}/{repo_name}",
@@ -80,25 +79,6 @@ async fn get_project(
     Ok(Json(project.into()))
 }
 
-#[instrument(skip(db))]
-async fn get_project_list(
-    State(db): State<DatabaseConnector>,
-) -> Result<Json<Vec<ProjectResponse>>, AppError> {
-    let projects = sqlx::query_as!(ProjectResponse, r#"
-        SELECT
-            (p.title, pi.username, pi.picture_url, p.repo_name, p.readme, pi.tags, pi.like_count) as "info!: ProjectInfo",
-            pi.github_url as "github_url!",
-            p.upload_time,
-            p.public,
-            false as "owned!"
-        FROM projects p
-        INNER JOIN project_info pi ON pi.id = p.id
-        WHERE p.public
-        ORDER BY upload_time DESC
-    "#).fetch_all(&*db).await?;
-
-    Ok(Json(projects))
-}
 
 #[instrument(skip(db))]
 async fn get_liked(

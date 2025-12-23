@@ -8,7 +8,7 @@ use axum_extra::extract::cookie::CookieJar;
 use tracing::instrument;
 
 use crate::{
-    auth::{ACCESS_COOKIE, SharedTokenInfo, TokenHeaders, get_auth_user},
+    auth::{ACCESS_COOKIE, TokenCache, TokenHeaders, get_auth_user},
     error::AppError,
     github::{
         GithubClient,
@@ -33,13 +33,13 @@ fn append_token_headers(resp: Response, tokens: Option<Tokens>) -> Result<Respon
 }
 
 pub async fn optional_auth_middleware(
-    token_info: Extension<SharedTokenInfo>,
+    token_cache: Extension<TokenCache>,
     client: State<GithubClient>,
     jar: CookieJar,
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    let WithTokens(maybe_auth_user, tokens) = get_auth_user(token_info, client, &jar)
+    let WithTokens(maybe_auth_user, tokens) = get_auth_user(token_cache, client, &jar)
         .await?
         .map_or_else(Default::default, |user| user.map(Some));
 
@@ -50,13 +50,13 @@ pub async fn optional_auth_middleware(
 
 #[instrument(skip_all)]
 pub async fn auth_middleware(
-    token_info: Extension<SharedTokenInfo>,
+    token_cache: Extension<TokenCache>,
     client: State<GithubClient>,
     jar: CookieJar,
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    let WithTokens(auth_user, tokens) = get_auth_user(token_info, client, &jar)
+    let WithTokens(auth_user, tokens) = get_auth_user(token_cache, client, &jar)
         .await?
         .ok_or(AppError::Unauthorized)?;
 
@@ -69,7 +69,7 @@ pub async fn auth_middleware(
 }
 
 pub async fn redirect_auth_middleware(
-    token_info: Extension<SharedTokenInfo>,
+    token_cache: Extension<TokenCache>,
     client: State<GithubClient>,
     jar: CookieJar,
     mut req: Request,
@@ -77,7 +77,7 @@ pub async fn redirect_auth_middleware(
 ) -> Result<Response, AppError> {
     // TODO: probably shouldn't return AppError on a public route (/editor)
 
-    match get_auth_user(token_info, client, &jar).await? {
+    match get_auth_user(token_cache, client, &jar).await? {
         Some(WithTokens(user, tokens)) => {
             req.extensions_mut().insert(user);
 

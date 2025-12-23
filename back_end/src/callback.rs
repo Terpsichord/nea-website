@@ -8,7 +8,7 @@ use tracing::{info, instrument};
 
 use crate::{
     AppState,
-    auth::{SharedTokenInfo, TokenHeaders},
+    auth::{TokenCache, TokenHeaders},
     error::AppError,
     github::access_tokens::{TokenRequestType, WithTokens},
     GITHUB_APP_SLUG,
@@ -19,11 +19,11 @@ pub struct UserCode {
     code: String,
 }
 
-#[instrument(skip(token_info, client, db))]
+#[instrument(skip(token_cache, client, db))]
 /// Callback that the user is redirected to after authenticating with Github
 pub async fn github_callback(
     Query(UserCode { code }): Query<UserCode>,
-    Extension(token_info): Extension<SharedTokenInfo>,
+    Extension(token_cache): Extension<TokenCache>,
     State(AppState { client, db, .. }): State<AppState>,
 ) -> Result<(Option<TokenHeaders>, Redirect), AppError> {
     let tokens = client
@@ -38,7 +38,7 @@ pub async fn github_callback(
 
     let headers = TokenHeaders::from(&tokens);
 
-    token_info
+    token_cache
         .cache_user_token(&user, tokens.access_token, Some(tokens.access_expiry))
         .await;
 

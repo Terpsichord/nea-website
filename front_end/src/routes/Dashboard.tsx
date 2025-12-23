@@ -26,15 +26,14 @@ function Dashboard() {
 
         console.log({ response });
         if (response.ok) {
-            // const { username, repoName } = await response.json();
-            // window.location.href = `/editor/${username}/${repo_name}`
-            // TODO: uncomment above once the editor is working
+            const { username, repoName } = await response.json();
+            window.location.href = `/editor/${username}/${repoName}`
         } else {
             // TODO: error handling
         }
     };
     
-    const [projects, error] = useApi<ProjectInfo[]>("/projects");
+    const [projects, error] = useApi<ProjectInfo[]>("/profile/projects");
 
     return <>
         <div className="container mx-auto">
@@ -45,7 +44,7 @@ function Dashboard() {
                 </button>
             </div>
             <h2 className="text-4xl mb-5">Your projects</h2>
-            <ProjectView projects={projects} error={error} className="lg:grid-cols-2 grid-cols-1 gap-x-20 gap-y-14" />
+            <ProjectView projects={projects} error={error} className="grid grid-flow-row gap-x-10" />
         </div>
         {
             showModal &&

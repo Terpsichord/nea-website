@@ -11,7 +11,7 @@ use std::sync::LazyLock;
 
 use anyhow::Context;
 use api::api_router;
-use auth::{SharedTokenInfo, middleware::redirect_auth_middleware};
+use auth::{TokenCache, middleware::redirect_auth_middleware};
 use axum::{Router, extract::FromRef, middleware, routing::get};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use sqlx::{PgPool, postgres::PgPoolOptions};
@@ -122,7 +122,7 @@ async fn main() {
                 .fallback(ServeFile::new(format!("{FRONT_PUBLIC}/index.html"))),
         )
         .with_state(state)
-        .layer(AddExtensionLayer::new(SharedTokenInfo::default()))
+        .layer(AddExtensionLayer::new(TokenCache::default()))
         .layer(CatchPanicLayer::new())
         .layer(TraceLayer::new_for_http());
 
