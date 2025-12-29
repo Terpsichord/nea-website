@@ -261,20 +261,15 @@ impl Buffer {
     pub fn from_path(path: PathBuf, fs: &FileSystem) -> eyre::Result<Self> {
         let contents = fs.read_file(&path).wrap_err("Failed to read file")?;
 
-        Ok(Self {
-            id: Uuid::new_v4(),
-            contents: contents.clone(),
-            file_data: Some(FileData { contents, path }),
-        })
+        Ok(Self::new(
+            contents.clone(),
+            Some(FileData { contents, path }),
+        ))
     }
 
     pub fn empty() -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            contents: String::new(),
-            file_data: None,
+        Self::new(String::new(), None)
         }
-    }
 
     pub fn id(&self) -> Uuid {
         self.id

@@ -1,7 +1,7 @@
 use crate::{
     buffer::{Buffer, BufferError, Buffers, FileData},
     explorer::{Explorer, ExplorerAction},
-    platform::{self, FileSystemTrait as _, RunnerTrait as _},
+    platform::{self, FileSystemTrait as _, RunnerTrait as _, SearchResult},
 };
 
 use core::f32;
@@ -12,8 +12,8 @@ use std::{
 
 use eframe::egui;
 use egui::{
-    Align, Button, CentralPanel, Id, Key, Layout, MenuBar, ScrollArea, SidePanel, TopBottomPanel,
-    ViewportCommand, containers::modal::Modal,
+    Align, Button, CentralPanel, Grid, Id, Key, Layout, MenuBar, ScrollArea, SidePanel,
+    TopBottomPanel, ViewportCommand, containers::modal::Modal,
 };
 // use egui_console::{ConsoleBuilder, ConsoleWindow};
 use egui_extras::syntax_highlighting;
@@ -78,6 +78,14 @@ enum SaveModalState {
     Closed,
 }
 
+#[derive(Default, Debug)]
+struct SearchModalState {
+    search_text: String,
+    replace_text: String,
+    is_replace: bool,
+    search_results: Vec<SearchResult>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 enum BottomPanelState {
     Output,
@@ -110,6 +118,9 @@ pub struct App {
     /// Current state of the save modal, as described in [`SaveModalState`]
     #[serde(skip)]
     save_modal_state: SaveModalState,
+    // TODO: document
+    #[serde(skip)]
+    search_modal_state: Option<SearchModalState>,
     /// Action to be completed once the current modal is closed.
     #[serde(skip)]
     modal_action: Option<ModalAction>,
@@ -195,6 +206,48 @@ impl eframe::App for App {
         }
         if let Some(err) = buffers_response.error_message {
             self.error_message = Some(err);
+        }
+
+        let mut changed = false;
+        let mut replaced = false;
+        let mut done = false;
+        let mut opened = None;
+        if let Some(search_state) = &mut self.search_modal_state {
+            Self::show_search_modal(
+                ctx,
+                search_state,
+                &mut opened,
+                &mut changed,
+                &mut replaced,
+                &mut done,
+            );
+
+            if let Some(ref loc) = opened
+                && let Some(buffer) = self.buffers.get_by_path(&loc.path)
+            {
+                self.buffers.select(buffer.id());
+            }
+        }
+        if let Some(search_state) = &self.search_modal_state {
+            if replaced {
+                let paths: Vec<_> = search_state
+                    .search_results
+                    .iter()
+                    .map(|r| r.path.as_path())
+                    .collect();
+                let _ = self.fs.replace(
+                    &paths,
+                    &search_state.search_text,
+                    &search_state.replace_text,
+                );
+            }
+
+            if changed {
+                self.update_search_results(&search_state.search_text.clone());
+            }
+        }
+        if done || opened.is_some() {
+            self.search_modal_state = None;
         }
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -294,6 +347,24 @@ impl App {
                     todo!("redo");
                 }
                 ui.separator();
+
+                if ui
+                    .add_enabled(self.project.is_some(), Button::new("Search"))
+                    .clicked()
+                {
+                    self.search_modal_state = Some(SearchModalState::default());
+                }
+                if ui
+                    .add_enabled(self.project.is_some(), Button::new("Replace"))
+                    .clicked()
+                {
+                    self.search_modal_state = Some(SearchModalState {
+                        is_replace: true,
+                        ..Default::default()
+                    });
+                }
+                ui.separator();
+
                 if ui.button("Settings").clicked() {}
             });
             ui.menu_button("View", |ui| {
@@ -503,6 +574,7 @@ impl App {
 
         self.project = Some(Project::new(path.clone(), settings));
 
+        // TODO: editor terminal
         // self.console = Some(
         //     ConsoleBuilder::new()
         //         .prompt(&format!("{}$", path.display()))
@@ -573,6 +645,76 @@ impl App {
                 }
             })
         });
+    }
+
+    fn show_search_modal(
+        ctx: &egui::Context,
+        search_state: &mut SearchModalState,
+        opened: &mut Option<SearchResult>,
+        changed: &mut bool,
+        replaced: &mut bool,
+        done: &mut bool,
+    ) {
+        Modal::new(Id::new("search_modal")).show(ctx, |ui| {
+            ui.label("Search");
+            if ui
+                .text_edit_singleline(&mut search_state.search_text)
+                .changed()
+            {
+                *changed = true;
+            }
+            ui.checkbox(&mut search_state.is_replace, "Replace");
+            if search_state.is_replace {
+                ui.text_edit_singleline(&mut search_state.replace_text);
+                ui.horizontal(|ui| {
+                    if ui.button("Replace all").clicked() {
+                        *replaced = true;
+                        *done = true;
+                    }
+
+                    if ui.button("Done").clicked() {
+                        *done = true;
+                    }
+                });
+            } else {
+                ui.horizontal(|ui| {
+                    if ui.button("Done").clicked() {
+                        *done = true;
+                    }
+                });
+            }
+
+            ui.separator();
+
+            Grid::new("search_results")
+                .striped(true)
+                .num_columns(1)
+                .show(ui, |ui| {
+                    for res in &search_state.search_results {
+                        if ui
+                            .add(Button::new(format!(
+                                "{}:{}:{}",
+                                res.path.to_string_lossy(),
+                                res.line,
+                                res.col
+                            )))
+                            .clicked()
+                        {
+                            *opened = Some(res.clone());
+                        }
+                        ui.end_row();
+                    }
+                });
+        });
+    }
+
+    fn update_search_results(&mut self, search: &str) {
+        if let Some(project) = &self.project
+            && let Some(search_state) = &mut self.search_modal_state
+        {
+            let results = self.fs.search_project(project, search);
+            search_state.search_results = results;
+        }
     }
 
     fn show_error_modal(&mut self, ctx: &egui::Context) {

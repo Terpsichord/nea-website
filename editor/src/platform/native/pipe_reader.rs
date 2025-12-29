@@ -6,7 +6,7 @@ use std::thread;
 #[derive(Debug)]
 pub enum PipeError {
     IO(io::Error),
-    NotUtf8(String),
+    NotUtf8,
 }
 
 // Enum to represent a line of output or end of file (EOF)
@@ -37,7 +37,7 @@ pub fn read_piped(
                     if byte[0] == b'\n' {
                         // Convert buffer to a string and send it
                         let line = String::from_utf8(buf.clone())
-                            .map_err(|_| PipeError::NotUtf8("Invalid UTF-8".to_string()));
+                            .map_err(|_| PipeError::NotUtf8);
                         let _ = tx.send(line.map(PipedLine::Line));
                         buf.clear();
                     }
