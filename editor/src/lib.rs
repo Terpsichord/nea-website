@@ -4,6 +4,7 @@ pub use app::App;
 
 mod app;
 mod buffer;
+mod color_scheme;
 mod explorer;
 mod platform;
 

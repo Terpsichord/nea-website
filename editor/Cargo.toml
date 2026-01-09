@@ -3,9 +3,14 @@ name = "editor"
 version = "0.1.0"
 edition = "2024"
 
-# [target.'cfg(target_arch = "wasm32")'.lib]
-[lib]
+[target.'cfg(target_arch = "wasm32")'.lib]
+name = "editor-web"
+path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.bin]
+name = "editor-desktop"
+path = "src/main.rs"
 
 [dependencies]
 color-eyre = { version = "0.6.3", default-features = false }
@@ -20,6 +25,7 @@ eyre = "0.6.12"
 itertools = "0.14.0"
 log = "0.4.27"
 serde = "1.0.219"
+serde_yaml = "0.9.34"
 shell-words = "1.1.0"
 
 thiserror = "2.0.12"
@@ -30,6 +36,8 @@ uuid = { version = "1.16.0", features = ["v4", "serde", "js"] }
 rfd = "0.15.3"
 env_logger = "0.11.7"
 walkdir = "2.5.0"
+egui_term = { git = "https://github.com/Harzu/egui_term" }
+serde_yaml = "0.9.34"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.106"

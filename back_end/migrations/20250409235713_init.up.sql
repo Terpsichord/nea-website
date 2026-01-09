@@ -65,12 +65,13 @@ INNER JOIN users u ON p.user_id = u.id
 GROUP BY p.id, u.username, u.github_id, u.picture_url;
 
 CREATE TABLE color_schemes (
-    id SERIAL PRIMARY KEY
-    -- TODO: add more columns here
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
 );
 
 CREATE TABLE editor_configs (
-    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    color_schemes INT REFERENCES color_schemes(id)
-    -- TODO: add more columns here
+    user_id INT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    color_schemes INT REFERENCES color_schemes(id),
+    autosave BOOLEAN,
+    format_on_save BOOLEAN
 );

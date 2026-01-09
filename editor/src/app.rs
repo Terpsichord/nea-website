@@ -1,5 +1,6 @@
 use crate::{
     buffer::{Buffer, BufferError, Buffers, FileData},
+    color_scheme::Base16Scheme,
     explorer::{Explorer, ExplorerAction},
     platform::{self, FileSystemTrait as _, RunnerTrait as _, SearchResult},
 };
@@ -12,11 +13,10 @@ use std::{
 
 use eframe::egui;
 use egui::{
-    Align, Button, CentralPanel, Grid, Id, Key, Layout, MenuBar, ScrollArea, SidePanel,
-    TopBottomPanel, ViewportCommand, containers::modal::Modal,
+    Align, Button, CentralPanel, Color32, ComboBox, Grid, Id, Key, Layout, MenuBar, ScrollArea, SidePanel, Style, TopBottomPanel, ViewportCommand, Visuals, containers::modal::Modal
 };
-// use egui_console::{ConsoleBuilder, ConsoleWindow};
 use egui_extras::syntax_highlighting;
+use egui_term::{TerminalBackend, TerminalView};
 use eyre::OptionExt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -48,11 +48,12 @@ pub enum ModalAction {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EditorSettings {
     pub auto_save: bool,
+    pub color_scheme: Option<String>,
 }
 
 impl Default for EditorSettings {
     fn default() -> Self {
-        Self { auto_save: true }
+        Self { auto_save: true, color_scheme: None }
     }
 }
 
@@ -86,10 +87,10 @@ struct SearchModalState {
     search_results: Vec<SearchResult>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 enum BottomPanelState {
     Output,
-    Console,
+    Terminal,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -102,8 +103,8 @@ pub struct App {
     #[serde(skip)]
     runner: platform::Runner,
     buffers: Buffers,
-    /// Current [`syntax_highlighting::CodeTheme`] for the editor
-    code_theme: syntax_highlighting::CodeTheme,
+    style: Option<Style>,
+    available_color_schemes: Vec<(String, PathBuf)>,
     /// [`Explorer`] side panel
     #[serde(skip)] // FIXME
     explorer: Option<Explorer>,
@@ -111,13 +112,16 @@ pub struct App {
     /// Contents of the output panel
     /// This must be wrapped in an `Arc<Mutex<_>>` so that it can be shared to and modified across threads, including the `running_command` thread.
     output: Arc<Mutex<String>>,
-    // #[serde(skip)]
-    // console: Option<ConsoleWindow>,
+    #[serde(skip)]
+    #[cfg(not(target_arch = "wasm32"))]
+    terminal: Option<TerminalBackend>,
     #[serde(skip)]
     error_message: Option<String>,
     /// Current state of the save modal, as described in [`SaveModalState`]
     #[serde(skip)]
     save_modal_state: SaveModalState,
+    #[serde(skip)]
+    settings_modal_state: Option<EditorSettings>,
     // TODO: document
     #[serde(skip)]
     search_modal_state: Option<SearchModalState>,
@@ -142,10 +146,19 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
         }
 
+        if self.style.is_none()
+            && let Ok(scheme) = Base16Scheme::read_from_yaml(Path::new("color_schemes/catpuccin.yml"))
+        {
+            let style = scheme.to_style();
+            ctx.set_style(style.clone());
+            self.style = Some(style);
+        }
+
+
         TopBottomPanel::top("top_menu_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.visuals_mut().button_frame = false;
-                self.menu_bar(ui);
+                self.menu_bar(ctx, ui);
             });
         });
 
@@ -180,7 +193,7 @@ impl eframe::App for App {
             self.delete(path.as_path());
         }
 
-        if let Some(ref bottom_panel_state) = self.bottom_panel_state {
+        if let Some(bottom_panel_state) = self.bottom_panel_state {
             let max_bottom_panel_height = 0.8;
             TopBottomPanel::bottom("bottom_panel")
                 .resizable(true)
@@ -189,7 +202,7 @@ impl eframe::App for App {
                     let size = ui.available_size();
                     match bottom_panel_state {
                         BottomPanelState::Output => self.output(ui, size),
-                        BottomPanelState::Console => self.console(ui, size),
+                        BottomPanelState::Terminal => self.terminal(ui, size),
                     }
                 });
         }
@@ -294,7 +307,7 @@ impl App {
         }
     }
 
-    fn menu_bar(&mut self, ui: &mut egui::Ui) {
+    fn menu_bar(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         MenuBar::new().ui(ui, |ui| {
             // TODO: clean up and properly organise this and all the other random cfg target_arch's
             #[cfg(not(target_arch = "wasm32"))]
@@ -307,7 +320,7 @@ impl App {
                     self.open_file_dialog();
                 }
                 if ui.button("Open folder").clicked() {
-                    self.open_folder();
+                    self.open_folder(ctx);
                 }
                 ui.separator();
 
@@ -379,13 +392,13 @@ impl App {
                     }
                 }
                 if ui
-                    .add_enabled(self.explorer.is_some(), Button::new("Show console"))
+                    .add_enabled(self.explorer.is_some(), Button::new("Show terminal"))
                     .clicked()
                 {
-                    if let Some(BottomPanelState::Console) = self.bottom_panel_state {
+                    if let Some(BottomPanelState::Terminal) = self.bottom_panel_state {
                         self.bottom_panel_state = None;
                     } else {
-                        self.bottom_panel_state = Some(BottomPanelState::Console)
+                        self.bottom_panel_state = Some(BottomPanelState::Terminal)
                     }
                 }
             });
@@ -424,10 +437,12 @@ impl App {
         });
     }
 
-    fn console(&self, ui: &mut egui::Ui, size: egui::Vec2) {
-        // if let Some(console) = self.console {
-        //     console.draw(ui);
-        // }
+    fn terminal(&mut self, ui: &mut egui::Ui, size: egui::Vec2) {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(terminal) = &mut self.terminal {
+            let view = TerminalView::new(ui, terminal).set_size(size);
+            ui.add(view);
+        }
     }
 
     /// Saves the current contents of the code buffer to a file.
@@ -541,7 +556,7 @@ impl App {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn open_folder(&mut self) {
+    fn open_folder(&mut self, ctx: &egui::Context) {
         if !self.ignore_dirty && self.buffers.is_dirty() {
             self.save_modal_state = SaveModalState::SaveAllOpen;
             self.modal_action = Some(ModalAction::OpenFolder);
@@ -553,11 +568,13 @@ impl App {
             return;
         };
 
-        self.open_project(path);
+        self.open_project(ctx, path);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn open_project(&mut self, path: PathBuf) {
+    fn open_project(&mut self, ctx: &egui::Context, path: PathBuf) {
+        use egui_term::{BackendSettings, TerminalBackend};
+
         use crate::platform::{Project, ProjectSettings};
 
         if !path.is_dir() {
@@ -574,12 +591,25 @@ impl App {
 
         self.project = Some(Project::new(path.clone(), settings));
 
-        // TODO: editor terminal
-        // self.console = Some(
-        //     ConsoleBuilder::new()
-        //         .prompt(&format!("{}$", path.display()))
-        //         .build(),
-        // );
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let shell = if cfg!(target_os = "windows") {
+            "cmd.exe".to_string()
+        } else {
+            std::env::var("SHELL").expect("SHELL is not defined")
+        };
+        self.terminal = Some(
+            TerminalBackend::new(
+                0,
+                ctx.clone(),
+                sender,
+                BackendSettings {
+                    shell,
+                    ..Default::default()
+                },
+            )
+            .expect("failed to create terminal"),
+        );
+        Box::leak(Box::new(receiver));
 
         match Explorer::new(path, &self.fs) {
             Ok(explorer) => {
@@ -607,7 +637,7 @@ impl App {
         #[cfg(not(target_arch = "wasm32"))]
         match action {
             ModalAction::OpenFile => self.open_file_dialog(),
-            ModalAction::OpenFolder => self.open_folder(),
+            ModalAction::OpenFolder => self.open_folder(&ctx),
             ModalAction::DeleteBuffer(id) => self.buffers.delete_buffer(id),
             ModalAction::Close => {
                 self.ignore_dirty = true;
@@ -646,6 +676,17 @@ impl App {
             })
         });
     }
+
+    fn show_settings_modal(
+        &mut self,
+        ctx: &egui::Context,
+    ) {
+        let settings_state = self.settings_modal_state.unwrap();
+        Modal::new(Id::new("settings_modal")).show(ctx, |ui| {
+            ui.label("Settings");
+            ComboBox::
+        });
+    )
 
     fn show_search_modal(
         ctx: &egui::Context,

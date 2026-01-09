@@ -12,7 +12,7 @@ function UserPage() {
 
     const { isAuth } = useAuth();
     const [user, error] = useApi<User>("/user/" + params.username);
-    const [projects, projectError] = useApi<ProjectInfo[]>(user ? `/user/${user.username}/projects` : null) ?? [undefined];
+    const [projects, projectError] = useApi<ProjectInfo[]>(user ? `/user/${user.username}/projects` : null, { deps: [user]}) ?? [undefined];
 
     const [showFollow, setShowFollow] = useState(false);
 
