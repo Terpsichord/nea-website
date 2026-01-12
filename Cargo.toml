@@ -5,7 +5,7 @@ resolver = "2"
 members = [
     "back_end", "ws_messages",
     "editor"
-]
+, "common"]
 
 [profile.dev.package."*"]
 opt-level = 2
