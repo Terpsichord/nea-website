@@ -1,10 +1,40 @@
-use std::{fs::File, path::Path};
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+};
 
 use egui::{
     Color32, Shadow, Stroke, Style, Visuals,
     style::{Selection, WidgetVisuals, Widgets},
 };
 use eyre::eyre;
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct AvailableColorSchemes {
+    pub schemes: Vec<(String, PathBuf)>,
+}
+
+impl Default for AvailableColorSchemes {
+    fn default() -> Self {
+        let mut schemes = Vec::new();
+        if let Ok(scheme_files) = std::fs::read_dir("color_schemes") {
+            schemes = scheme_files
+                .filter_map(|x| x.ok())
+                .map(|entry| {
+                    Ok::<_, eyre::Error>((
+                        Base16Scheme::read_from_yaml(&entry.path())?.name,
+                        entry.path(),
+                    ))
+                })
+                .try_collect()
+                .unwrap_or_default();
+        }
+
+        Self { schemes }
+    }
+}
 
 pub struct Base16Scheme {
     // 16 24-bit colors

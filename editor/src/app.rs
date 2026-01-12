@@ -1,6 +1,6 @@
 use crate::{
     buffer::{Buffer, BufferError, Buffers, FileData},
-    color_scheme::Base16Scheme,
+    color_scheme::{AvailableColorSchemes, Base16Scheme},
     explorer::{Explorer, ExplorerAction},
     platform::{self, FileSystemTrait as _, RunnerTrait as _, SearchResult},
 };
@@ -13,7 +13,8 @@ use std::{
 
 use eframe::egui;
 use egui::{
-    Align, Button, CentralPanel, Color32, ComboBox, Grid, Id, Key, Layout, MenuBar, ScrollArea, SidePanel, Style, TopBottomPanel, ViewportCommand, Visuals, containers::modal::Modal
+    Align, Button, CentralPanel, Color32, ComboBox, Grid, Id, Key, Layout, MenuBar, ScrollArea,
+    SidePanel, Style, TopBottomPanel, ViewportCommand, Visuals, containers::modal::Modal,
 };
 use egui_extras::syntax_highlighting;
 use egui_term::{TerminalBackend, TerminalView};
@@ -48,12 +49,15 @@ pub enum ModalAction {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EditorSettings {
     pub auto_save: bool,
-    pub color_scheme: Option<String>,
+    pub color_scheme: Option<(String, PathBuf)>,
 }
 
 impl Default for EditorSettings {
     fn default() -> Self {
-        Self { auto_save: true, color_scheme: None }
+        Self {
+            auto_save: true,
+            color_scheme: None,
+        }
     }
 }
 
@@ -103,8 +107,9 @@ pub struct App {
     #[serde(skip)]
     runner: platform::Runner,
     buffers: Buffers,
+    code_theme: syntax_highlighting::CodeTheme,
     style: Option<Style>,
-    available_color_schemes: Vec<(String, PathBuf)>,
+    available_color_schemes: AvailableColorSchemes,
     /// [`Explorer`] side panel
     #[serde(skip)] // FIXME
     explorer: Option<Explorer>,
@@ -147,13 +152,12 @@ impl eframe::App for App {
         }
 
         if self.style.is_none()
-            && let Ok(scheme) = Base16Scheme::read_from_yaml(Path::new("color_schemes/catpuccin.yml"))
+            && let Ok(scheme) =
+                Base16Scheme::read_from_yaml(Path::new("color_schemes/catpuccin.yml"))
         {
             let style = scheme.to_style();
-            ctx.set_style(style.clone());
             self.style = Some(style);
         }
-
 
         TopBottomPanel::top("top_menu_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -241,6 +245,7 @@ impl eframe::App for App {
                 self.buffers.select(buffer.id());
             }
         }
+        
         if let Some(search_state) = &self.search_modal_state {
             if replaced {
                 let paths: Vec<_> = search_state
@@ -262,6 +267,11 @@ impl eframe::App for App {
         if done || opened.is_some() {
             self.search_modal_state = None;
         }
+
+        if self.settings_modal_state.is_some() {
+            self.show_settings_modal(ctx);
+        }
+
 
         #[cfg(not(target_arch = "wasm32"))]
         match self.save_modal_state {
@@ -378,7 +388,9 @@ impl App {
                 }
                 ui.separator();
 
-                if ui.button("Settings").clicked() {}
+                if ui.button("Settings").clicked() {
+                    self.settings_modal_state = Some(EditorSettings::default());
+                }
             });
             ui.menu_button("View", |ui| {
                 if ui
@@ -630,6 +642,12 @@ impl App {
         }
     }
 
+    fn set_color_scheme(&mut self, ctx: &egui::Context, scheme_path: &Path) {
+        if let Ok(scheme) = Base16Scheme::read_from_yaml(scheme_path) {
+            ctx.set_style(scheme.to_style());
+        }
+    }
+
     fn modal_action(&mut self, action: ModalAction, ctx: &egui::Context) {
         self.ignore_dirty = false;
         self.modal_action = None;
@@ -677,16 +695,45 @@ impl App {
         });
     }
 
-    fn show_settings_modal(
-        &mut self,
-        ctx: &egui::Context,
-    ) {
-        let settings_state = self.settings_modal_state.unwrap();
+    fn show_settings_modal(&mut self, ctx: &egui::Context) {
+        let mut updated = false;
         Modal::new(Id::new("settings_modal")).show(ctx, |ui| {
+            let settings_state = self.settings_modal_state.as_mut().unwrap();
+
             ui.label("Settings");
-            ComboBox::
+            ComboBox::from_label("Color Scheme")
+                .selected_text(
+                    settings_state
+                        .color_scheme
+                        .as_ref()
+                        .map(|x| x.0.to_string())
+                        .unwrap_or_default(),
+                )
+                .show_ui(ui, |ui| {
+                    for (name, path) in self.available_color_schemes.schemes.iter() {
+                        ui.selectable_value(
+                            &mut settings_state.color_scheme,
+                            Some((name.clone(), path.clone())),
+                            name,
+                        );
+                    }
+                });
+
+            ui.horizontal(|ui| {
+                if ui.button("Done").clicked() {
+                    updated = true;
+                }
+            });
         });
-    )
+
+        if updated {
+            if let Some((_, path)) = &self.settings_modal_state.as_ref().unwrap().color_scheme {
+                self.set_color_scheme(ctx, &path.clone());
+            }
+
+            self.settings_modal_state = None;
+        }
+    }
 
     fn show_search_modal(
         ctx: &egui::Context,
