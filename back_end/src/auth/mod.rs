@@ -4,11 +4,10 @@ use base64::prelude::{BASE64_STANDARD, Engine};
 use chrono::Utc;
 
 use crate::{
-    error::{AppError, InvalidAuthError},
-    github::{
+    auth::crypto::Aes256Gcm, error::{AppError, InvalidAuthError}, github::{
         GithubClient,
         access_tokens::{TokenRequestType, WithTokens},
-    },
+    }
 };
 use middleware::AuthUser;
 
@@ -91,7 +90,7 @@ pub async fn get_auth_user(
 
 fn decode_token(encrypted_token: &str) -> Result<String, InvalidAuthError> {
     let decoded = BASE64_STANDARD.decode(encrypted_token)?;
-    let decrypted = crypto::decrypt(&decoded).map_err(InvalidAuthError::Encryption)?;
+    let decrypted = Aes256Gcm::decrypt(&decoded).map_err(InvalidAuthError::Encryption)?;
 
     Ok(String::from_utf8(decrypted)?)
 }

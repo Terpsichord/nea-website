@@ -6,7 +6,7 @@ use anyhow::Context;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::{auth::crypto, CONFIG, Config, error::AppError};
+use crate::{CONFIG, Config, auth::crypto::{self, Aes256Gcm}, error::AppError};
 
 #[derive(Serialize)]
 struct GithubSecrets {
@@ -126,8 +126,8 @@ impl GithubClient {
             .with_context(|| format!("failed to decode AccessTokenRequest from: {text}"))
             .map_err(AppError::auth_failed)?;
 
-        let encrypted_access_token = crypto::encrypt_base64(access_token.as_bytes());
-        let encrypted_refresh_token = crypto::encrypt_base64(refresh_token.as_bytes());
+        let encrypted_access_token = Aes256Gcm::encrypt_base64(access_token.as_bytes());
+        let encrypted_refresh_token = Aes256Gcm::encrypt_base64(refresh_token.as_bytes());
 
         // this is okay to cast as according to the docs, this value should always be 15897600 (6 months)
         // https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens#refreshing-a-user-access-token-with-a-refresh-token

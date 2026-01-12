@@ -7,6 +7,8 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 
+use crate::auth::crypto;
+
 pub enum AppError {
     InvalidAuth(InvalidAuthError),
     // TODO: maybe merge this into `AuthFailed`
@@ -36,7 +38,7 @@ pub enum InvalidAuthError {
     #[error("invalid base64")]
     Base64(#[from] base64::DecodeError),
     #[error("invalid aes encryption")]
-    Encryption(aes_gcm::Error),
+    Encryption(crypto::DecryptError),
     #[error("invalid utf-8")]
     Utf8(#[from] std::string::FromUtf8Error),
     #[error("missing refresh token")]
