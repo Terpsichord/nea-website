@@ -380,6 +380,7 @@ impl GithubClient {
     }
 
     pub async fn user_installed(&self, access_token: &str) -> Result<bool, AppError> {
+        // TODO: not sure if i this should be used
         let WithTokens(resp, tokens) = self
             .send_authenticated(
                 self.client.get(Self::api_url("/user/installations")),

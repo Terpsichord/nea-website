@@ -3,12 +3,12 @@ use axum::{
     extract::State,
     http::{HeaderName, header},
     middleware,
-    routing::{delete, get, patch},
+    routing::{delete, get, patch, post},
 };
 use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tracing::{info, instrument};
+use tracing::instrument;
 
 use crate::auth::ACCESS_COOKIE;
 

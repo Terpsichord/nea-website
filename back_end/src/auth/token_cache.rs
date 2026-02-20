@@ -1,12 +1,13 @@
 use std::{borrow::Borrow, collections::HashMap, hash::Hash, sync::Arc};
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use tokio::sync::Mutex;
 
 use crate::github::GithubUser;
 
 /// Period of time after which the access token expires
-pub const ACCESS_EXPIRY: Duration = Duration::hours(8);
+//pub const ACCESS_EXPIRY: Duration = Duration::hours(8);
+// TODO: i think this was safe to remove (double check tho)
 
 #[derive(Clone, Debug)]
 struct Node<K, V> {
@@ -162,7 +163,7 @@ impl TokenCache {
 impl Default for TokenCache {
     fn default() -> Self {
         Self(Arc::new(Mutex::new(LruCache::new(
-            TokenCache::DEFAULT_CAPACITY,
+            Self::DEFAULT_CAPACITY,
         ))))
     }
 }

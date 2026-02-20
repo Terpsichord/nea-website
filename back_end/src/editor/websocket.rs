@@ -1,8 +1,6 @@
-use std::{
-    path::{Path, PathBuf},
-    pin::Pin,
-    sync::Arc,
-};
+use std::
+    path::{Path, PathBuf}
+;
 
 use axum::extract::ws::{Message, WebSocket};
 use bollard::{
@@ -64,15 +62,16 @@ impl WebSocketHandler {
                         .await;
                 }
                 Ok(Message::Text(_)) => warn!("received text on websocket"),
-                Ok(Message::Close(_)) => {} // TODO
+                Ok(Message::Close(_)) => {
+                    info!("idling container {:?}", &self.container_id);
+
+                    self.session_mgr.idle_session(self.user_id); 
+                } 
                 Ok(_) => {}
                 Err(err) => warn!("failed to receive message on websocket: {}", err),
             }
         }
 
-        info!("idling container {:?}", &self.container_id);
-
-        self.session_mgr.idle_session(self.user_id).await; 
     }
 
     async fn create_response(&mut self, msg: &[u8]) -> anyhow::Result<ServerMessage> {
@@ -89,7 +88,7 @@ impl WebSocketHandler {
         Ok(match cmd {
             Command::OpenProject                  => self.open_project().await?,
             Command::UpdateSettings { settings }  => self.update_settings(settings).await?,
-            Command::ReadSettings { action }      => self.read_settings().await?,
+            Command::ReadSettings { .. }      => self.read_settings().await?,
             Command::Run { command }              => self.run(&command).await?,
             Command::ReadFile { path }            => self.read_file(&path).await?,
             Command::ReadDir { path }             => self.read_dir(&path).await?,

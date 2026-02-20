@@ -83,7 +83,7 @@ struct Comment {
     id: i32,
     user: InlineUser,
     contents: String,
-    children: Vec<Comment>,
+    children: Vec<Self>,
     #[serde(skip)]
     parent_id: Option<i32>,
     #[serde(skip)]

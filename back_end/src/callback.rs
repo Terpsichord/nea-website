@@ -4,7 +4,7 @@ use axum::{
     response::Redirect,
 };
 use serde::Deserialize;
-use tracing::{info, instrument};
+use tracing::instrument;
 
 use crate::{
     AppState, GITHUB_APP_SLUG,

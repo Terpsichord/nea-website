@@ -1,25 +1,16 @@
 use std::cmp::max;
 
 use axum::{
-    Extension, Json, Router,
-    extract::{Path, State, WebSocketUpgrade, ws::WebSocket},
-    middleware,
-    response::Response,
-    routing::{get, post, put},
+    Json, extract::State,
 };
 use axum_extra::extract::Query;
-use serde::{Deserialize, Serialize};
-use tracing::{debug, info, instrument};
+use serde::Deserialize;
+use tracing::{debug, instrument};
 
 use crate::{
-    AppState,
-    api::{ProjectResponse, search},
-    auth::middleware::{AuthUser, auth_middleware, optional_auth_middleware},
-    db::{DatabaseConnector, NewProject},
-    editor::websocket::WebSocketHandler,
+    api::ProjectResponse,
+    db::DatabaseConnector,
     error::AppError,
-    github::{CreateRepoResponse, access_tokens::WithTokens},
-    lang::ProjectLang,
 };
 
 #[derive(Clone, Copy, Debug, Deserialize)]

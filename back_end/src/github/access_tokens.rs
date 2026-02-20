@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use crate::{
     CONFIG, Config,
-    auth::crypto::{self, Aes256Gcm},
+    auth::crypto::Aes256Gcm,
     error::AppError,
 };
 

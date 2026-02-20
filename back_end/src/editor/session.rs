@@ -60,6 +60,8 @@ impl std::ops::Drop for WaitingHandle {
 }
 
 #[derive(Debug)]
+
+#[allow(dead_code)]
 enum SessionMode {
     Active,
     Waiting(WaitingHandle),
@@ -296,13 +298,13 @@ impl EditorSessionManager {
         Ok(image)
     }
 
-    pub async fn idle_session(&self, user_id: i32) {
+    pub fn idle_session(&self, user_id: i32) {
         self.table
             .write()
             .unwrap()
             .entry(user_id)
             .and_modify(|state| {
-                state.mode = SessionMode::Waiting(WaitingHandle::new(self.clone(), user_id))
+                state.mode = SessionMode::Waiting(WaitingHandle::new(self.clone(), user_id));
             });
     }
 

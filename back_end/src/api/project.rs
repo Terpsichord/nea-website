@@ -5,7 +5,6 @@ use axum::{
     response::Response,
     routing::{get, post, put},
 };
-use axum_extra::extract::Query;
 use serde::{Deserialize, Serialize};
 use tracing::{info, instrument};
 

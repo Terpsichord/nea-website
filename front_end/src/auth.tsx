@@ -20,7 +20,9 @@ function AuthProvider({ children }: PropsWithChildren) {
             .then(resp => resp.json())
             .then(data => {
                 if (data.isAuth !== isAuth) {
-                    setIsAuth(data.isAuth)
+                    setIsAuth(data.isAuth);
+                    console.log({ isAuth });
+                    console.log({ new: data.isAuth });
                 }
 
             })
