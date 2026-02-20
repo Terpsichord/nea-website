@@ -16,7 +16,7 @@ function AuthProvider({ children }: PropsWithChildren) {
     const location = useLocation();
 
     useEffect(() => {
-        fetchApi("/auth")
+        fetchApi("/profile/auth")
             .then(resp => resp.json())
             .then(data => {
                 if (data.isAuth !== isAuth) {
@@ -32,7 +32,7 @@ function AuthProvider({ children }: PropsWithChildren) {
     const [signedOut, setSignedOut] = useState(false);
 
     async function signOut() {
-        await fetchApi("/signout", { method: "POST" });
+        await fetchApi("/profile/signout", { method: "POST" });
 
         navigate("/");
         setSignedOut(true);

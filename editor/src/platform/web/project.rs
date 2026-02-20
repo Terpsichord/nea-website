@@ -14,6 +14,7 @@ pub struct Project {
     settings: Option<ProjectSettings>,
 }
 
+// TODO: i think remove this unless its used anywhere
 #[derive(Debug, Serialize, Deserialize)]
 struct ProjectInfo {
     github_url: String,

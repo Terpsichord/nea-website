@@ -6,10 +6,8 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
-use serde_json::{Value, json};
 use sqlx::prelude::FromRow;
 
-use crate::auth::ACCESS_COOKIE;
 use crate::{AppState, db::Project};
 
 mod comment;
@@ -26,19 +24,6 @@ pub fn api_router(state: AppState) -> Router<AppState> {
         .merge(follow::follow_router(state.clone()))
         .merge(project::project_router(state.clone()))
         .merge(comment::comment_router(state))
-        .route("/auth", get(auth_handler))
-        .route("/signout", post(sign_out))
-}
-
-async fn auth_handler(jar: CookieJar) -> Json<Value> {
-    Json(json!({ "isAuth": jar.get(ACCESS_COOKIE).is_some() }))
-}
-
-async fn sign_out() -> [(HeaderName, String); 1] {
-    [(
-        header::SET_COOKIE,
-        format!("{ACCESS_COOKIE}=; Max-Age=0; Path=/"),
-    )]
 }
 
 #[derive(Debug, Serialize, FromRow, sqlx::Type)]
