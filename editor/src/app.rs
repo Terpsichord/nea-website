@@ -1,6 +1,6 @@
 use crate::{
     buffer::{Buffer, BufferError, Buffers, FileData},
-    color_scheme::{AvailableColorSchemes, Base16Scheme},
+    color_scheme::{AvailableColorSchemes, ColorScheme},
     explorer::{Explorer, ExplorerAction},
     platform::{self, FileSystemTrait as _, RunnerTrait as _, SearchResult},
 };
@@ -17,10 +17,12 @@ use egui::{
     SidePanel, Style, TopBottomPanel, ViewportCommand, Visuals, containers::modal::Modal,
 };
 use egui_extras::syntax_highlighting;
+#[cfg(not(target_arch = "wasm32"))]
 use egui_term::{TerminalBackend, TerminalView};
 use eyre::OptionExt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use ws_messages::EditorSettings;
 
 #[macro_export]
 macro_rules! dbg_frame {
@@ -44,21 +46,6 @@ pub enum ModalAction {
     OpenFolder,
     DeleteBuffer(Uuid),
     Close,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EditorSettings {
-    pub auto_save: bool,
-    pub color_scheme: Option<(String, PathBuf)>,
-}
-
-impl Default for EditorSettings {
-    fn default() -> Self {
-        Self {
-            auto_save: true,
-            color_scheme: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -151,13 +138,14 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
         }
 
-        if self.style.is_none()
-            && let Ok(scheme) =
-                Base16Scheme::read_from_yaml(Path::new("color_schemes/catpuccin.yml"))
-        {
-            let style = scheme.to_style();
-            self.style = Some(style);
-        }
+        // TODO: remove
+        // if self.style.is_none()
+        //     && let Ok(scheme) =
+        //         ColorScheme::read_from_yaml(Path::new("color_schemes/catpuccin.yml"))
+        // {
+        //     let style = scheme.to_style();
+        //     self.style = Some(style);
+        // }
 
         TopBottomPanel::top("top_menu_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -245,7 +233,7 @@ impl eframe::App for App {
                 self.buffers.select(buffer.id());
             }
         }
-        
+
         if let Some(search_state) = &self.search_modal_state {
             if replaced {
                 let paths: Vec<_> = search_state
@@ -271,7 +259,6 @@ impl eframe::App for App {
         if self.settings_modal_state.is_some() {
             self.show_settings_modal(ctx);
         }
-
 
         #[cfg(not(target_arch = "wasm32"))]
         match self.save_modal_state {
@@ -643,7 +630,7 @@ impl App {
     }
 
     fn set_color_scheme(&mut self, ctx: &egui::Context, scheme_path: &Path) {
-        if let Ok(scheme) = Base16Scheme::read_from_yaml(scheme_path) {
+        if let Ok(scheme) = ColorScheme::read_from_yaml(scheme_path) {
             ctx.set_style(scheme.to_style());
         }
     }
@@ -702,19 +689,13 @@ impl App {
 
             ui.label("Settings");
             ComboBox::from_label("Color Scheme")
-                .selected_text(
-                    settings_state
-                        .color_scheme
-                        .as_ref()
-                        .map(|x| x.0.to_string())
-                        .unwrap_or_default(),
-                )
+                .selected_text(settings_state.color_scheme.clone().unwrap_or_default())
                 .show_ui(ui, |ui| {
-                    for (name, path) in self.available_color_schemes.schemes.iter() {
+                    for (scheme, _) in self.available_color_schemes.schemes.iter() {
                         ui.selectable_value(
                             &mut settings_state.color_scheme,
-                            Some((name.clone(), path.clone())),
-                            name,
+                            Some(scheme.name().to_string()),
+                            scheme.name(),
                         );
                     }
                 });
@@ -727,9 +708,12 @@ impl App {
         });
 
         if updated {
-            if let Some((_, path)) = &self.settings_modal_state.as_ref().unwrap().color_scheme {
+            if let Some(scheme) = &self.settings_modal_state.as_ref().unwrap().color_scheme {
+                let (_, path) = self.available_color_schemes.get_scheme(scheme).unwrap();
                 self.set_color_scheme(ctx, &path.clone());
             }
+
+            // TODO: update other settings i think
 
             self.settings_modal_state = None;
         }
@@ -846,7 +830,9 @@ impl App {
             use std::io::Read;
 
             match resp.expect("FIXME: proper error handling") {
-                (OpenProject, ProjectContents { contents }) => {
+                (OpenProject, Project { contents, settings }) => {
+                    self.editor_settings = settings;
+
                     let path = contents.path().clone();
                     self.fs.cache(contents);
                     log::info!("opened project: {}", path.display());

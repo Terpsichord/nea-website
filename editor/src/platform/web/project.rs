@@ -23,7 +23,9 @@ impl Project {
     pub async fn new(username: String, repo_name: String) -> eyre::Result<Self> {
         web_sys::console::log_1(&format!("opening project {username}/{repo_name}").into());
         let endpoint = format!("/api/project/{username}/{repo_name}/open");
-        let handle = BackendHandle::new(&endpoint).await.wrap_err("failed to create websocket")?;
+        let handle = BackendHandle::new(&endpoint)
+            .await
+            .wrap_err("failed to create websocket")?;
 
         handle.send(Command::OpenProject);
 

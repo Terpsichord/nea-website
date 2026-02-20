@@ -1,8 +1,8 @@
 use super::{BackendHandle, PendingOperations, WebSocketHandle};
-use crate::platform::FileSystemTrait;
+use crate::platform::{FileSystemTrait, Project, SearchResult};
 use std::{
     collections::HashMap,
-    io::{Error, ErrorKind, Result},
+    io::{self, Error, ErrorKind, Result},
     path::{Path, PathBuf},
     vec::IntoIter,
 };
@@ -16,13 +16,16 @@ pub struct FileSystem {
 
 impl FileSystem {
     pub fn new(handle: BackendHandle) -> Self {
-        Self { handle, cached_dirs: HashMap::new() }
+        Self {
+            handle,
+            cached_dirs: HashMap::new(),
+        }
     }
 
     pub fn cache(&mut self, tree: ProjectTree) {
         if let ProjectTree::Directory { path, children } = tree {
             let child_paths = children.iter().map(|c| c.path()).cloned().collect();
-            self.cached_dirs.insert(path, child_paths);        
+            self.cached_dirs.insert(path, child_paths);
             for child in children {
                 self.cache(child);
             }
@@ -48,7 +51,7 @@ impl FileSystemTrait for FileSystem {
     fn read_dir(&self, path: &Path) -> Result<ReadDir> {
         // info!("reading dir: {}", path.display());
         // info!("looking in cache: {}", self.cached_dirs.keys().map(|p| p.display()).collect::<Vec<_>>().join(", ")););
-        if let Some(read_dir) =  self.get_cached(path) {
+        if let Some(read_dir) = self.get_cached(path) {
             return Ok(read_dir);
         }
 
@@ -79,6 +82,14 @@ impl FileSystemTrait for FileSystem {
         self.handle.send(Command::Delete { path: path.into() });
 
         Err(ErrorKind::WouldBlock)?
+    }
+
+    fn search_project(&self, project: &Project, pattern: &str) -> Vec<SearchResult> {
+        todo!()
+    }
+
+    fn replace(&self, paths: &[&Path], pattern: &str, replace: &str) -> io::Result<()> {
+        todo!()
     }
 }
 

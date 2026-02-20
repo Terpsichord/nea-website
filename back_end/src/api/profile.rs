@@ -90,17 +90,13 @@ async fn get_projects(
     Ok(Json(projects))
 }
 
-
 async fn delete_profile(
     Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
     State(db): State<DatabaseConnector>,
 ) -> Result<(), AppError> {
-    sqlx::query!(
-        "DELETE FROM users WHERE github_id = $1",
-        github_id
-    )
-    .execute(&*db)
-    .await?;
+    sqlx::query!("DELETE FROM users WHERE github_id = $1", github_id)
+        .execute(&*db)
+        .await?;
 
     // we don't need to delete anything else as the user deletion will cascade to the other tables
 

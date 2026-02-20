@@ -4,7 +4,6 @@ use anyhow::bail;
 use serde::{Deserialize, Serialize};
 use sqlx::{Decode, Postgres, error::BoxDynError, postgres::PgValueRef};
 
-
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum ProjectLang {
     #[serde(rename = "py")]
@@ -45,7 +44,7 @@ impl Display for ProjectLang {
 
 impl FromStr for ProjectLang {
     type Err = anyhow::Error;
-    
+
     fn from_str(lang: &str) -> Result<Self, Self::Err> {
         Ok(match lang {
             "py" => Self::Python,
@@ -57,7 +56,7 @@ impl FromStr for ProjectLang {
             "cs" => Self::CSharp,
             "sh" => Self::Bash,
             "java" => Self::Java,
-            _ => bail!("Invalid language")
+            _ => bail!("Invalid language"),
         })
     }
 }
@@ -85,13 +84,12 @@ impl ProjectLang {
             Self::CPlusPlus => "main.cpp",
             Self::Bash => "main.sh",
             Self::Java => "main.java",
-            // these languages have readmes with instructions on how to get started 
+            // these languages have readmes with instructions on how to get started
             Self::Rust | Self::CSharp => "README.md",
         };
 
         let content = fs::read_to_string(format!("{}/{}/init", Self::LANG_PATH, self))?;
 
-    
         Ok((name, content))
     }
 }

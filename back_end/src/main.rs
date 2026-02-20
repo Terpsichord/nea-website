@@ -6,7 +6,6 @@
 // TODO: do this, and for the editor crate as well
 // #![deny(warnings)]
 
-
 use std::sync::LazyLock;
 
 use anyhow::Context;
@@ -36,7 +35,7 @@ mod lang;
 
 const FRONT_PUBLIC: &str = "./front_end/dist";
 // todo: check where this used to be used (probs delete it)
-const CLIENT_USER_AGENT: &str = "nea-website"; 
+const CLIENT_USER_AGENT: &str = "nea-website";
 const GITHUB_APP_SLUG: &str = "nea-website";
 const EDITOR_PATH: &str = "./editor/dist";
 const SOCKET_ADDRESS: &str = "0.0.0.0:8080";
@@ -88,10 +87,7 @@ impl AppState {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "nea_website=debug,tower_http=warn".into()),
-        )
+        .with(tracing_subscriber::EnvFilter::from("nea_website=debug,tower_http=warn"))
         .with(tracing_subscriber::fmt::layer())
         .init();
 

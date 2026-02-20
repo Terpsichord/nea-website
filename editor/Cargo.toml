@@ -3,14 +3,18 @@ name = "editor"
 version = "0.1.0"
 edition = "2024"
 
-[target.'cfg(target_arch = "wasm32")'.lib]
-name = "editor-web"
+[lib]
+name = "editor"
 path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
-[target.'cfg(not(target_arch = "wasm32"))'.bin]
+[[bin]]
 name = "editor-desktop"
 path = "src/main.rs"
+required-features = ["native"]
+
+[features]
+native = []
 
 [dependencies]
 color-eyre = { version = "0.6.3", default-features = false }
@@ -27,6 +31,7 @@ log = "0.4.27"
 serde = "1.0.219"
 serde_yaml = "0.9.34"
 shell-words = "1.1.0"
+ws_messages = { path = "../ws_messages" }
 
 thiserror = "2.0.12"
 toml = { version = "0.8.20", features = ["parse"], default-features = false }
@@ -47,4 +52,3 @@ gloo-net = "0.6.0"
 futures = "0.3.31"
 poll-promise = { version = "0.3.0", features = ["web"] } 
 ws_stream_wasm = "0.7.5"
-ws_messages = { path = "../ws_messages" }

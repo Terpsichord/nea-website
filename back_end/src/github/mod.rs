@@ -207,7 +207,9 @@ impl GithubClient {
             )));
         }
 
-        let WithTokens((), new_tokens) = self.add_repo_files(access_token, refresh_token, username, &repo_name, lang).await?;
+        let WithTokens((), new_tokens) = self
+            .add_repo_files(access_token, refresh_token, username, &repo_name, lang)
+            .await?;
         tokens = new_tokens.or(tokens);
 
         Ok(WithTokens(
@@ -349,7 +351,7 @@ impl GithubClient {
 
         Ok(WithTokens(readme, tokens))
     }
-    
+
     pub async fn fork_repo(
         &self,
         access_token: &str,
@@ -357,14 +359,15 @@ impl GithubClient {
         username: &str,
         repo_name: &str,
     ) -> Result<WithTokens<()>, AppError> {
-        let WithTokens(resp, tokens) = self.send_authenticated(
-            self.client.post(Self::api_url(&format!(
-                "/repos/{username}/{repo_name}/forks"
-            ))),
-            access_token,
-            Some(refresh_token),
-        )
-        .await?;
+        let WithTokens(resp, tokens) = self
+            .send_authenticated(
+                self.client.post(Self::api_url(&format!(
+                    "/repos/{username}/{repo_name}/forks"
+                ))),
+                access_token,
+                Some(refresh_token),
+            )
+            .await?;
 
         if !resp.status().is_success() {
             return Err(AppError::other(anyhow!(
@@ -377,14 +380,19 @@ impl GithubClient {
     }
 
     pub async fn user_installed(&self, access_token: &str) -> Result<bool, AppError> {
-        let WithTokens(resp, tokens) = self.send_authenticated(
-            self.client.get(Self::api_url("/user/installations")),
-            access_token,
-            None,
-        )
-        .await?;
+        let WithTokens(resp, tokens) = self
+            .send_authenticated(
+                self.client.get(Self::api_url("/user/installations")),
+                access_token,
+                None,
+            )
+            .await?;
 
-        let installation_count = resp.json::<InstallationsResponse>().await.map_err(AppError::other)?.total_count;
+        let installation_count = resp
+            .json::<InstallationsResponse>()
+            .await
+            .map_err(AppError::other)?
+            .total_count;
 
         Ok(installation_count > 0)
     }

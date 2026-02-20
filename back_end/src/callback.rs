@@ -7,11 +7,10 @@ use serde::Deserialize;
 use tracing::{info, instrument};
 
 use crate::{
-    AppState,
+    AppState, GITHUB_APP_SLUG,
     auth::{TokenCache, TokenHeaders},
     error::AppError,
     github::access_tokens::{TokenRequestType, WithTokens},
-    GITHUB_APP_SLUG,
 };
 
 #[derive(Deserialize)]
@@ -42,9 +41,16 @@ pub async fn github_callback(
         .cache_user_token(&user, tokens.access_token, Some(tokens.access_expiry))
         .await;
 
-    Ok(if client.user_installed(&tokens.access_unencrypted).await? {
-        (Some(headers), Redirect::to("/"))
-    } else {
-        (None, Redirect::to(&format!("https://github.com/apps/{GITHUB_APP_SLUG}/installations/new")))
-    })
+    Ok(
+        if client.user_installed(&tokens.access_unencrypted).await? {
+            (Some(headers), Redirect::to("/"))
+        } else {
+            (
+                None,
+                Redirect::to(&format!(
+                    "https://github.com/apps/{GITHUB_APP_SLUG}/installations/new"
+                )),
+            )
+        },
+    )
 }

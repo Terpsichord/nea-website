@@ -6,5 +6,5 @@ DROP TABLE IF EXISTS
     comments,
     likes,
     color_schemes,
-    editor_configs
+    editor_settings
 CASCADE;

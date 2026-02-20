@@ -1,13 +1,13 @@
 use std::cmp::Reverse;
 
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use axum::{
     Extension, Json, Router,
     extract::{Path, State},
     middleware,
     routing::{get, post},
 };
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
 use crate::{
@@ -20,16 +20,12 @@ use crate::{
 pub fn comment_router(state: AppState) -> Router<AppState> {
     let auth = Router::new()
         .route("/comment/{username}/{repo_name}", post(post_comment))
-        .layer(middleware::from_fn_with_state(
-            state,
-            auth_middleware,
-        ));
+        .layer(middleware::from_fn_with_state(state, auth_middleware));
 
     Router::new()
         .route("/comment/{username}/{repo_name}", get(get_comments))
         .merge(auth)
 }
-
 
 #[derive(Deserialize)]
 struct PostCommentBody {

@@ -41,9 +41,27 @@ pub enum RunAction {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EditorSettings {
+    pub color_scheme: Option<String>,
+    pub auto_save: bool,
+    pub format_on_save: bool,
+}
+
+impl Default for EditorSettings {
+    fn default() -> Self {
+        Self {
+            color_scheme: None,
+            auto_save: true,
+            format_on_save: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Command {
     OpenProject,
     ReadSettings { action: RunAction },
+    UpdateSettings { settings: EditorSettings },
     ReadFile { path: PathBuf },
     ReadDir { path: PathBuf },
     Rename { from: PathBuf, to: PathBuf },
@@ -106,13 +124,26 @@ impl ProjectTree {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Response {
-    ProjectContents { contents: ProjectTree },
-    ProjectSettings { contents: String },
-    FileContents { contents: String },
-    DirContents { contents_paths: Vec<PathBuf> },
-    Output { output: String },
+    Project {
+        contents: ProjectTree,
+        settings: EditorSettings,
+    },
+    ProjectSettings {
+        contents: String,
+    },
+    FileContents {
+        contents: String,
+    },
+    DirContents {
+        contents_paths: Vec<PathBuf>,
+    },
+    Output {
+        output: String,
+    },
     Success,
-    Error { msg: String },
+    Error {
+        msg: String,
+    },
 }
 
 impl<E: Display> From<Result<Response, E>> for Response {

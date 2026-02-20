@@ -4,10 +4,12 @@ use base64::prelude::{BASE64_STANDARD, Engine};
 use chrono::Utc;
 
 use crate::{
-    auth::crypto::Aes256Gcm, error::{AppError, InvalidAuthError}, github::{
+    auth::crypto::Aes256Gcm,
+    error::{AppError, InvalidAuthError},
+    github::{
         GithubClient,
         access_tokens::{TokenRequestType, WithTokens},
-    }
+    },
 };
 use middleware::AuthUser;
 

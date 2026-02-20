@@ -4,7 +4,7 @@ use axum::{
     routing::{get, post},
 };
 use axum_extra::extract::CookieJar;
-use chrono::{NaiveDate, DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 use serde_json::{Value, json};
 use sqlx::prelude::FromRow;

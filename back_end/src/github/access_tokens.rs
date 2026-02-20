@@ -6,7 +6,11 @@ use anyhow::Context;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize, Serializer};
 
-use crate::{CONFIG, Config, auth::crypto::{self, Aes256Gcm}, error::AppError};
+use crate::{
+    CONFIG, Config,
+    auth::crypto::{self, Aes256Gcm},
+    error::AppError,
+};
 
 #[derive(Serialize)]
 struct GithubSecrets {

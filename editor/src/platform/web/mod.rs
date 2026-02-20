@@ -24,10 +24,10 @@ mod filesystem;
 mod project;
 mod runner;
 
+pub use super::{ProjectSettings, ProjectSettingsError};
 pub use filesystem::*;
 pub use project::*;
 pub use runner::*;
-pub use super::{ProjectSettings, ProjectSettingsError};
 
 pub struct Task<T>(Rc<OnceCell<thread::Result<T>>>);
 
@@ -84,7 +84,8 @@ impl BackendHandle {
         let msg = ClientMessage::new(cmd.clone());
         let binary = msg.encode().expect("TODO: return encode error");
 
-        self.pending.send(msg, self.ws.clone(), WsMessage::Binary(binary));
+        self.pending
+            .send(msg, self.ws.clone(), WsMessage::Binary(binary));
     }
 }
 
@@ -95,14 +96,17 @@ impl WebSocketHandle {
     pub async fn new(url: &str) -> Result<Self, WsErr> {
         let url = url.to_string();
         let ws = WsMeta::connect(url.clone(), None).await?;
-    
+
         web_sys::console::log_1(&format!("connected to {url}: {ws:?}").into());
 
         Ok(Self(Some(Rc::new(RefCell::new(ws)))))
     }
 
     fn stream(&self) -> RefMut<'_, WsStream> {
-        RefMut::map(self.0.as_ref().expect("no websocket").borrow_mut(), |(_, stream)| stream)
+        RefMut::map(
+            self.0.as_ref().expect("no websocket").borrow_mut(),
+            |(_, stream)| stream,
+        )
     }
 
     pub fn send(&self, msg: WsMessage) -> impl Future<Output = Result<(), WsErr>> {
@@ -129,7 +133,10 @@ impl PendingOperations {
     }
 
     fn send(&self, client_msg: ClientMessage, ws: WebSocketHandle, ws_msg: WsMessage) {
-        self.0.borrow_mut().messages.insert(client_msg.id, client_msg.cmd);
+        self.0
+            .borrow_mut()
+            .messages
+            .insert(client_msg.id, client_msg.cmd);
 
         let sender = self.0.clone();
         spawn_local(async move {
@@ -168,7 +175,9 @@ impl PendingInner {
     }
 
     fn response_pair(&self, msg: ServerMessage) -> eyre::Result<(Command, Response)> {
-        web_sys::console::log_1(&format!("finding pair for {:?} in {:?}", msg, self.messages).into());
+        web_sys::console::log_1(
+            &format!("finding pair for {:?} in {:?}", msg, self.messages).into(),
+        );
 
         Ok((
             self.messages

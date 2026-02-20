@@ -66,12 +66,12 @@ GROUP BY p.id, u.username, u.github_id, u.picture_url;
 
 CREATE TABLE color_schemes (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL
+    name VARCHAR(255) NOT NULL,
 );
 
-CREATE TABLE editor_configs (
+CREATE TABLE editor_settings (
     user_id INT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    color_schemes INT REFERENCES color_schemes(id),
-    autosave BOOLEAN,
+    color_scheme INT REFERENCES color_schemes(id),
+    auto_save BOOLEAN,
     format_on_save BOOLEAN
 );

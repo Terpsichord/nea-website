@@ -14,7 +14,7 @@ use crate::{
     api::{ProjectResponse, search},
     auth::middleware::{AuthUser, auth_middleware, optional_auth_middleware},
     db::{DatabaseConnector, NewProject},
-    editor::websocket::WebSocketHandler,
+    editor::{session::EditorSessionManager, websocket::WebSocketHandler},
     error::AppError,
     github::{CreateRepoResponse, access_tokens::WithTokens},
     lang::ProjectLang,
@@ -78,7 +78,6 @@ async fn get_project(
 
     Ok(Json(project.into()))
 }
-
 
 #[instrument(skip(db))]
 async fn get_liked(
@@ -440,11 +439,25 @@ async fn open_project(
 
     // let code = session_mgr.create_code(project.user_id);
 
-    Ok(ws.on_upgrade(move |ws| handle_editor_ws(ws, container_id)))
+    Ok(ws.on_upgrade(move |ws| {
+        handle_editor_ws(
+            ws,
+            db.clone(),
+            session_mgr.clone(),
+            container_id,
+            project.user_id,
+        )
+    }))
 }
 
-async fn handle_editor_ws(ws: WebSocket, container_id: String) {
-    let mut handler = WebSocketHandler::new(container_id).expect("TODO");
+async fn handle_editor_ws(
+    ws: WebSocket,
+    db: DatabaseConnector,
+    session_mgr: EditorSessionManager,
+    container_id: String,
+    user_id: i32,
+) {
+    let mut handler = WebSocketHandler::new(container_id, user_id, db, session_mgr).expect("TODO");
 
     handler.handle(ws).await;
 }

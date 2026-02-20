@@ -2,13 +2,9 @@ use std::ops::Deref;
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
+use ws_messages::EditorSettings;
 
-use crate::{
-    api::ProjectInfo,
-    error::AppError,
-    github::GithubUser,
-    lang::ProjectLang,
-};
+use crate::{api::ProjectInfo, error::AppError, github::GithubUser, lang::ProjectLang};
 
 #[derive(Clone)]
 pub struct DatabaseConnector(PgPool);
@@ -58,6 +54,22 @@ impl DatabaseConnector {
                 user.id,
                 user.username,
                 user.avatar_url,
+            )
+            .execute(&self.0)
+            .await?;
+
+            let settings = EditorSettings::default();
+
+            sqlx::query!(
+                r#"
+                INSERT INTO editor_settings (user_id, auto_save, format_on_save)
+                SELECT id, $1, $2
+                FROM users
+                WHERE github_id = $3
+                "#,
+                settings.auto_save,
+                settings.format_on_save,
+                user.id,
             )
             .execute(&self.0)
             .await?;
@@ -152,5 +164,48 @@ impl DatabaseConnector {
         .await?;
 
         Ok(exists)
+    }
+
+    pub async fn get_editor_settings(&self, user_id: i32) -> Result<EditorSettings, AppError> {
+        let settings = sqlx::query_as!(
+            EditorSettings,
+            r#"
+            SELECT s.auto_save, c.name as color_scheme, s.format_on_save 
+            FROM editor_settings s
+            INNER JOIN color_schemes c ON s.color_scheme = c.id
+            WHERE user_id = $1
+            "#,
+            user_id
+        )
+        .fetch_one(&self.0)
+        .await?;
+
+        Ok(settings)
+    }
+
+    pub async fn update_editor_settings(
+        &self,
+        user_id: i32,
+        settings: EditorSettings,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE editor_settings
+            SET auto_save = $1, format_on_save = $2, color_scheme = (
+                SELECT id
+                FROM color_schemes
+                WHERE name = $3
+            )
+            WHERE user_id = $4
+            "#,
+            settings.auto_save,
+            settings.format_on_save,
+            settings.color_scheme,
+            user_id
+        )
+        .execute(&self.0)
+        .await?;
+
+        Ok(())
     }
 }

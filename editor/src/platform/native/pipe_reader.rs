@@ -36,8 +36,7 @@ pub fn read_piped(
                     buf.push(byte[0]);
                     if byte[0] == b'\n' {
                         // Convert buffer to a string and send it
-                        let line = String::from_utf8(buf.clone())
-                            .map_err(|_| PipeError::NotUtf8);
+                        let line = String::from_utf8(buf.clone()).map_err(|_| PipeError::NotUtf8);
                         let _ = tx.send(line.map(PipedLine::Line));
                         buf.clear();
                     }

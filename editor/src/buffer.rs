@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    app::{EditorSettings, ModalAction},
+    app::ModalAction,
     platform::{FileSystem, FileSystemTrait as _},
 };
 use color_eyre::Section;
@@ -16,6 +16,7 @@ use eyre::{Context, eyre};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use ws_messages::EditorSettings;
 
 #[derive(Debug)]
 pub struct FileData {
@@ -269,7 +270,7 @@ impl Buffer {
 
     pub fn empty() -> Self {
         Self::new(String::new(), None)
-        }
+    }
 
     pub fn id(&self) -> Uuid {
         self.id

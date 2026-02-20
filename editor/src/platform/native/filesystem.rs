@@ -33,7 +33,10 @@ impl FileSystemTrait for FileSystem {
 
     fn search_project(&self, project: &Project, pattern: &str) -> Vec<SearchResult> {
         let mut results = Vec::new();
-        for entry in WalkDir::new(&project.path).into_iter().filter_map(|e| e.ok()) {
+        for entry in WalkDir::new(&project.path)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
             if let Ok(contents) = fs::read_to_string(entry.path()) {
                 let mut start_index = 0;
                 while let Some(pos) = contents[start_index..].find(pattern) {

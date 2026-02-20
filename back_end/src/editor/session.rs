@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use bollard::{
@@ -14,12 +15,13 @@ use bollard::{
 };
 use futures::executor::block_on;
 use futures_util::StreamExt as _;
-use tokio::time::Sleep;
+use tokio::task::JoinHandle;
 use tracing::{debug, info, instrument, warn};
 
 use crate::{
     error::AppError,
-    github::{GithubClient, access_tokens::WithTokens}, lang::ProjectLang,
+    github::{GithubClient, access_tokens::WithTokens},
+    lang::ProjectLang,
 };
 
 #[derive(Debug)]
@@ -31,9 +33,36 @@ pub struct SessionHandle {
 }
 
 #[derive(Debug)]
+struct WaitingHandle {
+    handle: JoinHandle<()>,
+}
+
+impl WaitingHandle {
+    const DELAY: Duration = Duration::from_secs(30); // TODO: change to 5 minutes
+
+    fn new(session_mgr: EditorSessionManager, user_id: i32) -> Self {
+        let handle = tokio::spawn(async move {
+            tokio::time::sleep(Self::DELAY).await;
+            info!("stopping container for user {}", user_id);
+            if let Err(err) = session_mgr.end_session(user_id).await {
+                warn!("error when stopping container {err:?}");
+            }
+        });
+
+        Self { handle }
+    }
+}
+
+impl std::ops::Drop for WaitingHandle {
+    fn drop(&mut self) {
+        self.handle.abort();
+    }
+}
+
+#[derive(Debug)]
 enum SessionMode {
     Active,
-    Waiting(Sleep),
+    Waiting(WaitingHandle),
 }
 
 #[derive(Debug)]
@@ -146,19 +175,16 @@ impl EditorSessionManager {
 
         info!("creating session");
 
-        self
-            .create_session(
-                user_id,
-                project_id,
-                username,
-                repo_name,
-                lang,
-                access_token,
-                refresh_token,
-            )
-            .await
-
-        
+        self.create_session(
+            user_id,
+            project_id,
+            username,
+            repo_name,
+            lang,
+            access_token,
+            refresh_token,
+        )
+        .await
     }
 
     pub const WORKSPACE_PATH: &'static str = "/home/workspace";
@@ -268,6 +294,16 @@ impl EditorSessionManager {
             .map_err(AppError::other)?;
 
         Ok(image)
+    }
+
+    pub async fn idle_session(&self, user_id: i32) {
+        self.table
+            .write()
+            .unwrap()
+            .entry(user_id)
+            .and_modify(|state| {
+                state.mode = SessionMode::Waiting(WaitingHandle::new(self.clone(), user_id))
+            });
     }
 
     pub async fn end_session(&self, user_id: i32) -> Result<(), AppError> {

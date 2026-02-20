@@ -6,26 +6,37 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
+use thiserror::Error;
 
 use crate::auth::crypto;
 
+#[derive(Error, Debug)]
 pub enum AppError {
+    #[error("received invalid auth")]
     InvalidAuth(InvalidAuthError),
     // TODO: maybe merge this into `AuthFailed`
+    #[error("github auth failed")]
     GithubAuth(GithubUserError),
+    #[error("auth failed")]
     AuthFailed(anyhow::Error),
+    #[error("database error")]
     Database(sqlx::Error),
+    #[error("conflict in editor sessions")]
     SessionConflict,
+    #[error("coudn't find data")]
     NotFound,
+    #[error("missing required auth")]
     Unauthorized,
+    #[error("project already exists")]
     ProjectExists,
     // try to avoid using this
     // generally prefer creating a new variant instead
     // TODO: remove this probably
+    #[error("{0}")]
     Other(anyhow::Error),
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct GithubUserError {
     pub message: String,
     // TODO: probably remove these fields

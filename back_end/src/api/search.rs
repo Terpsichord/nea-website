@@ -110,8 +110,16 @@ pub async fn search_projects(
     let filtered_projects: Vec<_> = projects
         .into_iter()
         .filter(|p| {
-            !kmp_search(&p.info.title.to_lowercase(), &search_query.query.to_lowercase()).is_empty()
-                || !boyer_moore_search(&p.info.readme.to_lowercase(), &search_query.query.to_lowercase()).is_empty()
+            !kmp_search(
+                &p.info.title.to_lowercase(),
+                &search_query.query.to_lowercase(),
+            )
+            .is_empty()
+                || !boyer_moore_search(
+                    &p.info.readme.to_lowercase(),
+                    &search_query.query.to_lowercase(),
+                )
+                .is_empty()
         })
         .collect();
     debug!("filtered projects: {:#?}", filtered_projects);

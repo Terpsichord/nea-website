@@ -13,20 +13,26 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct AvailableColorSchemes {
-    pub schemes: Vec<(String, PathBuf)>,
+    pub schemes: Vec<(ColorScheme, PathBuf)>,
+}
+
+impl AvailableColorSchemes {
+    pub fn get_scheme(&self, name: &str) -> Option<&(ColorScheme, PathBuf)> {
+        // linear search through available color schemes
+        self.schemes.iter().find(|(scheme, _)| scheme.name == name)
+    }
 }
 
 impl Default for AvailableColorSchemes {
     fn default() -> Self {
         let mut schemes = Vec::new();
+
         if let Ok(scheme_files) = std::fs::read_dir("color_schemes") {
             schemes = scheme_files
                 .filter_map(|x| x.ok())
                 .map(|entry| {
-                    Ok::<_, eyre::Error>((
-                        Base16Scheme::read_from_yaml(&entry.path())?.name,
-                        entry.path(),
-                    ))
+                    let path = entry.path();
+                    ColorScheme::read_from_yaml(&path).map(|s| (s, path))
                 })
                 .try_collect()
                 .unwrap_or_default();
@@ -36,13 +42,19 @@ impl Default for AvailableColorSchemes {
     }
 }
 
-pub struct Base16Scheme {
-    // 16 24-bit colors
+#[derive(Serialize, Deserialize)]
+pub struct ColorScheme {
     name: String,
+    // 16 24-bit colors
+    #[serde(skip)]
     bases: [Color32; 16],
 }
 
-impl Base16Scheme {
+impl ColorScheme {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     pub fn read_from_yaml(path: &Path) -> eyre::Result<Self> {
         let file = File::open(path)?;
         let yaml: serde_yaml::Value = serde_yaml::from_reader(file)?;

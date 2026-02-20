@@ -27,9 +27,8 @@ pub enum TreeNode {
     // },
 }
 
-
 impl TreeNode {
-    const INITIAL_DEPTH: usize = 2; 
+    const INITIAL_DEPTH: usize = 2;
 
     fn new(path: PathBuf, fs: &FileSystem) -> eyre::Result<Self> {
         Self::new_recursive(path, Self::INITIAL_DEPTH, fs)

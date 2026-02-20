@@ -10,9 +10,5 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default().with_inner_size([1080.0, 608.0]),
         ..Default::default()
     };
-    eframe::run_native(
-        "My IDE",
-        options,
-        Box::new(|_| Ok(Box::<App>::default())),
-    )
+    eframe::run_native("My IDE", options, Box::new(|_| Ok(Box::<App>::default())))
 }
