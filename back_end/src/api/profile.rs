@@ -104,6 +104,13 @@ async fn get_projects(
     Ok(Json(projects))
 }
 
+async fn sign_out() -> [(HeaderName, String); 1] {
+    [(
+        header::SET_COOKIE,
+        format!("{ACCESS_COOKIE}=; Max-Age=0; Path=/"),
+    )]
+}
+
 
 async fn delete_profile(
     Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
