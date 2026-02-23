@@ -241,23 +241,31 @@ impl Buffers {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+/// `Buffer` represents the data and operations of an individual buffer
 pub struct Buffer {
+    /// A Universally Unique Identifier to identify each buffer
     id: Uuid,
+    /// Text contents displayed to the user (including any unsaved changes)
     contents: String,
     #[serde(skip)]
+    /// Optional file data (`None` if the buffer is newly created, and not yet saved to a file)
     file_data: Option<FileData>,
 }
 
 impl Buffer {
     pub fn new(contents: String, file_data: Option<FileData>) -> Self {
         Self {
+            // The UUID is created automatically and doesn't need to be passed to the constructor
             id: Uuid::new_v4(),
             contents,
             file_data,
         }
     }
 
+    // Only works on desktop as local filesystem isn't accessible on web
     #[cfg(not(target_arch = "wasm32"))]
+    /// Constructs a new buffer by reading from the file at the given path.
+    /// A reference to the filesystem system is needed to read the file contents
     pub fn from_path(path: PathBuf, fs: &FileSystem) -> eyre::Result<Self> {
         let contents = fs.read_file(&path).wrap_err("Failed to read file")?;
 
@@ -271,6 +279,8 @@ impl Buffer {
         Self::new(String::new(), None)
     }
 
+    // Public getters/setters
+    
     pub fn id(&self) -> Uuid {
         self.id
     }
@@ -287,42 +297,44 @@ impl Buffer {
         self.file_data = Some(file_data);
     }
 
+    /// Gets the text to display for the buffer on the tabs at the top of the screen
     fn file_display_name(&self) -> RichText {
         self.file_data
             .as_ref()
             .and_then(|f| {
+                // Gets whether the file has unsaved changes
                 let dirty = self.is_dirty();
                 let text = f.path.file_name()?.to_string_lossy().to_string();
                 Some(if dirty {
+                    // If there are unsaved changes, add " *" to the end of the name to indicate this
                     RichText::new(text + " *").italics()
                 } else {
                     text.into()
                 })
             })
             .unwrap_or(
+                // If there is no file currently associated with the buffer, use "Untitled" for the name instead
                 RichText::new("Untitled".to_string() + if self.is_dirty() { " *" } else { "" })
                     .italics(),
             )
     }
 
-    // TODO: rewrite doc comment
-    /// Checks whether the current buffer is dirty.
-    ///
-    /// If a file is associated with the `App`, this returns `true` if the
-    /// contents of `self.contents` differ from `self.file_data.contents`.
-    /// Otherwise, it returns `true` if the buffer isn't empty.
+    /// Checks whether the current buffer is dirty (i.e. has unsaved changes)
     pub fn is_dirty(&self) -> bool {
         match &self.file_data {
+            // If buffer is backed by file, return true if current contents don't match file contents
             Some(f) => self.contents != f.contents,
+            // Return true if the buffer isn't empty
             None => !self.contents.trim().is_empty(),
         }
     }
 
-    // returns an error if the buffer has no associated file
+    // Save the buffer contents to the filesystem
     pub fn save(&mut self, fs: &FileSystem) -> Result<(), BufferError> {
         let file = self
             .file_data
             .as_mut()
+            // returns an error if the buffer has no associated file
             .ok_or(BufferError::NoAssociatedFile)?;
 
         let result = fs.write(&file.path, &self.contents);
