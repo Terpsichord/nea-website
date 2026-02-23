@@ -34,6 +34,24 @@ pub fn profile_router(state: AppState) -> Router<AppState> {
         .merge(auth)
 }
 
+// checks whether the user has an access-token cookie currently (i.e. whether they are currently authenticated)
+async fn auth_handler(jar: CookieJar) -> Json<Value> {
+    Json(json!({ "isAuth": jar.get(ACCESS_COOKIE).is_some() }))
+}
+
+// removes the user's access-token cookie
+async fn sign_out() -> [(HeaderName, String); 1] {
+    [(
+        header::SET_COOKIE,
+        format!("{ACCESS_COOKIE}=; Max-Age=0; Path=/"),
+    )]
+}
+
+#[derive(Deserialize)]
+struct UpdateBio {
+    bio: String,
+}
+
 #[instrument(skip(db))]
 async fn get_profile(
     Extension(AuthUser { github_id, .. }): Extension<AuthUser>,
@@ -48,15 +66,6 @@ async fn get_profile(
     .await?;
 
     Ok(Json(user))
-}
-
-async fn auth_handler(jar: CookieJar) -> Json<Value> {
-    Json(json!({ "isAuth": jar.get(ACCESS_COOKIE).is_some() }))
-}
-
-#[derive(Deserialize)]
-struct UpdateBio {
-    bio: String,
 }
 
 #[instrument(skip(db))]
@@ -103,14 +112,6 @@ async fn get_projects(
 
     Ok(Json(projects))
 }
-
-async fn sign_out() -> [(HeaderName, String); 1] {
-    [(
-        header::SET_COOKIE,
-        format!("{ACCESS_COOKIE}=; Max-Age=0; Path=/"),
-    )]
-}
-
 
 async fn delete_profile(
     Extension(AuthUser { github_id, .. }): Extension<AuthUser>,

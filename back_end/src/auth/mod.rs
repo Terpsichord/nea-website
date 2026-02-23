@@ -45,6 +45,7 @@ pub async fn get_auth_user(
 
     let maybe_info = token_cache.get_token_info(&encrypted_access_token).await;
 
+    #[allow(clippy::useless_let_if_seq)]
     let mut new_tokens = None;
 
     // If cached token has expired
@@ -90,6 +91,7 @@ pub async fn get_auth_user(
     )))
 }
 
+// take a token as a Base64 encoded string and decrypt it into a string using AES-GCM
 fn decode_token(encrypted_token: &str) -> Result<String, InvalidAuthError> {
     let decoded = BASE64_STANDARD.decode(encrypted_token)?;
     let decrypted = Aes256Gcm::decrypt(&decoded).map_err(InvalidAuthError::Encryption)?;

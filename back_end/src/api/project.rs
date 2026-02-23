@@ -177,6 +177,7 @@ struct NewProjectResponse {
     repo_name: String,
 }
 
+// creating a new project
 #[instrument(skip(db, client, access, refresh))]
 async fn new_project(
     State(AppState { db, client, .. }): State<AppState>,
@@ -197,7 +198,6 @@ async fn new_project(
     let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE github_id = $1", github_id)
         .fetch_one(&*db)
         .await?;
-    info!("user_id: {}", user_id);
 
     if db.project_exists(user_id, &title).await? {
         return Err(AppError::ProjectExists);
@@ -224,7 +224,6 @@ async fn new_project(
             private,
         )
         .await?;
-    info!("repo_name: {}", repo_name);
 
     if let Some(ref tokens) = tokens {
         (access_token, refresh_token) = tokens.unencrypted();
@@ -235,7 +234,6 @@ async fn new_project(
         let WithTokens(readme, new_tokens) = client
             .get_readme(access_token, refresh_token, &username, &repo_name)
             .await?;
-        info!("readme: {}", repo_name);
 
         tokens = new_tokens.or(tokens);
         if let Some(ref tokens) = tokens {
@@ -258,6 +256,7 @@ async fn new_project(
         tags: vec![],
     };
 
+    // add a record to the database for the new project
     db.add_project(&new_project).await?;
 
     // FIXME: this function should return the token cookie headers

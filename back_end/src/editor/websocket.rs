@@ -16,6 +16,7 @@ use ws_messages::{ClientMessage, Command, EditorSettings, ProjectTree, ServerMes
 
 use crate::{DatabaseConnector, editor::session::EditorSessionManager};
 
+// Class that 
 pub struct WebSocketHandler {
     docker: Docker,
     db: DatabaseConnector,

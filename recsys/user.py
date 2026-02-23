@@ -1,9 +1,11 @@
 import numpy as np
 from core import l2_normalize
 
+
 class UserTower:
     def __init__(self, num_users, emb_dim, hidden_layer_sizes=(64,)):
         from core import Embedding, MLP
+
         self.user_id_emb = Embedding(num_users, emb_dim)
         self.user_mlp = MLP([2 * emb_dim, *hidden_layer_sizes, emb_dim])
 
@@ -24,4 +26,4 @@ class UserTower:
 
     def update(self, grad, lr, user_ids):
         mlp_grad = self.user_mlp.backward_pass(grad, lr)
-        self.user_id_emb.backward(user_ids, mlp_grad[:, :self.user_id_emb.dim], lr)
+        self.user_id_emb.backward(user_ids, mlp_grad[:, : self.user_id_emb.dim], lr)

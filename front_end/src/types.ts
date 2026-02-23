@@ -31,3 +31,8 @@ export interface ProjectComment {
     contents: string,
     children: ProjectComment[],
 }
+
+export interface Category {
+    name: string,
+    projects: ProjectInfo[],
+}

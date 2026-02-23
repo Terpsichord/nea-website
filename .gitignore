@@ -9,3 +9,6 @@
 
 /editor/test files/
 /editor/dist/
+
+venv
+__pycache__

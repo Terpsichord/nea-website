@@ -1,17 +1,22 @@
 import numpy as np
 
+
 def relu(x):
     return np.maximum(0, x)
+
 
 def relu_grad(x):
     return (x > 0).astype(np.float32)
 
+
 def sigmoid(x):
     return 1 / (1 + np.exp(-np.clip(x, -15, 15)))
+
 
 def l2_normalize(x, axis=-1, eps=1e-12):
     norm = np.linalg.norm(x, axis=axis, keepdims=True)
     return x / (norm + eps)
+
 
 def bpr_loss(diff, weights):
     # diff: (batch_size,)
@@ -22,14 +27,18 @@ def bpr_loss(diff, weights):
     grad = -weights * (1 - sig) / len(diff)
     return loss, grad
 
+
 def top_k_indices(scores, k):
     if scores.ndim == 1:
         return np.argsort(-scores)[:k]
     return np.argsort(-scores, axis=1)[:, :k]
 
+
 class Embedding:
     def __init__(self, num_embeddings, dimension):
-        self.weights = np.random.normal(scale=0.01, size=(num_embeddings, dimension)).astype(np.float32)
+        self.weights = np.random.normal(
+            scale=0.01, size=(num_embeddings, dimension)
+        ).astype(np.float32)
         self.dim = dimension
 
     def get_embeddings(self, ids):
@@ -39,17 +48,22 @@ class Embedding:
         # np.add.at handles duplicate IDs in a batch by accumulating gradients
         np.add.at(self.weights, ids, -learning_rate * grad)
 
+
 class MLP:
     def __init__(self, layer_sizes):
         self.weights = []
         self.biases = []
         for i in range(len(layer_sizes) - 1):
-            w = np.random.normal(
-                scale=np.sqrt(2.0/layer_sizes[i]), size=(layer_sizes[i], layer_sizes[i+1])
-            ).astype(np.float32) * 0.1
+            w = (
+                np.random.normal(
+                    scale=np.sqrt(2.0 / layer_sizes[i]),
+                    size=(layer_sizes[i], layer_sizes[i + 1]),
+                ).astype(np.float32)
+                * 0.1
+            )
 
             self.weights.append(w)
-            self.biases.append(np.zeros(layer_sizes[i+1], dtype=np.float32))
+            self.biases.append(np.zeros(layer_sizes[i + 1], dtype=np.float32))
         self.cache = []
 
     def forward_pass(self, x):
@@ -61,7 +75,7 @@ class MLP:
             if i < len(self.weights) - 1:
                 x = relu(pre_activation)
             else:
-                x = pre_activation # Linear output for the final layer
+                x = pre_activation  # Linear output for the final layer
         return x
 
     def backward_pass(self, grad, learning_rate):

@@ -23,8 +23,7 @@ pub struct AuthUser {
     pub refresh_token: String,
 }
 
-// Response is always wrapped in `Ok` as is required by the middleware functions below
-#[allow(clippy::unnecessary_wraps)]
+#[allow(clippy::unnecessary_wraps)] // Response is always wrapped in `Ok` as is required by the middleware functions below
 fn append_token_headers(resp: Response, tokens: Option<Tokens>) -> Result<Response, AppError> {
     Ok(match tokens {
         Some(tokens) => (TokenHeaders::from(tokens), resp).into_response(),
@@ -59,9 +58,6 @@ pub async fn auth_middleware(
     let WithTokens(auth_user, tokens) = get_auth_user(token_cache, client, &jar)
         .await?
         .ok_or(AppError::Unauthorized)?;
-
-    // TODO: does this actually do anything?
-    let _ = jar.remove(ACCESS_COOKIE);
 
     req.extensions_mut().insert(auth_user);
 

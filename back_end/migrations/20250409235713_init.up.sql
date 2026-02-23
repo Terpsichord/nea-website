@@ -75,3 +75,24 @@ CREATE TABLE editor_settings (
     auto_save BOOLEAN,
     format_on_save BOOLEAN
 );
+
+CREATE TABLE interactions (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id INT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    type VARCHAR(16),
+    time TIMESTAMPTZ
+);
+
+CREATE TABLE rec_categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(64)
+);
+
+CREATE TABLE recs (
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id INT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    category_id INT NOT NULL REFERENCES rec_categories(id) ON DELETE CASCADE,
+    score REAL
+);

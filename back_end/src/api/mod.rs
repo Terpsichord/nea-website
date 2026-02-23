@@ -1,11 +1,9 @@
 use axum::{
-    Json, Router,
-    http::{HeaderName, header},
-    routing::{get, post},
+    Json, Router, http::{HeaderName, header, StatusCode}, routing::{get, post} 
 };
 use axum_extra::extract::CookieJar;
 use chrono::{DateTime, NaiveDate, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::prelude::FromRow;
 
@@ -16,8 +14,11 @@ mod comment;
 mod follow;
 mod profile;
 mod project;
+mod recs;
 mod search;
 mod user;
+
+// This module contains all of code to create the API routes as described in the Design section.
 
 pub fn api_router(state: AppState) -> Router<AppState> {
     Router::new()
@@ -25,23 +26,16 @@ pub fn api_router(state: AppState) -> Router<AppState> {
         .merge(user::user_router())
         .merge(follow::follow_router(state.clone()))
         .merge(project::project_router(state.clone()))
-        .merge(comment::comment_router(state))
-        .route("/auth", get(auth_handler))
-        .route("/signout", post(sign_out))
+        .merge(comment::comment_router(state.clone()))
+        .merge(recs::rec_router(state))
+        .fallback(api_not_found)
 }
 
-async fn auth_handler(jar: CookieJar) -> Json<Value> {
-    Json(json!({ "isAuth": jar.get(ACCESS_COOKIE).is_some() }))
+async fn api_not_found() -> (StatusCode, &'static str) {
+    (StatusCode::NOT_FOUND, "API route not found")
 }
 
-async fn sign_out() -> [(HeaderName, String); 1] {
-    [(
-        header::SET_COOKIE,
-        format!("{ACCESS_COOKIE}=; Max-Age=0; Path=/"),
-    )]
-}
-
-#[derive(Debug, Serialize, FromRow, sqlx::Type)]
+#[derive(Debug, Deserialize, Serialize, FromRow, sqlx::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectInfo {
     pub title: String,

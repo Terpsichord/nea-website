@@ -122,32 +122,6 @@ async fn get_comments(
     .fetch_all(&*db)
     .await?;
 
-    // let mut comment_map = HashMap::new();
-
-    // for comment in comments {
-    //     comment_map.insert(comment.id, comment);
-    // }
-
-    // let ids: Vec<_> = comment_map.keys().copied().collect();
-    // for id in ids {
-    //     if let Some(parent_id) = comment_map[&id].parent_id {
-    //         let comment = comment_map[&id].clone();
-    //         comment_map
-    //             .get_mut(&parent_id)
-    //             // can unwrap here as this is guaranteed by foreign key constraints in the database
-    //             .unwrap()
-    //             .children
-    //             .push(comment);
-    //     }
-    // }
-    //
-    // let root_comments = comment_map
-    //     .into_values()
-    //     .filter(|com| com.parent_id.is_none())
-    //     .collect();
-
-    // FIXME: this seems to work at the moment, but, make this better and more optimised
-
     let mut roots = vec![];
     for comment in &comments {
         if comment.parent_id.is_none() {

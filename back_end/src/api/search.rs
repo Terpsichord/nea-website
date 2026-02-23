@@ -118,6 +118,11 @@ pub async fn search_projects(
     Ok(Json(filtered_projects))
 }
 
+// ========= Search Algorithms =========
+
+
+// knuth-morris-pratt search
+
 fn create_lps(pattern: &[u8]) -> Vec<usize> {
     let mut lps = vec![0; pattern.len()];
 
@@ -180,6 +185,9 @@ fn kmp_search(text: &str, pattern: &str) -> Vec<usize> {
 
     result
 }
+
+
+// boyer-moore search
 
 fn bad_character_heuristic(pattern: &[u8]) -> Vec<i32> {
     let mut bad_char = vec![-1; 256];

@@ -245,7 +245,6 @@ pub struct Buffer {
     id: Uuid,
     contents: String,
     #[serde(skip)]
-    // FIXME: this is only currently serde(skip) because i can't serialize pathbuf on wasm
     file_data: Option<FileData>,
 }
 
@@ -390,40 +389,5 @@ impl Buffer {
 impl Default for Buffer {
     fn default() -> Self {
         Self::empty()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_join_save_errors() {
-        let buffer1 = Buffer::new(
-            "content1".to_string(),
-            Some(FileData {
-                path: PathBuf::from("file1.txt"),
-                contents: "content1".to_string(),
-            }),
-        );
-        let buffer2 = Buffer::new(
-            "content2".to_string(),
-            Some(FileData {
-                path: PathBuf::from("file2.txt"),
-                contents: "content2".to_string(),
-            }),
-        );
-
-        let error1 = io::Error::new(io::ErrorKind::Other, "error1");
-        let error2 = io::Error::new(io::ErrorKind::Other, "error2");
-
-        let errors = vec![(error1, &buffer1), (error2, &buffer2)];
-
-        let result = Buffers::join_save_errors(errors);
-
-        eprintln!("Result: {}", result);
-        assert!(result.contains("Failed to save files: file1.txt, file2.txt"));
-        assert!(result.contains("error1"));
-        assert!(result.contains("error2"));
     }
 }

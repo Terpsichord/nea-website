@@ -3,6 +3,7 @@ from core import l2_normalize, bpr_loss, top_k_indices
 from user import UserTower
 from item import ItemTower
 
+
 class TwinTowerModel:
     def __init__(self, num_users, num_items, emb_dim=64, hidden_layer_sizes=(64,)):
         self.user_tower = UserTower(num_users, emb_dim, hidden_layer_sizes)
@@ -17,7 +18,9 @@ class TwinTowerModel:
         if self.item_matrix is None:
             raise ValueError("Item matrix must be precomputed for recommendation.")
 
-        u_emb = l2_normalize(self.user_tower.forward([user_id], [user_history_ids], self.item_matrix))
+        u_emb = l2_normalize(
+            self.user_tower.forward([user_id], [user_history_ids], self.item_matrix)
+        )
         scores = u_emb @ self.item_matrix.T
         indices = top_k_indices(scores[0], top_k)
         return indices, scores[0][indices]
@@ -28,9 +31,15 @@ class TwinTowerModel:
         u_ids, histories, pos, neg = batch
 
         # forward pass (dynamic for both to allow gradient flow)
-        u_embs = l2_normalize(self.user_tower.forward(u_ids, histories, self.item_matrix))
-        p_embs = l2_normalize(self.item_tower.forward(pos['ids'], pos['tags'], pos['langs']))
-        n_embs = l2_normalize(self.item_tower.forward(neg['ids'], neg['tags'], neg['langs']))
+        u_embs = l2_normalize(
+            self.user_tower.forward(u_ids, histories, self.item_matrix)
+        )
+        p_embs = l2_normalize(
+            self.item_tower.forward(pos["ids"], pos["tags"], pos["langs"])
+        )
+        n_embs = l2_normalize(
+            self.item_tower.forward(neg["ids"], neg["tags"], neg["langs"])
+        )
 
         # calculate bpr loss
         pos_scores = np.sum(u_embs * p_embs, axis=1)
@@ -45,8 +54,8 @@ class TwinTowerModel:
 
         # updating the model via backpropagation
         self.user_tower.update(grad_u, lr, u_ids)
-        self.item_tower.update(grad_p, lr, pos['ids'], pos['tags'], pos['langs'])
-        self.item_tower.update(grad_n, lr, neg['ids'], neg['tags'], neg['langs'])
+        self.item_tower.update(grad_p, lr, pos["ids"], pos["tags"], pos["langs"])
+        self.item_tower.update(grad_n, lr, neg["ids"], neg["tags"], neg["langs"])
 
         return loss
 
@@ -57,4 +66,6 @@ class TwinTowerModel:
             for batch in training_data:
                 total_loss += self._train_batch(batch, lr)
 
-            print(f"Epoch {epoch} | Average Loss: {total_loss / len(training_data):.4f}")
+            print(
+                f"Epoch {epoch} | Average Loss: {total_loss / len(training_data):.4f}"
+            )

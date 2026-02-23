@@ -12,6 +12,7 @@ pub enum DecryptError {
     InvalidMessage,
 }
 
+// Class for encrypting/decrypting AES-256 GCM with a given key
 pub struct Aes256Gcm {
     key: [u8; 32],
 }

@@ -38,6 +38,8 @@ pub struct NewProject {
     pub tags: Vec<String>,
 }
 
+// This class provides a thin wrapper around the database connection pool `PgPool` provided by `sqlx`.
+// It provides several convenience functions for interacting with the database.
 impl DatabaseConnector {
     pub const fn new(pool: PgPool) -> Self {
         Self(pool)
@@ -140,11 +142,13 @@ impl DatabaseConnector {
             repo_name,
             github_id,
             must_own,
-        ).fetch_one(&self.0).await?;
+        ).fetch_optional(&self.0).await?;
 
-        // TODO: (i think), make this fetch 0 or 1 and show error if 0
-
-        Ok(project)
+        if let Some(project) = project {
+            Ok(project)
+        } else {
+            Err(AppError::NotFound)
+        }
     }
 
     pub async fn project_exists(&self, user_id: i32, title: &str) -> Result<bool, AppError> {

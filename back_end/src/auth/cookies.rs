@@ -18,6 +18,7 @@ pub struct TokenHeaders {
     refresh_header: (HeaderName, HeaderValue),
 }
 
+// allows TokenHeaders to be added onto an Axum response
 impl IntoResponseParts for TokenHeaders {
     type Error = ();
 
@@ -46,6 +47,8 @@ impl From<&Tokens> for TokenHeaders {
 }
 
 impl TokenHeaders {
+    // Creates HTTP headers that will set the provided 
+    // access and refresh token in the user's cookies
     pub fn new(
         access_token: &str,
         refresh_token: &str,
