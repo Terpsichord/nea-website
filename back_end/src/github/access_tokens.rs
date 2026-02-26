@@ -12,6 +12,7 @@ use crate::{
     error::AppError,
 };
 
+// `GithubSecrets` stores the details needed to authenticate the GitHub App when making requests to the GitHub API
 #[derive(Serialize)]
 struct GithubSecrets {
     client_id: &'static str,
@@ -19,6 +20,7 @@ struct GithubSecrets {
 }
 
 impl GithubSecrets {
+    // `GithubSecrets` is initialised using environment variables which are loaded into `Config`
     fn from_config(config: &'static Config) -> Self {
         Self {
             client_id: &config.github_client_id,
@@ -48,6 +50,7 @@ fn refresh_grant<S: Serializer>(_: &(), s: S) -> Result<S::Ok, S::Error> {
     s.serialize_str("refresh_token")
 }
 
+// Data sent via JSON for GitHub access token request
 #[derive(Serialize)]
 struct AccessTokenRequest {
     #[serde(flatten)]
@@ -56,6 +59,7 @@ struct AccessTokenRequest {
     req_type: TokenRequestType,
 }
 
+// Data received via JSON in access token request
 #[derive(Deserialize)]
 struct AccessTokenResponse {
     access_token: String,
@@ -83,6 +87,7 @@ impl<T> Deref for WithTokens<T> {
     }
 }
 
+// `Tokens` stores access and refresh tokens (both encrypted and unencrytped) and their expiries for a single user 
 pub struct Tokens {
     pub access_token: String,
     pub access_expiry: DateTime<Utc>,
@@ -93,6 +98,7 @@ pub struct Tokens {
 }
 
 impl Tokens {
+    /// Returns the pair of unencrypted access and refresh tokens
     pub fn unencrypted(&self) -> (&str, &str) {
         (&self.access_unencrypted, &self.refresh_unencrypted)
     }
@@ -105,11 +111,13 @@ impl GithubClient {
     ///
     /// This function is used after a user has signed-in (`TokenRequestType::callback`), or their access token has expired and needs to be refreshed (`TokenRequestType::Refresh`)
     pub async fn get_tokens(&self, req_type: TokenRequestType) -> Result<Tokens, AppError> {
+        // Initialise the parameters to the access token request
         let params = AccessTokenRequest {
             secrets: GithubSecrets::from_config(&CONFIG),
             req_type,
         };
 
+        // Send HTTP request for access token API request, and store HTTP response in `text`
         let text = self
             .client
             .post("https://github.com/login/oauth/access_token")
@@ -121,6 +129,7 @@ impl GithubClient {
             .await
             .map_err(AppError::auth_failed)?;
 
+        // decode tokens from http body 
         let AccessTokenResponse {
             access_token,
             expires_in,
@@ -130,12 +139,14 @@ impl GithubClient {
             .with_context(|| format!("failed to decode AccessTokenRequest from: {text}"))
             .map_err(AppError::auth_failed)?;
 
+        // use AES to produce the encrypted tokens
         let encrypted_access_token = Aes256Gcm::encrypt_base64(access_token.as_bytes());
         let encrypted_refresh_token = Aes256Gcm::encrypt_base64(refresh_token.as_bytes());
 
         // this is okay to cast as according to the docs, this value should always be 15897600 (6 months)
         // https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens#refreshing-a-user-access-token-with-a-refresh-token
 
+        // calculate expiry dates
         #[allow(clippy::cast_possible_wrap)]
         let access_expiry_date = Utc::now() + Duration::seconds(expires_in as i64);
         #[allow(clippy::cast_possible_wrap)]
