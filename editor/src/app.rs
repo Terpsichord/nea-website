@@ -409,6 +409,17 @@ impl App {
                 }
             });
             ui.menu_button("Help", |_ui| {});
+            
+            #[cfg(target_arch = "wasm32")]
+            if ui.button("Quit").clicked() {
+                // TODO: confirmation (also for when tab is closed)
+                // suggest git committing
+                web_sys::window()
+                    .unwrap()
+                    .location()
+                    .set_href("/")
+                    .unwrap();
+            }
 
             self.running_buttons(ui);
         });

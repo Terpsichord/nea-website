@@ -124,6 +124,11 @@ impl Default for EditorSessionManager {
 }
 
 impl EditorSessionManager {
+    pub(super) const fn docker(&self) -> &Docker {
+        &self.docker
+    }
+
+    // FIXME: remove(?) probably
     // const CODE_LEN: usize = 16;
 
     // pub fn create_code(&self, user_id: i32) -> String {
@@ -160,15 +165,17 @@ impl EditorSessionManager {
                     }
                 }
             }
-        }
+        } 
 
         if reactivate {
-            self.table
-                .write()
-                .unwrap()
-                .entry(user_id)
+            let mut table = self.table.write().unwrap();
+
+            table.entry(user_id)
                 .and_modify(|state| state.mode = SessionMode::Active);
-            return Ok(WithTokens::default());
+
+            let container_id = table.get(&user_id).unwrap().handle.container_id.clone();
+
+            return Ok(WithTokens(container_id, None));
         }
 
         if close {

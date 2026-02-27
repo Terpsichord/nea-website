@@ -435,8 +435,6 @@ async fn open_project(
         )
         .await?;
 
-    // let code = session_mgr.create_code(project.user_id);
-
     Ok(ws.on_upgrade(move |ws| {
         handle_editor_ws(
             ws,
@@ -455,7 +453,7 @@ async fn handle_editor_ws(
     container_id: String,
     user_id: i32,
 ) {
-    let mut handler = WebSocketHandler::new(container_id, user_id, db, session_mgr).expect("TODO");
+    let mut handler = WebSocketHandler::new(container_id, user_id, db, session_mgr);
 
     handler.handle(ws).await;
 }
