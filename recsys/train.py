@@ -35,29 +35,48 @@ def fetch_data():
     cur = conn.cursor()
 
     # map projects to contiguous indices
-    cur.execute("SELECT id, lang, tag_ids FROM projects")
+    cur.execute("""
+        SELECT id, lang, array_agg(t.tag) as tags
+        FROM projects p
+        LEFT JOIN project_tags t ON t.project_id = p.id
+        GROUP BY p.id, p.lang
+    """)
     project_rows = cur.fetchall()
+
     project_to_idx = {row[0]: i for i, row in enumerate(project_rows)}
     idx_to_project = {i: row[0] for i, row in enumerate(project_rows)}
 
+    tags = set()
+    for row in project_rows:
+        if row[2]:
+            tags.update(row[2])
+
+    tag_to_idx = {tag: i for i, tag in enumerate(tags)}
+
     item_records = []
     for row in project_rows:
+        tag_ids = [tag_to_idx[tag] for tag in row[2]]
         item_records.append(
             {
                 "item_id": project_to_idx[row[0]],
-                "tag_ids": row[2] if row[2] else [],
+                "tag_ids": tag_ids,
                 "language_id": row[1] if row[1] else 0,
             }
         )
 
     # map users and fetch interactions
     cur.execute(
-        "SELECT user_id, project_id FROM interactions WHERE type IN ('view', 'like')"
+        """
+        SELECT user_id, project_id
+        FROM interactions
+        WHERE type IN ('view', 'like')
+        """
     )
     interactions = cur.fetchall()
 
     # group by user for history
     user_histories = {}
+    print(interactions)
     for u_id, p_id in interactions:
         if p_id in project_to_idx:
             user_histories.setdefault(u_id, []).append(project_to_idx[p_id])
@@ -70,7 +89,7 @@ def fetch_data():
 def create_batches(user_histories, item_records, project_to_idx, batch_size=32):
     batches = []
     user_ids = list(user_histories.keys())
-    all_item_ids = list(project_to_idx.values())
+    item_ids = list(project_to_idx.values())
 
     for i in range(0, len(user_ids), batch_size):
         batch_u = user_ids[i : i + batch_size]
@@ -83,15 +102,15 @@ def create_batches(user_histories, item_records, project_to_idx, batch_size=32):
         )
 
         for u in batch_u:
-            # Positive: something they actually liked
+            # positive sample: something the user interacted with
             p_idx = np.random.choice(user_histories[u])
-            # Negative: random item they haven't seen
-            n_idx = np.random.choice(all_item_ids)
+            # negative sample: random item they haven't seen
+            n_idx = np.random.choice(item_ids)
 
             u_ids.append(u)
             histories.append(user_histories[u])
 
-            # Populate item data
+            # populate item data
             for target, idx in [(pos, p_idx), (neg, n_idx)]:
                 target["ids"].append(idx)
                 target["tags"].append(item_records[idx]["tag_ids"])
@@ -114,8 +133,8 @@ if __name__ == "__main__":
     print("Training...")
     model.train(batches, epochs=10, lr=0.01)
 
-    # Save model + mapping
     payload = {"model": model, "idx_to_project": idx_to_p, "project_to_idx": p_to_idx}
     with open("recommender.pkl", "wb") as f:
         pickle.dump(payload, f)
-    print("Success: Model and Mappings saved.")
+
+    print("Model saved successfully")
