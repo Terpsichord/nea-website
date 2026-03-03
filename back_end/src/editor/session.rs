@@ -24,6 +24,8 @@ use crate::{
     lang::ProjectLang,
 };
 
+// `SessionHandle` stores needed information about a
+// session in the online editor for a single user
 #[derive(Debug)]
 pub struct SessionHandle {
     project_id: i32,
@@ -32,6 +34,7 @@ pub struct SessionHandle {
     // path: String,
 }
 
+// Implements wait logic as described in 'Container Lifecycle'   
 #[derive(Debug)]
 struct WaitingHandle {
     handle: JoinHandle<()>,
@@ -40,6 +43,7 @@ struct WaitingHandle {
 impl WaitingHandle {
     const DELAY: Duration = Duration::from_secs(30); // TODO: change to 5 minutes
 
+    // Starts a new task when constructed which stops the container running after DELAY, unless aborted (see below) 
     fn new(session_mgr: EditorSessionManager, user_id: i32) -> Self {
         let handle = tokio::spawn(async move {
             tokio::time::sleep(Self::DELAY).await;
@@ -53,20 +57,25 @@ impl WaitingHandle {
     }
 }
 
+// Uses RAII (Resource Acquisition Is Initialization) pattern to abort the task that stops the Docker container
+// This means that when the `WaitingHandle` object is dropped (i.e. goes out of scope), the task is automatically aborted
+// This occurs when the `SessionMode` is changed from being `Waiting` to `Active`
 impl std::ops::Drop for WaitingHandle {
     fn drop(&mut self) {
         self.handle.abort();
     }
 }
 
+// enum to indicate whether an entry in the session table is active or idle
 #[derive(Debug)]
-
 #[allow(dead_code)]
 enum SessionMode {
     Active,
     Waiting(WaitingHandle),
 }
 
+
+// Encapsulates entire state of a session, aggregating both the handle and current mode
 #[derive(Debug)]
 pub struct SessionState {
     handle: SessionHandle,
@@ -106,6 +115,8 @@ impl DerefMut for SessionTable {
     }
 }
 
+// Class that manages all of the sessions in the online editor
+// Stores the table of sessions, and holds references to the Docker and GitHub API clients
 #[derive(Clone, Debug)]
 pub struct EditorSessionManager {
     table: Arc<RwLock<SessionTable>>,
@@ -114,6 +125,7 @@ pub struct EditorSessionManager {
 }
 
 impl Default for EditorSessionManager {
+    // Constructor to initalise the manager to default settings
     fn default() -> Self {
         Self {
             table: Arc::default(),
@@ -135,6 +147,8 @@ impl EditorSessionManager {
     //     code
     // }
 
+    // called when the server receives a HTTP request to open a new session
+    // may either start a new container or re-activate an already running one, depending on the state of SessionTable 
     #[allow(clippy::too_many_arguments)] // FIXME
     pub async fn open(
         &self,
@@ -146,16 +160,25 @@ impl EditorSessionManager {
         access_token: &str,
         refresh_token: &str,
     ) -> Result<WithTokens<String>, AppError> {
+        // does an already running container need to be reactivated?
         let mut reactivate = false;
+        // does an already running container need to closed? 
         let mut close = false;
 
+        // If there is already a running container for the user:
         if let Some(state) = self.table.read().unwrap().get(&user_id) {
             match state.mode {
+                // If the container is for an active session the user currently has open,
+                // return an error as only one session can be open per user at a time
                 SessionMode::Active => return Err(AppError::SessionConflict),
+                // If the container is for a session that is waiting to be re-opened...
                 SessionMode::Waiting(_) => {
+                    // ... and the open request was for the same project...
                     if state.handle.project_id == project_id {
+                        // ... then re-activate the session
                         reactivate = true;
                     } else {
+                        // otherwise close the container (a new one will be started below)
                         close = true;
                     }
                 }
@@ -163,6 +186,7 @@ impl EditorSessionManager {
         }
 
         if reactivate {
+            // update the table to set the session to active and return
             self.table
                 .write()
                 .unwrap()
@@ -172,11 +196,13 @@ impl EditorSessionManager {
         }
 
         if close {
+            // end the session if needed
             self.end_session(user_id).await?;
         }
 
         info!("creating session");
 
+        // create a new session (only called if `reactivate` was false)
         self.create_session(
             user_id,
             project_id,
@@ -191,6 +217,7 @@ impl EditorSessionManager {
 
     pub const WORKSPACE_PATH: &'static str = "/home/workspace";
 
+    // create a new container via the Docker API and update the session table
     #[instrument(skip(self, access_token, refresh_token))]
     #[allow(clippy::too_many_arguments)] // FIXME
     async fn create_session(
@@ -205,6 +232,8 @@ impl EditorSessionManager {
     ) -> Result<WithTokens<String>, AppError> {
         let image = self.get_image(lang).await?;
 
+        // defines configuration for an anonymous mount 
+        // this describes how Docker will store the filesystem of the container
         let mount = Mount {
             target: Some(Self::WORKSPACE_PATH.into()),
             source: None,
@@ -213,6 +242,7 @@ impl EditorSessionManager {
             ..Default::default()
         };
 
+        // init container config
         let config = ContainerCreateBody {
             image: Some(image),
             // enable tty to allow an interactive terminal on the frontend
@@ -220,6 +250,7 @@ impl EditorSessionManager {
             host_config: Some(HostConfig {
                 // runsc is the runtime needed to use gVisor
                 runtime: Some("runsc".into()),
+                // docker container is automatically destroyed when stopped
                 auto_remove: Some(true),
                 mounts: Some(vec![mount]),
                 ..Default::default()
@@ -227,6 +258,8 @@ impl EditorSessionManager {
             ..Default::default()
         };
 
+        // creating and starting the container
+        
         debug!("creating container");
         let container_id = self
             .docker
@@ -241,12 +274,14 @@ impl EditorSessionManager {
             .await
             .map_err(AppError::other)?;
 
+        // retrieve the files for the project from the GitHub repository
         debug!("fetching files");
         let WithTokens(tarball, headers) = self
             .client
             .get_project_tarball(access_token, refresh_token, username, repo_name)
             .await?;
 
+        // add the files to the container
         debug!("adding files to container");
         self.docker
             .upload_to_container(
@@ -260,6 +295,7 @@ impl EditorSessionManager {
             .await
             .map_err(AppError::other)?;
 
+        // updating session table to add a new session
         self.table.write().unwrap().insert(
             user_id,
             SessionState {
@@ -298,6 +334,7 @@ impl EditorSessionManager {
         Ok(image)
     }
 
+    // update a session to have mode = SessionMode::Waiting
     pub fn idle_session(&self, user_id: i32) {
         self.table
             .write()
@@ -308,6 +345,7 @@ impl EditorSessionManager {
             });
     }
 
+    // stop the docker container (this also removes the container as auto_remove = true)
     pub async fn end_session(&self, user_id: i32) -> Result<(), AppError> {
         let maybe_session = self.table.write().unwrap().remove(&user_id);
         if let Some(session) = maybe_session {
