@@ -1216,7 +1216,7 @@ name = "common"
 version = "0.1.0"
 dependencies = [
  "egui",
- "serde_derive",
+ "serde",
 ]
 
 [[package]]

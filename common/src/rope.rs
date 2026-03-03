@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 const LEAF_SIZE: usize = 32;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone)]
 struct RopeNode {
     left: Option<Box<RopeNode>>,
     right: Option<Box<RopeNode>>,
@@ -13,25 +13,24 @@ struct RopeNode {
     value: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct Rope {
     root: Option<Box<RopeNode>>,
-    _flat_cache: Option<String>,
 }
 
 impl Rope {
     pub fn new(s: &str) -> Self {
-        Self {
-            root: Some(Self::build_rope(s)),
-        }
+        Self::from_root(Some(Self::build_rope(s)))
     }
 
     fn from_root(root: Option<Box<RopeNode>>) -> Self {
-        let _flat_cache = root.map(|n| n.to_string());
-        Self {
-            root,
-            _flat_cache,
-        }
+        let _flat_cache = if let Some(ref r) = root {
+            r.to_string()
+        } else {
+            String::new()
+        };
+
+        Self { root, _flat_cache }
     }
 
     fn build_rope(s: &str) -> Box<RopeNode> {
@@ -44,13 +43,16 @@ impl Rope {
             })
         } else {
             let mid = s.len() / 2;
+
             let left_node = Self::build_rope(&s[..mid]);
             let right_node = Self::build_rope(&s[mid..]);
 
+            let weight = Self::rope_length_node(&Some(left_node.clone()));
+
             Box::new(RopeNode {
-                left: Some(left_node.clone()),
+                left: Some(left_node),
                 right: Some(right_node),
-                weight: Self::rope_length_node(&Some(left_node)),
+                weight,
                 value: None,
             })
         }
@@ -71,48 +73,32 @@ impl Rope {
     }
 
     pub fn len(&self) -> usize {
-        Self::rope_length_node(&self.root)
+        self._flat_cache.len()
     }
 
     pub fn char_at(&self, index: usize) -> Option<char> {
-        Self::char_at_node(&self.root, index)
-    }
-
-    fn char_at_node(node: &Option<Box<RopeNode>>, index: usize) -> Option<char> {
-        match node {
-            None => None,
-            Some(n) => {
-                if let Some(val) = &n.value {
-                    val.chars().nth(index)
-                } else {
-                    if index < n.weight {
-                        Self::char_at_node(&n.left, index)
-                    } else {
-                        Self::char_at_node(&n.right, index - n.weight)
-                    }
-                }
-            }
-        }
+        self._flat_cache.chars().nth(index)
     }
 
     pub fn concat(self, other: Rope) -> Rope {
         let weight = Self::rope_length_node(&self.root);
 
-        Rope {
-            root: Some(Box::new(RopeNode {
-                left: self.root,
-                right: other.root,
-                weight,
-                value: None,
-            })),
-        }
+        let new_root = Some(Box::new(RopeNode {
+            left: self.root,
+            right: other.root,
+            weight,
+            value: None,
+        }));
+
+        Rope::from_root(new_root)
     }
 
     pub fn split(self, index: usize) -> (Rope, Rope) {
         let (left, right) = Self::split_node(self.root, index);
+
         (
-            Rope { root: left },
-            Rope { root: right },
+            Rope::from_root(left),
+            Rope::from_root(right),
         )
     }
 
@@ -124,8 +110,10 @@ impl Rope {
             None => (None, None),
             Some(n) => {
                 if let Some(val) = &n.value {
-                    let left_str = &val[..index.min(val.len())];
-                    let right_str = &val[index.min(val.len())..];
+                    let split_index = index.min(val.len());
+
+                    let left_str = &val[..split_index];
+                    let right_str = &val[split_index..];
 
                     let left_node = if left_str.is_empty() {
                         None
@@ -145,6 +133,7 @@ impl Rope {
                         let (l, r) = Self::split_node(n.left, index);
 
                         let weight = Self::rope_length_node(&r);
+
                         let new_right = Some(Box::new(RopeNode {
                             left: r,
                             right: n.right,
@@ -158,6 +147,7 @@ impl Rope {
                             Self::split_node(n.right, index - n.weight);
 
                         let weight = Self::rope_length_node(&n.left);
+
                         let new_left = Some(Box::new(RopeNode {
                             left: n.left,
                             right: l,
@@ -174,66 +164,49 @@ impl Rope {
 
     pub fn insert(&mut self, index: usize, s: &str) {
         let current = std::mem::replace(&mut self.root, None);
-        let rope = Rope { root: current };
+        let rope = Rope::from_root(current);
 
         let (left, right) = rope.split(index);
         let middle = Rope::new(s);
 
-        self.root = left.concat(middle).concat(right).root;
+        let result = left.concat(middle).concat(right);
+
+        self.root = result.root;
+        self._flat_cache = result._flat_cache;
     }
 
     pub fn delete(&mut self, start: usize, len: usize) {
         let current = std::mem::replace(&mut self.root, None);
-        let rope = Rope { root: current };
+        let rope = Rope::from_root(current);
 
         let (left, rest) = rope.split(start);
-        let ( _ , right) = rest.split(len);
+        let (_, right) = rest.split(len);
 
-        self.root = left.concat(right).root;
+        let result = left.concat(right);
+
+        self.root = result.root;
+        self._flat_cache = result._flat_cache;
     }
 }
 
 impl fmt::Display for RopeNode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(val) = &self.value {
             write!(f, "{}", val)
-        } else if let Some(left) = &self.left && let Some(right) = &self.right {
-            write!(f, "{}{}", left, right)
         } else {
-            unreachable!();
+            if let Some(left) = &self.left {
+                write!(f, "{}", left)?;
+            }
+            if let Some(right) = &self.right {
+                write!(f, "{}", right)?;
+            }
+            Ok(())
         }
     }
 }
 
 impl fmt::Display for Rope {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(root) = &self.root {
-            write!(f, "{}", root)
-        } else {
-            write!(f, "")
-        }
-    }
-}
-
-impl TextBuffer for Rope {
-    fn is_mutable(&self) -> bool {
-        true
-    }
-
-    fn as_str(&self) -> &str {
-        &*self.to_string()
-    }
-
-    fn insert_text(&mut self, text: &str, char_index: usize) -> usize {
-        self.insert(char_index, text);
-        text.len()
-    }
-
-    fn delete_char_range(&mut self, char_range: Range<usize>) {
-        self.delete(char_range.start, char_range.end - char_range.start);
-    }
-
-    fn type_id(&self) -> TypeId {
-        TypeId::of::<Rope>()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self._flat_cache)
     }
 }
