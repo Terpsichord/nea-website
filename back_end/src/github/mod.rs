@@ -4,13 +4,14 @@ use anyhow::anyhow;
 use axum::http::HeaderValue;
 use base64::{Engine as _, prelude::BASE64_STANDARD};
 use bytes::Bytes;
+use chrono::Local;
 use reqwest::{RequestBuilder, Response, StatusCode, header::USER_AGENT};
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
     error::{AppError, GithubUserError},
-    github::access_tokens::{TokenRequestType, WithTokens},
+    github::access_tokens::{TokenRequestType, WithTokens, update_tokens},
     lang::ProjectLang,
 };
 
@@ -92,6 +93,10 @@ impl GithubClient {
             new_tokens = Some(tokens);
         }
 
+        if !resp.status().is_success() {
+            println!("{resp:#?}");
+        }
+
         Ok(WithTokens(resp, new_tokens))
     }
 
@@ -128,7 +133,7 @@ impl GithubClient {
         refresh_token: &str,
         username: &str,
         repo_name: &str,
-    ) -> Result<WithTokens<Bytes>, AppError> {
+    ) -> Result<WithTokens<(String, Bytes)>, AppError> {
         let WithTokens(resp, tokens) = self
             .send_authenticated(
                 self.client.get(Self::api_url(&format!(
@@ -139,8 +144,21 @@ impl GithubClient {
             )
             .await?;
 
+        let disposition_header = resp.headers().get("content-disposition").expect("missing content-disposition").to_str().unwrap();
+        let tarball_name = disposition_header
+            .split(";")
+            .find_map(|s| {
+                let s = s.trim();
+                if s.starts_with("filename=") {
+                    Some(s.trim_start_matches("filename=").trim_matches('"').split('.').next().unwrap())
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+
         Ok(WithTokens(
-            resp.bytes().await.map_err(AppError::other)?,
+            (tarball_name.to_string(), resp.bytes().await.map_err(AppError::other)?),
             tokens,
         ))
     }
@@ -179,10 +197,7 @@ impl GithubClient {
                 tokens,
             ));
         }
-
-        if let Some(ref tokens) = tokens {
-            (access_token, refresh_token) = tokens.unencrypted();
-        }
+        update_tokens!(access_token, refresh_token, tokens);
 
         let WithTokens(resp, new_tokens) = self
             .send_authenticated(
@@ -194,6 +209,8 @@ impl GithubClient {
             )
             .await?;
 
+        
+        
         if let Some(new_tokens) = new_tokens {
             tokens = Some(new_tokens);
             // FIXME: it's so stupid that this works
@@ -261,9 +278,7 @@ impl GithubClient {
                 &project_toml,
             )
             .await?;
-        if let Some(ref tokens) = tokens {
-            (access_token, refresh_token) = tokens.unencrypted();
-        }
+        update_tokens!(access_token, refresh_token, tokens);
 
         let (init_path, init_content) = lang.get_initial_file().map_err(AppError::other)?;
         let WithTokens((), new_tokens) = self
@@ -313,6 +328,130 @@ impl GithubClient {
             )))
         }
     }
+
+    pub async fn add_multiple_files(&self, mut access_token: &str, mut refresh_token: &str, username: &str, repo_name: &str, files: Vec<(String, String)>) -> Result<WithTokens<()>, AppError> {
+        // create blobs
+        println!("creating blobs");
+        let mut blob_shas = vec![];
+        for (_, content) in &files {
+            let WithTokens(resp, _) = self.send_authenticated(
+                self.client
+                    .post(Self::api_url(&format!("/repos/{username}/{repo_name}/git/blobs")))
+                    .json(&json!({
+                        "content": content,
+                        "encoding": "utf-8"
+                    })),
+                access_token,
+                Some(refresh_token),
+            )
+            .await?;
+
+            let sha_hash = resp
+                .json::<GithubShaResponse>()
+                .await
+                .map_err(AppError::other)?
+                .sha;
+
+            blob_shas.push(sha_hash);
+        }
+
+        // create tree
+        println!("creating tree");
+        let json = json!({
+                    "tree": files.iter().zip(blob_shas).map(|((path, _), sha_hash)| json!({
+                        "path": path,
+                        "mode": "100644",
+                        "type": "blob",
+                        "sha": sha_hash
+                    })).collect::<Vec<_>>(),
+                });
+
+        println!("send tree json: {:#?}", &json);
+        
+        let WithTokens(resp, tokens) = self.send_authenticated(
+            self.client
+                .post(Self::api_url(&format!("/repos/{username}/{repo_name}/git/trees")))
+                .json(&json),
+            access_token,
+            Some(refresh_token),
+        )
+        .await?;
+        update_tokens!(access_token, refresh_token, tokens);
+
+        let tree_sha = resp
+            .json::<GithubShaResponse>()
+            .await
+            .map_err(AppError::other)?
+            .sha;
+
+        // get parent tree
+        println!("getting parent tree");
+        let WithTokens(resp, tokens) = self.send_authenticated(
+            self.client
+                .get(Self::api_url(&format!("/repos/{username}/{repo_name}/git/refs/heads/main"))),
+            access_token,
+            Some(refresh_token),
+        )
+        .await?;
+        update_tokens!(access_token, refresh_token, tokens);
+
+        let parent_sha = resp
+            .json::<GithubBranchResponse>()
+            .await
+            .map_err(AppError::other)?
+            .object
+            .sha;
+
+        // add commit
+        println!("creating commit");
+        let WithTokens(resp, tokens) = self.send_authenticated(
+            self.client
+                .post(Self::api_url(&format!("/repos/{username}/{repo_name}/git/commits")))
+                .json(&json!({
+                    "message": format!("Save from IDE {}", Local::now().to_rfc3339()),
+                    "tree": tree_sha,
+                    "parents": [parent_sha],
+                })),
+            access_token,
+            Some(refresh_token),
+        )
+        .await?;
+        update_tokens!(access_token, refresh_token, tokens);
+
+        let commit_sha = resp
+            .json::<GithubShaResponse>()
+            .await
+            .map_err(AppError::other)?
+            .sha;
+
+        // update branch
+        let WithTokens(resp, tokens) = self.send_authenticated(
+            self.client
+                .patch(Self::api_url(&format!("/repos/{username}/{repo_name}/git/refs/heads/main")))
+                .json(&json!({
+                    "sha": commit_sha
+                })),
+            access_token,
+            Some(refresh_token),
+        )
+        .await?;
+        let status = resp.status();
+
+        let updated_branch_sha = resp
+            .json::<GithubBranchResponse>()
+            .await
+            .map_err(AppError::other)?
+            .object
+            .sha;
+
+        // check whether the commit succeeded or not
+        if !status.is_success() || updated_branch_sha != commit_sha {
+            return Err(AppError::other(anyhow!("failed to update branch")));
+        }
+
+        Ok(WithTokens((), tokens))
+    }
+
     pub async fn get_readme(
         &self,
         mut access_token: &str,
@@ -334,10 +473,7 @@ impl GithubClient {
             .json::<GithubReadmeResponse>()
             .await
             .map_err(AppError::other)?;
-
-        if let Some(ref tokens) = tokens {
-            (access_token, refresh_token) = tokens.unencrypted();
-        }
+        update_tokens!(access_token, refresh_token, tokens);
 
         let WithTokens(resp, tokens) = self
             .send_authenticated(
@@ -412,4 +548,14 @@ pub struct CreateRepoResponse {
 #[derive(Deserialize)]
 struct InstallationsResponse {
     total_count: u32,
+}
+
+#[derive(Deserialize)]
+struct GithubShaResponse {
+    sha: String,
+}
+
+#[derive(Deserialize)]
+struct GithubBranchResponse {
+    object: GithubShaResponse,
 }

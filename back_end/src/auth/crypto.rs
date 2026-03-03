@@ -3,12 +3,15 @@ use base64::{Engine, prelude::BASE64_STANDARD};
 use cipher::{BlockEncrypt as _, KeyInit as _};
 use intx::U96;
 use rand::{TryRngCore as _, rngs::OsRng};
+use thiserror::Error;
 
 use crate::CONFIG;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum DecryptError {
+    #[error("invalid tag")]
     InvalidTag,
+    #[error("invalid message")]
     InvalidMessage,
 }
 

@@ -1,22 +1,25 @@
-use std::
-    path::{Path, PathBuf}
-;
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
+use async_tar::Archive;
 use axum::extract::ws::{Message, WebSocket};
+use base64::{Engine as _, prelude::BASE64_STANDARD};
 use bollard::{
-    Docker,
     exec::{CreateExecOptions, StartExecResults},
     secret::ExecInspectResponse,
 };
-use futures::TryStreamExt as _;
+use futures::{AsyncReadExt as _, TryStreamExt as _, StreamExt as _};
 use serde::Serialize;
 use tokio::io::AsyncWriteExt as _;
+use tokio_util::{io::StreamReader, compat::TokioAsyncReadCompatExt};
 use tracing::{info, warn};
 use ws_messages::{ClientMessage, Command, EditorSettings, ProjectTree, ServerMessage};
 
-use crate::{DatabaseConnector, editor::session::EditorSessionManager};
+use crate::{DatabaseConnector, auth::crypto::Aes256Gcm, editor::session::EditorSessionManager};
 
-// TODO(document this): Class that 
+// TODO(document this): Class that
 pub struct WebSocketHandler {
     db: DatabaseConnector,
     session_mgr: EditorSessionManager,
@@ -43,7 +46,6 @@ impl WebSocketHandler {
         }
     }
 
-    // TODO: error handling
     pub async fn handle(&mut self, mut ws: WebSocket) {
         while let Some(recv) = ws.recv().await {
             match recv {
@@ -64,13 +66,12 @@ impl WebSocketHandler {
                 Ok(Message::Close(_)) => {
                     info!("idling container {:?}", &self.container_id);
 
-                    self.session_mgr.idle_session(self.user_id); 
-                } 
+                    self.session_mgr.idle_session(self.user_id);
+                }
                 Ok(_) => {}
                 Err(err) => warn!("failed to receive message on websocket: {}", err),
             }
         }
-
     }
 
     async fn create_response(&mut self, msg: &[u8]) -> anyhow::Result<ServerMessage> {
@@ -85,13 +86,13 @@ impl WebSocketHandler {
     async fn execute_cmd(&mut self, cmd: Command) -> anyhow::Result<ws_messages::Response> {
         println!("executing command: {cmd:?}");
         Ok(match cmd {
-            Command::OpenProject                  => self.open_project().await?,
-            Command::UpdateSettings { settings }  => self.update_settings(settings).await?,
-            Command::ReadSettings { .. }      => self.read_settings().await?,
-            Command::Run { command }              => self.run(&command).await?,
-            Command::ReadFile { path }            => self.read_file(&path).await?,
-            Command::ReadDir { path }             => self.read_dir(&path).await?,
-            Command::WriteFile { path, contents } => self.write_file(&path, &contents).await?,
+            Command::OpenProject                    => self.open_project().await?,
+            Command::UpdateSettings { settings }    => self.update_settings(settings).await?,
+            Command::ReadSettings { .. }            => self.read_settings().await?,
+            Command::Run { command }                => self.run(&command).await?,
+            Command::ReadFile { path }              => self.read_file(&path).await?,
+            Command::ReadDir { path }               => self.read_dir(&path).await?,
+            Command::WriteFile { path, contents }   => self.write_file(&path, &contents).await?,
             _ => todo!(),
         })
     }
@@ -142,7 +143,8 @@ impl WebSocketHandler {
             unreachable!()
         };
 
-        let ExecInspectResponse { pid, .. } = self.session_mgr.docker().inspect_exec(&msg.id).await?;
+        let ExecInspectResponse { pid, .. } =
+            self.session_mgr.docker().inspect_exec(&msg.id).await?;
 
         if let Some(stdin) = stdin {
             input.write_all(stdin.as_bytes()).await?;
@@ -163,7 +165,7 @@ impl WebSocketHandler {
             ])
             .await?;
         println!("output: {output}");
-        
+
         let project_dir = output.lines().next().expect("missing project dir");
 
         let mut top_dir: Vec<ProjectTree> = self
@@ -216,7 +218,7 @@ impl WebSocketHandler {
                 children: top_dir,
             },
             settings: EditorSettings::default(),
-                // FIXME: self.db.get_editor_settings(self.user_id).await?,
+            // FIXME: self.db.get_editor_settings(self.user_id).await?,
         })
     }
 

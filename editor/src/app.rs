@@ -307,46 +307,54 @@ impl App {
     fn menu_bar(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         MenuBar::new().ui(ui, |ui| {
             // TODO: clean up and properly organise this and all the other random cfg target_arch's
-            #[cfg(not(target_arch = "wasm32"))]
             ui.menu_button("File", |ui| {
-                if ui.button("New file").clicked() {
-                    self.buffers.add(Buffer::empty());
-                }
-                ui.separator();
-                if ui.button("Open file").clicked() {
-                    self.open_file_dialog();
-                }
-                if ui.button("Open folder").clicked() {
-                    self.open_folder(ctx);
-                }
-                ui.separator();
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    if ui.button("New file").clicked() {
+                        self.buffers.add(Buffer::empty());
+                    }
+                    ui.separator();
+                    if ui.button("Open file").clicked() {
+                        self.open_file_dialog();
+                    }
+                    if ui.button("Open folder").clicked() {
+                        self.open_folder(ctx);
+                    }
+                    ui.separator();
 
-                let show_save = self.buffers.current_buffer().is_some();
-                if ui
-                    .add_enabled(show_save, Button::new("Save file"))
-                    .clicked()
-                {
-                    match self.save_file() {
-                        Err(SaveError::NoBufferSelected) => {
-                            panic!("tried to save file when no buffer selected")
-                        } // TODO: probably change this to show an error message to the user like "Failed to save file"
-                        Ok(_) | Err(SaveError::NoFileSelected) => {} // do nothing if the user doesn't selected a file to save to
+                    let show_save = self.buffers.current_buffer().is_some();
+                    if ui
+                        .add_enabled(show_save, Button::new("Save file"))
+                        .clicked()
+                    {
+                        match self.save_file() {
+                            Err(SaveError::NoBufferSelected) => {
+                                panic!("tried to save file when no buffer selected")
+                            } // TODO: probably change this to show an error message to the user like "Failed to save file"
+                            Ok(_) | Err(SaveError::NoFileSelected) => {} // do nothing if the user doesn't selected a file to save to
+                        }
+                    }
+                    if ui
+                        .add_enabled(show_save, Button::new("Save as..."))
+                        .clicked()
+                    {
+                        if let Err(SaveError::NoBufferSelected) = self.save_as() {
+                            unreachable!()
+                        }
+                    }
+                    let show_save_all = self.buffers.is_dirty();
+                    if ui
+                        .add_enabled(show_save_all, Button::new("Save all changes"))
+                        .clicked()
+                    {
+                        self.save_all();
                     }
                 }
-                if ui
-                    .add_enabled(show_save, Button::new("Save as..."))
-                    .clicked()
+                #[cfg(target_arch = "wasm32")]
                 {
-                    if let Err(SaveError::NoBufferSelected) = self.save_as() {
-                        unreachable!()
+                    if ui.button("Save to GitHub").clicked() {
+                        self.save_to_github();
                     }
-                }
-                let show_save_all = self.buffers.is_dirty();
-                if ui
-                    .add_enabled(show_save_all, Button::new("Save all changes"))
-                    .clicked()
-                {
-                    self.save_all();
                 }
             });
             ui.menu_button("Edit", |ui| {
@@ -533,6 +541,16 @@ impl App {
                 let _ = self.save_as();
             }
         }
+    }
+   
+    #[cfg(target_arch = "wasm32")]
+    fn save_to_github(&mut self) {
+        wasm_bindgen_futures::spawn_local(async move {
+            gloo_net::http::Request::post("/api/project/github_save")
+                .send()
+                .await
+                .expect("failed to save project to github");
+        });
     }
 
     #[cfg(not(target_arch = "wasm32"))]

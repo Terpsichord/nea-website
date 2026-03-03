@@ -1,3 +1,7 @@
+use std::{fs, io, path::PathBuf};
+
+use anyhow::anyhow;
+use async_tar::Archive;
 use axum::{
     Extension, Json, Router,
     extract::{Path, State, WebSocketUpgrade, ws::WebSocket},
@@ -5,17 +9,22 @@ use axum::{
     response::Response,
     routing::{get, post, put},
 };
+use futures::{AsyncReadExt as _, StreamExt as _, TryStreamExt as _};
 use serde::{Deserialize, Serialize};
+use tempdir::TempDir;
+use tokio::process::Command;
+use tokio_util::{compat::TokioAsyncReadCompatExt as _, io::StreamReader};
 use tracing::{info, instrument};
+use walkdir::WalkDir;
 
 use crate::{
     AppState,
     api::{ProjectResponse, search},
-    auth::middleware::{AuthUser, auth_middleware, optional_auth_middleware},
+    auth::{TokenCache, crypto::Aes256Gcm, middleware::{AuthUser, auth_middleware, optional_auth_middleware}},
     db::{DatabaseConnector, NewProject},
     editor::{session::EditorSessionManager, websocket::WebSocketHandler},
     error::AppError,
-    github::{CreateRepoResponse, access_tokens::WithTokens},
+    github::{CreateRepoResponse, access_tokens::{WithTokens, update_tokens}},
     lang::ProjectLang,
 };
 
@@ -25,6 +34,7 @@ pub fn project_router(state: AppState) -> Router<AppState> {
         .route("/project/new", post(new_project))
         .route("/project/{username}/{repo_name}/remix", post(remix_project))
         .route("/project/{username}/{repo_name}", put(update_project))
+        .route("/project/github_save", post(github_save_project))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -224,10 +234,7 @@ async fn new_project(
             private,
         )
         .await?;
-
-    if let Some(ref tokens) = tokens {
-        (access_token, refresh_token) = tokens.unencrypted();
-    }
+    update_tokens!(access_token, refresh_token, tokens);
 
     // if the repo already exists, get the readme
     let readme = if already_exists {
@@ -236,9 +243,7 @@ async fn new_project(
             .await?;
 
         tokens = new_tokens.or(tokens);
-        if let Some(ref tokens) = tokens {
-            (access_token, refresh_token) = tokens.unencrypted();
-        }
+        update_tokens!(access_token, refresh_token, tokens);
 
         Some(readme)
     } else {
@@ -456,4 +461,79 @@ async fn handle_editor_ws(
     let mut handler = WebSocketHandler::new(container_id, user_id, db, session_mgr);
 
     handler.handle(ws).await;
+}
+
+async fn github_save_project(
+    State(AppState {
+        db, session_mgr, ..
+    }): State<AppState>,
+    Extension(AuthUser {
+        access_token,
+        refresh_token,
+        github_id,
+    }): Extension<AuthUser>,
+) -> Result<(), AppError> {
+    println!("saving project to github");
+    let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE github_id = $1", github_id)
+        .fetch_one(&*db)
+        .await?;
+    let session_handle = session_mgr.get_active_session(user_id).unwrap();
+
+    let temp_dir = TempDir::new("ide-export").map_err(AppError::other)?;
+
+    let container_path = PathBuf::from(EditorSessionManager::WORKSPACE_PATH).join(&session_handle.directory);
+    let status = Command::new("docker")
+        .args(["cp", &format!("{}:{}", session_handle.container_id, container_path.to_string_lossy()), "."])
+        .current_dir(&temp_dir)
+        .status()
+        .await
+        .map_err(AppError::other)?;
+
+    if !status.success() {
+        return Err(AppError::other(anyhow!("failed to export project")));
+    }
+
+    let fs_path = temp_dir.path().to_path_buf().join(&session_handle.directory);
+
+    println!("reading files");
+    let files = WalkDir::new(&temp_dir);
+        
+    let mut file_data = vec![];
+    for file in files {
+        let file = file.map_err(AppError::other)?;
+        if !file.file_type().is_file() {
+            continue;
+        }
+
+        println!("reading file: {file:?}, path: {:?}", file.path());
+        println!("trying to strip with prefix: {}", &*fs_path.to_string_lossy());
+        let path = file.path().to_string_lossy().to_string().strip_prefix(&*fs_path.to_string_lossy()).expect("invalid path").to_string();
+
+        let contents = fs::read_to_string(file.path()).map_err(AppError::other)?;
+
+        file_data.push((path, contents));
+    }
+
+    let project = sqlx::query!(
+        r#"
+        SELECT pi.username, p.repo_name
+        FROM projects p
+        INNER JOIN project_info pi ON p.id = pi.id
+        WHERE p.id = $1
+        "#,
+        session_handle.project_id
+    )
+    .fetch_one(&*db)
+    .await?;
+
+    println!("adding files");
+    let _ = session_mgr.client().add_multiple_files(
+        &access_token,
+        &refresh_token,
+        &project.username.unwrap(),
+        &project.repo_name,
+        file_data,
+    ).await?;
+
+    Ok(())
 }
