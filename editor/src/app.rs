@@ -501,10 +501,10 @@ impl App {
             Some(FileData { path: old_path, .. }) => {
                 if &path != old_path {
                     self.buffers.add(Buffer::new(
-                        buffer.contents().into(),
+                        buffer.contents().clone(),
                         Some(FileData {
                             path,
-                            contents: buffer.contents().into(),
+                            contents: buffer.contents().to_string(),
                         }),
                     ));
                 }
@@ -513,7 +513,7 @@ impl App {
                 let buffer = self.buffers.current_buffer_mut().unwrap();
                 buffer.set_file_data(FileData {
                     path,
-                    contents: buffer.contents().into(),
+                    contents: buffer.contents().to_string(),
                 });
             }
         }

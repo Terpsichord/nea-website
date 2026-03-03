@@ -10,6 +10,7 @@ use crate::{
     platform::{FileSystem, FileSystemTrait as _},
 };
 use color_eyre::Section;
+use common::rope::Rope;
 use egui::{Response, RichText, ScrollArea, TextEdit, Ui};
 use egui_extras::syntax_highlighting::{self, CodeTheme};
 use eyre::{Context, eyre};
@@ -246,14 +247,14 @@ pub struct Buffer {
     /// A Universally Unique Identifier to identify each buffer
     id: Uuid,
     /// Text contents displayed to the user (including any unsaved changes)
-    contents: String,
+    contents: Rope,
     #[serde(skip)]
     /// Optional file data (`None` if the buffer is newly created, and not yet saved to a file)
     file_data: Option<FileData>,
 }
 
 impl Buffer {
-    pub fn new(contents: String, file_data: Option<FileData>) -> Self {
+    pub fn new(contents: Rope, file_data: Option<FileData>) -> Self {
         Self {
             // The UUID is created automatically and doesn't need to be passed to the constructor
             id: Uuid::new_v4(),
@@ -270,13 +271,13 @@ impl Buffer {
         let contents = fs.read_file(&path).wrap_err("Failed to read file")?;
 
         Ok(Self::new(
-            contents.clone(),
+            Rope::new(&contents),
             Some(FileData { contents, path }),
         ))
     }
 
     pub fn empty() -> Self {
-        Self::new(String::new(), None)
+        Self::new(Rope::new(""), None)
     }
 
     // Public getters/setters
@@ -285,7 +286,7 @@ impl Buffer {
         self.id
     }
 
-    pub fn contents(&self) -> &str {
+    pub fn contents(&self) -> &Rope {
         &self.contents
     }
 
@@ -323,9 +324,9 @@ impl Buffer {
     pub fn is_dirty(&self) -> bool {
         match &self.file_data {
             // If buffer is backed by file, return true if current contents don't match file contents
-            Some(f) => self.contents != f.contents,
+            Some(f) => self.contents.to_string() != f.contents,
             // Return true if the buffer isn't empty
-            None => !self.contents.trim().is_empty(),
+            None => !self.contents.to_string().trim().is_empty(),
         }
     }
 
@@ -337,12 +338,13 @@ impl Buffer {
             // returns an error if the buffer has no associated file
             .ok_or(BufferError::NoAssociatedFile)?;
 
-        let result = fs.write(&file.path, &self.contents);
+        let contents = self.contents.to_string();
+        let result = fs.write(&file.path, &contents);
 
         #[cfg(not(target_arch = "wasm32"))]
         result.map_err(BufferError::IoError)?;
 
-        file.contents = self.contents.clone();
+        file.contents = contents;
 
         Ok(())
     }
@@ -378,7 +380,7 @@ impl Buffer {
 
                 ui.add_sized(
                     size,
-                    egui::TextEdit::multiline(&mut self.contents)
+                    egui::TextEdit::multiline(&mut self.contents.to_string())
                         .code_editor()
                         .desired_width(f32::INFINITY)
                         .layouter(&mut |ui: &Ui, contents, wrap_width| {

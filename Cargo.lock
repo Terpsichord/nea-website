@@ -1214,6 +1214,10 @@ dependencies = [
 [[package]]
 name = "common"
 version = "0.1.0"
+dependencies = [
+ "egui",
+ "serde_derive",
+]
 
 [[package]]
 name = "concurrent-queue"
@@ -1513,6 +1517,7 @@ name = "editor"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
+ "common",
  "crossbeam-channel",
  "eframe",
  "egui",
