@@ -14,7 +14,6 @@ use crate::auth::crypto;
 pub enum AppError {
     #[error("received invalid auth")]
     InvalidAuth(InvalidAuthError),
-    // TODO: maybe merge this into `AuthFailed`
     #[error("github auth failed")]
     GithubAuth(GithubUserError),
     #[error("auth failed")]
