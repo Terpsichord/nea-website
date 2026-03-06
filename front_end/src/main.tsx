@@ -19,7 +19,10 @@ ReactDOM.createRoot(root).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
+        // always display the navbar at the top of the page for navigation
         <Navbar />
+
+        // maps each available route to the corresponding component
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/explore" element={<Explore />} />
