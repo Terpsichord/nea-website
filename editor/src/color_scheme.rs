@@ -9,9 +9,7 @@ use egui::{
 };
 use eyre::eyre;
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
 pub struct AvailableColorSchemes {
     pub schemes: Vec<(ColorScheme, PathBuf)>,
 }
@@ -42,7 +40,6 @@ impl Default for AvailableColorSchemes {
     }
 }
 
-#[derive(Serialize, Deserialize)]
 pub struct ColorScheme {
     name: String,
     // 16 24-bit colors

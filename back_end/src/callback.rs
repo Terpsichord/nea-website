@@ -28,9 +28,7 @@ pub async fn github_callback(
     let tokens = client
         .get_tokens(TokenRequestType::Callback { code })
         .await?;
-
-    // TODO: cache each refresh token's `expires_in` to avoid making a request with an already expired refresh token
-
+        
     let WithTokens(user, _) = client.get_user(&tokens.access_unencrypted, None).await?;
 
     db.add_user(&user).await?;

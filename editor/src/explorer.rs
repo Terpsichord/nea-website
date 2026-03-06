@@ -8,8 +8,6 @@ use eyre::WrapErr;
 
 use crate::platform::{FileSystem, FileSystemTrait as _};
 
-// FIXME
-// #[derive(Serialize, Deserialize, Debug)]
 #[derive(Debug)]
 pub enum TreeNode {
     UnexploredDir {
@@ -22,9 +20,6 @@ pub enum TreeNode {
     File {
         path: PathBuf,
     },
-    // NewFile {
-    //     name: String,
-    // },
 }
 
 impl TreeNode {
@@ -131,7 +126,7 @@ impl TreeNode {
     }
     fn explore(&mut self, fs: &FileSystem) -> eyre::Result<()> {
         if let TreeNode::UnexploredDir { path } = self {
-            // TODO: only read children when the header is clicked
+
             let children = TreeNode::read_children(path, 1, fs)?;
             *self = TreeNode::ExploredDir {
                 path: std::mem::take(path),
@@ -230,8 +225,6 @@ pub struct ExplorerResponse {
     pub action: Option<ExplorerAction>,
 }
 
-// #[derive(Serialize, Deserialize, Debug)]
-// FIXME
 #[derive(Debug)]
 pub struct Explorer {
     pub root_node: TreeNode,
