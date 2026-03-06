@@ -29,9 +29,6 @@ pub enum AppError {
     Unauthorized,
     #[error("project already exists")]
     ProjectExists,
-    // try to avoid using this
-    // generally prefer creating a new variant instead
-    // TODO: remove this probably
     #[error("{0}")]
     Other(anyhow::Error),
 }
@@ -39,9 +36,6 @@ pub enum AppError {
 #[derive(Debug, Deserialize)]
 pub struct GithubUserError {
     pub message: String,
-    // TODO: probably remove these fields
-    // pub documentation_url: String,
-    // pub status: String,
 }
 
 #[derive(Debug, thiserror::Error)]
