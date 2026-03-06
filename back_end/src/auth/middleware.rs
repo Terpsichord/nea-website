@@ -71,8 +71,6 @@ pub async fn redirect_auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    // TODO: probably shouldn't return AppError on a public route (/editor)
-
     match get_auth_user(token_cache, client, &jar).await? {
         Some(WithTokens(user, tokens)) => {
             req.extensions_mut().insert(user);
