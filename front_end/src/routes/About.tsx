@@ -1,3 +1,4 @@
+// TODO: remove this file and the whole About route before copying code to NEA [MAIN]
 function About() {
     return (
         <div className="container mx-auto">

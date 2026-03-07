@@ -59,7 +59,7 @@ impl WebSocketHandler {
                     };
 
                     let _ = ws
-                        .send(Message::Binary(msg.encode().expect("TODO").into()))
+                        .send(Message::Binary(msg.encode().expect("failed to the encode the ws message").into()))
                         .await;
                 }
                 Ok(Message::Text(_)) => warn!("received text on websocket"),

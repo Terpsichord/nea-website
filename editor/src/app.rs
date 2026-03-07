@@ -20,7 +20,6 @@ use egui_extras::syntax_highlighting;
 #[cfg(not(target_arch = "wasm32"))]
 use egui_term::{TerminalBackend, TerminalView};
 use eyre::OptionExt;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use ws_messages::EditorSettings;
 
@@ -40,7 +39,7 @@ macro_rules! dbg_frame {
     }};
 }
 
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Debug)]
 pub enum ModalAction {
     OpenFile,
     OpenFolder,
@@ -55,7 +54,7 @@ enum SaveError {
 }
 
 /// The current state of the save modal
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug)]
 enum SaveModalState {
     /// Open (saves all files on "Save")
     SaveAllOpen,
@@ -78,52 +77,43 @@ struct SearchModalState {
     search_results: Vec<SearchResult>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug)]
 enum BottomPanelState {
     Output,
     Terminal,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct App {
     editor_settings: EditorSettings,
-    #[serde(skip)] // FIXME
     project: Option<platform::Project>,
-    #[serde(skip)]
     fs: platform::FileSystem,
-    #[serde(skip)]
     runner: platform::Runner,
     buffers: Buffers,
     code_theme: syntax_highlighting::CodeTheme,
     style: Option<Style>,
     available_color_schemes: AvailableColorSchemes,
     /// [`Explorer`] side panel
-    #[serde(skip)] // FIXME
     explorer: Option<Explorer>,
     bottom_panel_state: Option<BottomPanelState>,
     /// Contents of the output panel
     /// This must be wrapped in an `Arc<Mutex<_>>` so that it can be shared to and modified across threads, including the `running_command` thread.
     output: Arc<Mutex<String>>,
-    #[serde(skip)]
     #[cfg(not(target_arch = "wasm32"))]
     terminal: Option<TerminalBackend>,
-    #[serde(skip)]
     error_message: Option<String>,
     /// Current state of the save modal, as described in [`SaveModalState`]
-    #[serde(skip)]
     save_modal_state: SaveModalState,
-    #[serde(skip)]
+    /// State of the settings modal
     settings_modal_state: Option<EditorSettings>,
-    // TODO: document
-    #[serde(skip)]
+    /// Current state of the modal for search and replace
     search_modal_state: Option<SearchModalState>,
     /// Action to be completed once the current modal is closed.
-    #[serde(skip)]
     modal_action: Option<ModalAction>,
-    #[serde(skip)]
+    /// Whether unsaved changes should be ignored when closing the editor
     ignore_dirty: bool,
+    /// Handle to the backend when in the web editor
     #[cfg(target_arch = "wasm32")]
-    #[serde(skip)]
     backend_handle: platform::BackendHandle,
 }
 
@@ -137,15 +127,6 @@ impl eframe::App for App {
             self.modal_action = Some(ModalAction::Close);
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
         }
-
-        // TODO: remove
-        // if self.style.is_none()
-        //     && let Ok(scheme) =
-        //         ColorScheme::read_from_yaml(Path::new("color_schemes/catpuccin.yml"))
-        // {
-        //     let style = scheme.to_style();
-        //     self.style = Some(style);
-        // }
 
         TopBottomPanel::top("top_menu_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -306,7 +287,6 @@ impl App {
 
     fn menu_bar(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         MenuBar::new().ui(ui, |ui| {
-            // TODO: clean up and properly organise this and all the other random cfg target_arch's
             ui.menu_button("File", |ui| {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
@@ -328,9 +308,7 @@ impl App {
                         .clicked()
                     {
                         match self.save_file() {
-                            Err(SaveError::NoBufferSelected) => {
-                                panic!("tried to save file when no buffer selected")
-                            } // TODO: probably change this to show an error message to the user like "Failed to save file"
+                            Err(SaveError::NoBufferSelected) => self.error_message = Some("Failed to save file".into()),
                             Ok(_) | Err(SaveError::NoFileSelected) => {} // do nothing if the user doesn't selected a file to save to
                         }
                     }
@@ -482,7 +460,7 @@ impl App {
         }
     }
 
-    // TODO: doc comment
+    // ODO: doc commentT
     ///
     /// Returns `true` if the save was completed.
     #[cfg(not(target_arch = "wasm32"))]
@@ -537,7 +515,6 @@ impl App {
             if let Err(BufferError::NoAssociatedFile) = buffer.save(&self.fs) {
                 self.buffers.select(id);
                 // if no file is selected, ignore it and continue saving all
-                // TODO: make it so the ui updates (to show which tab is selected) in between individual calls to `save_as`
                 let _ = self.save_as();
             }
         }
@@ -839,8 +816,6 @@ impl App {
 
         self.bottom_panel_state = Some(BottomPanelState::Output);
 
-        // TODO: don't show missing/invalid run command errors as modals that take up the whole screen
-
         // TODO: maybe gray out the run button if this is the case
         let project = self.project.as_mut().ok_or_eyre("No project open")?;
 
@@ -865,9 +840,8 @@ impl App {
                     let path = contents.path().clone();
                     self.fs.cache(contents);
                     log::info!("opened project: {}", path.display());
-                    self.explorer = Some(
-                        Explorer::new(path, &self.fs).expect("TODO: i think(?) this never fails"),
-                    );
+
+                    self.explorer = Some(Explorer::new(path, &self.fs).unwrap());
                 }
                 (ReadSettings { action }, ProjectSettings { contents }) => {
                     if contents.is_empty() {
