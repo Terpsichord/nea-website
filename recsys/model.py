@@ -5,9 +5,9 @@ from item import ItemTower
 
 
 class TwinTowerModel:
-    def __init__(self, num_users, num_items, emb_dim=64, hidden_layer_sizes=(64,)):
+    def __init__(self, num_users, num_items, num_tags, emb_dim=64, hidden_layer_sizes=(64,)):
         self.user_tower = UserTower(num_users, emb_dim, hidden_layer_sizes)
-        self.item_tower = ItemTower(num_items, emb_dim, 20, 16, 16, hidden_layer_sizes)
+        self.item_tower = ItemTower(num_items, emb_dim, num_tags, 16, 16, hidden_layer_sizes)
         self.item_matrix = None
 
     def precompute_item_matrix(self, item_records):

@@ -238,7 +238,11 @@ impl EditorSessionManager {
             image: Some(image),
             // enable tty to allow an interactive terminal on the frontend
             tty: Some(true),
+            // TODO: docs
             host_config: Some(HostConfig {
+                // ensures that the root fs cannot be modified
+                readonly_rootfs: Some(true),
+                network_mode: Some("none".into()),
                 // runsc is the runtime needed to use gVisor
                 runtime: Some("runsc".into()),
                 auto_remove: Some(true),

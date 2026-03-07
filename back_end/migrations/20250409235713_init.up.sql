@@ -81,7 +81,7 @@ CREATE TABLE interactions (
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     project_id INT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     type VARCHAR(16),
-    time TIMESTAMPTZ
+    time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE rec_categories (

@@ -1513,7 +1513,6 @@ name = "editor"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
- "common",
  "crossbeam-channel",
  "eframe",
  "egui",

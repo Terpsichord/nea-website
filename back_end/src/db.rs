@@ -80,6 +80,12 @@ impl DatabaseConnector {
         Ok(())
     }
 
+    pub async fn get_user_id(&self, github_id: i32) -> sqlx::Result<i32> {
+        sqlx::query_scalar!("SELECT id FROM users WHERE github_id = $1", github_id)
+            .fetch_one(&self.0)
+            .await
+    }
+
     pub async fn add_project(&self, project: &NewProject) -> sqlx::Result<()> {
         let id: i32 = sqlx::query_scalar!(
             r#"

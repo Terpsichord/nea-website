@@ -87,6 +87,19 @@ function ProjectPage() {
         } else {
             setLikeCount(likeCount + 1);
             fetchApi(`/project/${params.username}/${params.id}/like`, { method: "POST" });
+
+            // record a "like" interaction
+            fetchApi("/interaction", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    project_user: params.username,
+                    project_repo: params.id,
+                    type: "like"
+                }),
+            });
         }
 
         setLiked(!liked);

@@ -501,10 +501,10 @@ impl App {
             Some(FileData { path: old_path, .. }) => {
                 if &path != old_path {
                     self.buffers.add(Buffer::new(
-                        buffer.contents().clone(),
+                        buffer.contents().into(),
                         Some(FileData {
                             path,
-                            contents: buffer.contents().to_string(),
+                            contents: buffer.contents().into(),
                         }),
                     ));
                 }
@@ -513,7 +513,7 @@ impl App {
                 let buffer = self.buffers.current_buffer_mut().unwrap();
                 buffer.set_file_data(FileData {
                     path,
-                    contents: buffer.contents().to_string(),
+                    contents: buffer.contents().into(),
                 });
             }
         }
@@ -671,7 +671,7 @@ impl App {
         #[cfg(not(target_arch = "wasm32"))]
         match action {
             ModalAction::OpenFile => self.open_file_dialog(),
-            ModalAction::OpenFolder => self.open_folder(&ctx),
+            ModalAction::OpenFolder => self.open_folder(ctx),
             ModalAction::DeleteBuffer(id) => self.buffers.delete_buffer(id),
             ModalAction::Close => {
                 self.ignore_dirty = true;
