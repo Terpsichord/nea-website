@@ -14,7 +14,6 @@ use crate::auth::crypto;
 pub enum AppError {
     #[error("received invalid auth")]
     InvalidAuth(InvalidAuthError),
-    // TODO: maybe merge this into `AuthFailed`
     #[error("github auth failed")]
     GithubAuth(GithubUserError),
     #[error("auth failed")]
@@ -29,9 +28,6 @@ pub enum AppError {
     Unauthorized,
     #[error("project already exists")]
     ProjectExists,
-    // try to avoid using this
-    // generally prefer creating a new variant instead
-    // TODO: remove this probably
     #[error("{0}")]
     Other(anyhow::Error),
 }
@@ -39,9 +35,6 @@ pub enum AppError {
 #[derive(Debug, Deserialize)]
 pub struct GithubUserError {
     pub message: String,
-    // TODO: probably remove these fields
-    // pub documentation_url: String,
-    // pub status: String,
 }
 
 #[derive(Debug, thiserror::Error)]

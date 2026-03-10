@@ -6,25 +6,13 @@ import os
 from dotenv import load_dotenv
 from urllib.parse import urlsplit
 from model import TwinTowerModel
+from item import LANGUAGE_LIST
 
 load_dotenv()
 DB_URL = os.getenv("DATABASE_URL")
 
-LANGUAGE_LIST = [
-    "py",
-    "js",
-    "ts",
-    "rs",
-    "c",
-    "cpp",
-    "cs",
-    "sh",
-    "java",
-]
-
 def fetch_data():
     params = urlsplit(DB_URL)
-    print(params)
     conn = psycopg2.connect(
         database = params.path[1:],
         user = params.username,
@@ -51,6 +39,7 @@ def fetch_data():
         if row[2]:
             tags.update(row[2])
 
+    num_tags = len(tags)
     tag_to_idx = {tag: i for i, tag in enumerate(tags)}
 
     item_records = []
@@ -60,7 +49,7 @@ def fetch_data():
             {
                 "item_id": project_to_idx[row[0]],
                 "tag_ids": tag_ids,
-                "language_id": row[1] if row[1] else 0,
+                "language_id": LANGUAGE_LIST.index(row[1]),
             }
         )
 
@@ -69,21 +58,24 @@ def fetch_data():
         """
         SELECT user_id, project_id
         FROM interactions
-        WHERE type IN ('view', 'like')
+        WHERE type IN ('click', 'like', 'comment')
         """
     )
     interactions = cur.fetchall()
 
     # group by user for history
     user_histories = {}
-    print(interactions)
     for u_id, p_id in interactions:
         if p_id in project_to_idx:
             user_histories.setdefault(u_id, []).append(project_to_idx[p_id])
 
+    # get numer of users
+    cur.execute("SELECT COUNT(DISTINCT id) FROM users")
+    num_users = cur.fetchone()[0]
+
     cur.close()
     conn.close()
-    return item_records, user_histories, project_to_idx, idx_to_project
+    return item_records, user_histories, num_users, num_tags, project_to_idx, idx_to_project
 
 
 def create_batches(user_histories, item_records, project_to_idx, batch_size=32):
@@ -122,16 +114,16 @@ def create_batches(user_histories, item_records, project_to_idx, batch_size=32):
 
 if __name__ == "__main__":
     print("Fetching data from Postgres...")
-    items, histories, p_to_idx, idx_to_p = fetch_data()
+    items, histories, num_users, num_tags, p_to_idx, idx_to_p = fetch_data()
 
-    model = TwinTowerModel(num_users=max(histories.keys()) + 1, num_items=len(items))
+    model = TwinTowerModel(num_users=num_users, num_items=len(items), num_tags=num_tags)
     model.precompute_item_matrix(items)
 
     print("Generating training batches...")
     batches = create_batches(histories, items, p_to_idx)
 
     print("Training...")
-    model.train(batches, epochs=10, lr=0.01)
+    model.train(batches, epochs=50, lr=0.01)
 
     payload = {"model": model, "idx_to_project": idx_to_p, "project_to_idx": p_to_idx}
     with open("recommender.pkl", "wb") as f:

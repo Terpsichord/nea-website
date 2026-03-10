@@ -1,6 +1,6 @@
 use crate::{
     buffer::{Buffer, BufferError, Buffers, FileData},
-    color_scheme::{AvailableColorSchemes, ColorScheme},
+    color_scheme::AvailableColorSchemes,
     explorer::{Explorer, ExplorerAction},
     platform::{self, FileSystemTrait as _, RunnerTrait as _, SearchResult},
 };
@@ -20,9 +20,8 @@ use egui_extras::syntax_highlighting;
 #[cfg(not(target_arch = "wasm32"))]
 use egui_term::{TerminalBackend, TerminalView};
 use eyre::OptionExt;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use ws_messages::EditorSettings;
+use ws_messages::{ColorScheme, EditorSettings};
 
 #[macro_export]
 macro_rules! dbg_frame {
@@ -40,7 +39,7 @@ macro_rules! dbg_frame {
     }};
 }
 
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Debug)]
 pub enum ModalAction {
     OpenFile,
     OpenFolder,
@@ -55,7 +54,7 @@ enum SaveError {
 }
 
 /// The current state of the save modal
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug)]
 enum SaveModalState {
     /// Open (saves all files on "Save")
     SaveAllOpen,
@@ -78,52 +77,43 @@ struct SearchModalState {
     search_results: Vec<SearchResult>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug)]
 enum BottomPanelState {
     Output,
     Terminal,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct App {
     editor_settings: EditorSettings,
-    #[serde(skip)] // FIXME
     project: Option<platform::Project>,
-    #[serde(skip)]
     fs: platform::FileSystem,
-    #[serde(skip)]
     runner: platform::Runner,
     buffers: Buffers,
     code_theme: syntax_highlighting::CodeTheme,
     style: Option<Style>,
     available_color_schemes: AvailableColorSchemes,
     /// [`Explorer`] side panel
-    #[serde(skip)] // FIXME
     explorer: Option<Explorer>,
     bottom_panel_state: Option<BottomPanelState>,
     /// Contents of the output panel
     /// This must be wrapped in an `Arc<Mutex<_>>` so that it can be shared to and modified across threads, including the `running_command` thread.
     output: Arc<Mutex<String>>,
-    #[serde(skip)]
     #[cfg(not(target_arch = "wasm32"))]
     terminal: Option<TerminalBackend>,
-    #[serde(skip)]
     error_message: Option<String>,
     /// Current state of the save modal, as described in [`SaveModalState`]
-    #[serde(skip)]
     save_modal_state: SaveModalState,
-    #[serde(skip)]
+    /// State of the settings modal
     settings_modal_state: Option<EditorSettings>,
-    // TODO: document
-    #[serde(skip)]
+    /// Current state of the modal for search and replace
     search_modal_state: Option<SearchModalState>,
     /// Action to be completed once the current modal is closed.
-    #[serde(skip)]
     modal_action: Option<ModalAction>,
-    #[serde(skip)]
+    /// Whether unsaved changes should be ignored when closing the editor
     ignore_dirty: bool,
+    /// Handle to the backend when in the web editor
     #[cfg(target_arch = "wasm32")]
-    #[serde(skip)]
     backend_handle: platform::BackendHandle,
 }
 
@@ -141,15 +131,6 @@ impl eframe::App for App {
             self.modal_action = Some(ModalAction::Close);
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
         }
-
-        // TODO: remove
-        // if self.style.is_none()
-        //     && let Ok(scheme) =
-        //         ColorScheme::read_from_yaml(Path::new("color_schemes/catpuccin.yml"))
-        // {
-        //     let style = scheme.to_style();
-        //     self.style = Some(style);
-        // }
 
         // display menu bar
         TopBottomPanel::top("top_menu_panel").show(ctx, |ui| {
@@ -315,7 +296,6 @@ impl App {
     // displays the menu bar at the top of the screen
     fn menu_bar(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         MenuBar::new().ui(ui, |ui| {
-            // TODO: clean up and properly organise this and all the other random cfg target_arch's
             ui.menu_button("File", |ui| {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
@@ -329,6 +309,29 @@ impl App {
                     if ui.button("Open folder").clicked() {
                         self.open_folder(ctx);
                     }
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        ui.separator();
+
+                        // Enable search and replace if there is a currently open project
+                        if ui
+                            .add_enabled(self.project.is_some(), Button::new("Search"))
+                            .clicked()
+                        {
+                            self.search_modal_state = Some(SearchModalState::default());
+                        }
+                        if ui
+                            .add_enabled(self.project.is_some(), Button::new("Replace"))
+                            .clicked()
+                        {
+                            self.search_modal_state = Some(SearchModalState {
+                                is_replace: true,
+                                ..Default::default()
+                            });
+                        }
+                    }
+
                     ui.separator();
 
                     // only show "Save file"/"Save as..." if there is a currently selected buffer
@@ -339,8 +342,8 @@ impl App {
                     {
                         match self.save_file() {
                             Err(SaveError::NoBufferSelected) => {
-                                panic!("tried to save file when no buffer selected")
-                            } // TODO: probably change this to show an error message to the user like "Failed to save file"
+                                self.error_message = Some("Failed to save file".into())
+                            }
                             Ok(_) | Err(SaveError::NoFileSelected) => {} // do nothing if the user doesn't selected a file to save to
                         }
                     }
@@ -370,34 +373,8 @@ impl App {
                 }
             });
             ui.menu_button("Edit", |ui| {
-                if ui.button("Undo").clicked() {
-                    todo!("undo");
-                }
-                if ui.button("Redo").clicked() {
-                    todo!("redo");
-                }
-                ui.separator();
-
-                // Enable search and replace if there is a currently open project
-                if ui
-                    .add_enabled(self.project.is_some(), Button::new("Search"))
-                    .clicked()
-                {
-                    self.search_modal_state = Some(SearchModalState::default());
-                }
-                if ui
-                    .add_enabled(self.project.is_some(), Button::new("Replace"))
-                    .clicked()
-                {
-                    self.search_modal_state = Some(SearchModalState {
-                        is_replace: true,
-                        ..Default::default()
-                    });
-                }
-                ui.separator();
-
-                // open the settings modal if Settings is clicked
-                if ui.button("Settings").clicked() {
+              // open the settings modal if Settings is clicked
+              if ui.button("Settings").clicked() {
                     self.settings_modal_state = Some(EditorSettings::default());
                 }
             });
@@ -434,16 +411,12 @@ impl App {
                 }
             });
             ui.menu_button("Help", |_ui| {});
-            
+
             #[cfg(target_arch = "wasm32")]
             if ui.button("Quit").clicked() {
                 // TODO: confirmation (also for when tab is closed)
                 // suggest git committing
-                web_sys::window()
-                    .unwrap()
-                    .location()
-                    .set_href("/")
-                    .unwrap();
+                web_sys::window().unwrap().location().set_href("/").unwrap();
             }
 
             self.running_buttons(ui);
@@ -522,10 +495,10 @@ impl App {
             Some(FileData { path: old_path, .. }) => {
                 if &path != old_path {
                     self.buffers.add(Buffer::new(
-                        buffer.contents().clone(),
+                        buffer.contents().into(),
                         Some(FileData {
                             path,
-                            contents: buffer.contents().to_string(),
+                            contents: buffer.contents().into(),
                         }),
                     ));
                 }
@@ -534,7 +507,7 @@ impl App {
                 let buffer = self.buffers.current_buffer_mut().unwrap();
                 buffer.set_file_data(FileData {
                     path,
-                    contents: buffer.contents().to_string(),
+                    contents: buffer.contents().into(),
                 });
             }
         }
@@ -560,7 +533,6 @@ impl App {
             if let Err(BufferError::NoAssociatedFile) = buffer.save(&self.fs) {
                 self.buffers.select(id);
                 // if no file is selected, ignore it and continue saving all
-                // TODO: make it so the ui updates (to show which tab is selected) in between individual calls to `save_as`
                 let _ = self.save_as();
             }
         }
@@ -697,11 +669,9 @@ impl App {
         }
     }
 
-    // sets the color scheme of the editor, from a given YAML file storing the scheme
-    fn set_color_scheme(&mut self, ctx: &egui::Context, scheme_path: &Path) {
-        if let Ok(scheme) = ColorScheme::read_from_yaml(scheme_path) {
-            ctx.set_style(scheme.to_style());
-        }
+    // sets the color scheme of the editor
+    fn set_color_scheme(&mut self, ctx: &egui::Context, scheme: &ColorScheme) {
+        ctx.set_style(AvailableColorSchemes::scheme_to_style(scheme));
     }
 
     // Resume the action that was being performed before a modal was displayed
@@ -715,7 +685,7 @@ impl App {
         #[cfg(not(target_arch = "wasm32"))]
         match action {
             ModalAction::OpenFile => self.open_file_dialog(),
-            ModalAction::OpenFolder => self.open_folder(&ctx),
+            ModalAction::OpenFolder => self.open_folder(ctx),
             ModalAction::DeleteBuffer(id) => self.buffers.delete_buffer(id),
             ModalAction::Close => {
                 self.ignore_dirty = true;
@@ -763,11 +733,15 @@ impl App {
 
             ui.label("Settings");
 
+            
+            ui.checkbox(&mut settings_state.auto_save, "Auto-save");
+            ui.checkbox(&mut settings_state.format_on_save, "Format on save");
+            
             // color schemes
             ComboBox::from_label("Color Scheme")
                 .selected_text(settings_state.color_scheme.clone().unwrap_or_default())
                 .show_ui(ui, |ui| {
-                    for (scheme, _) in self.available_color_schemes.schemes.iter() {
+                    for scheme in self.available_color_schemes.schemes.iter() {
                         ui.selectable_value(
                             &mut settings_state.color_scheme,
                             Some(scheme.name().to_string()),
@@ -786,16 +760,25 @@ impl App {
         });
 
         if updated {
-            // update the color scheme to the new selection
-            if let Some(scheme) = &self.settings_modal_state.as_ref().unwrap().color_scheme {
-                let (_, path) = self.available_color_schemes.get_scheme(scheme).unwrap();
-                self.set_color_scheme(ctx, &path.clone());
-            }
-
-            // TODO: update other settings i think
-
-            self.settings_modal_state = None;
+            self.update_settings(ctx);
         }
+    }
+
+    fn update_settings(&mut self, ctx: &egui::Context) {
+        let settings = self.settings_modal_state.take().unwrap();
+
+        if let Some(scheme) = &settings.color_scheme {
+            let scheme = self.available_color_schemes.get_scheme(scheme).unwrap();
+            self.set_color_scheme(ctx, &scheme.clone());
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        self.backend_handle
+            .send(ws_messages::Command::UpdateSettings {
+                settings: settings.clone(),
+            });
+
+        self.editor_settings = settings;
     }
 
     // show modal which allows the user to perform search and replace
@@ -897,8 +880,6 @@ impl App {
 
         self.bottom_panel_state = Some(BottomPanelState::Output);
 
-        // TODO: don't show missing/invalid run command errors as modals that take up the whole screen
-
         // TODO: maybe gray out the run button if this is the case
         let project = self.project.as_mut().ok_or_eyre("No project open")?;
 
@@ -929,9 +910,8 @@ impl App {
                     let path = contents.path().clone();
                     self.fs.cache(contents);
                     log::info!("opened project: {}", path.display());
-                    self.explorer = Some(
-                        Explorer::new(path, &self.fs).expect("TODO: i think(?) this never fails"),
-                    );
+
+                    self.explorer = Some(Explorer::new(path, &self.fs).unwrap());
                 }
                 (ReadSettings { action }, ProjectSettings { contents }) => {
                     if contents.is_empty() {
@@ -948,6 +928,11 @@ impl App {
                     self.runner.run_action(&settings, action);
                     self.project.as_mut().unwrap().set_settings(settings);
                 }
+                (ColorSchemes, AvailableSchemes { color_schemes }) => {
+                    self.available_color_schemes = AvailableColorSchemes {
+                        schemes: color_schemes,
+                    };
+                }
                 (ReadFile { path }, FileContents { contents }) => self.buffers.add(Buffer::new(
                     contents.clone(),
                     Some(FileData {
@@ -956,14 +941,11 @@ impl App {
                     }),
                 )),
                 (ReadDir { path }, DirContents { contents_paths }) => {}
-                (Rename { from, to }, Success) => {}
-                (WriteFile { path, contents }, Success) => {}
-                (Delete { path }, Success) => {}
                 (Run { .. }, Output { output }) => {
                     self.runner.set_finished();
                     self.output.lock().unwrap().push_str(&output);
                 }
-                (StopRunning, Success) => {}
+                (_, Success) => {}
                 // the server sent an invalid response to the RPC call
                 _ => {
                     panic!("FIXME: error handle here or something")

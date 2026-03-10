@@ -59,7 +59,7 @@ impl WebSocketHandler {
                     };
 
                     let _ = ws
-                        .send(Message::Binary(msg.encode().expect("TODO").into()))
+                        .send(Message::Binary(msg.encode().expect("failed to the encode the ws message").into()))
                         .await;
                 }
                 Ok(Message::Text(_)) => warn!("received text on websocket"),
@@ -89,6 +89,7 @@ impl WebSocketHandler {
             Command::OpenProject                    => self.open_project().await?,
             Command::UpdateSettings { settings }    => self.update_settings(settings).await?,
             Command::ReadSettings { .. }            => self.read_settings().await?,
+            Command::ColorSchemes                   => self.color_schemes().await?,
             Command::Run { command }                => self.run(&command).await?,
             Command::ReadFile { path }              => self.read_file(&path).await?,
             Command::ReadDir { path }               => self.read_dir(&path).await?,
@@ -241,6 +242,12 @@ impl WebSocketHandler {
         Ok(ws_messages::Response::ProjectSettings { contents })
     }
 
+    async fn color_schemes(&self) -> anyhow::Result<ws_messages::Response> {
+        let color_schemes = self.db.get_color_schemes().await?;
+        
+        Ok(ws_messages::Response::AvailableSchemes { color_schemes })
+    }
+   
     async fn run(&mut self, cmd: &str) -> Result<ws_messages::Response, bollard::errors::Error> {
         let (output, pid) = self
             .exec_docker_with(vec!["sh", "-c", cmd], None, true)

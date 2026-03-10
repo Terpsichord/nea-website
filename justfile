@@ -14,4 +14,4 @@ run-editor: build-editor run
 full-run: build-npm build-editor run
 
 editor:
-    cd editor && cargo run --target x86_64-pc-windows-gnu --features native
+    cd editor && cargo run --target x86_64-pc-windows-gnu --features native --release

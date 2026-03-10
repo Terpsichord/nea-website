@@ -64,6 +64,8 @@ impl<K: Eq + Hash + Clone, V: Clone> HashMap<K, V> {
         self.capacity = new_capacity;
     }
 
+    // perform a linear probe to find an empty slot to insert the new entry
+    // or find the slot with the existing entry to update with the new value
     fn insert_in_entries(entries: &mut [Entry<K, V>], cap: usize, key: K, value: V) {
         let mut idx = Self::hash(&key);
         loop {
@@ -89,6 +91,7 @@ impl<K: Eq + Hash + Clone, V: Clone> HashMap<K, V> {
         self.size += 1;
     }
 
+    // perform a linear probe to find slot for given key and retrieve its value
     pub fn get(&self, key: &K) -> Option<&V> {
         let mut idx = Self::hash(key) % self.capacity;
         let start_idx = idx;

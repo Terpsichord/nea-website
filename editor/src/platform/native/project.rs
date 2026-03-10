@@ -3,11 +3,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde::{Deserialize, Serialize};
-
 use super::{ProjectSettings, ProjectSettingsError};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct Project {
     pub(super) path: PathBuf,
     pub(super) settings: Option<ProjectSettings>,

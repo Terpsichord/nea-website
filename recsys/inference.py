@@ -34,10 +34,12 @@ def run_recommendations(user_id, top_k):
 
     cur.execute("SELECT project_id FROM interactions WHERE user_id = %s", (user_id,))
     raw_history = [row[0] for row in cur.fetchall()]
+    print("raw history:", raw_history)
     # convert db project_ids to model indices
     mapped_history = [
         project_to_idx[pid] for pid in raw_history if pid in project_to_idx
     ]
+    print("mapped history:", mapped_history)
 
     # generate recommendations
     indices, scores = model.recommend(user_id, mapped_history, top_k=top_k)

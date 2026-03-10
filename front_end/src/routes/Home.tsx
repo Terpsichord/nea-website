@@ -7,6 +7,7 @@ function Home() {
 
   useEffect(() => setSignedOut(false), []);
 
+  // if the user is authenticated, redirect to Dashboard
   if (isAuth) {
     return <Dashboard />
   }

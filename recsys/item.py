@@ -1,5 +1,16 @@
 import numpy as np
 
+LANGUAGE_LIST = [
+    "py",
+    "js",
+    "ts",
+    "rs",
+    "c",
+    "cpp",
+    "cs",
+    "sh",
+    "java",
+]
 
 class ItemTower:
     def __init__(
@@ -15,7 +26,7 @@ class ItemTower:
 
         self.item_id_emb = Embedding(num_items, item_emb_dim)
         self.tag_emb = Embedding(num_tags, tag_emb_dim)
-        self.lang_emb = Embedding(10, lang_emb_dim)  # 0-9 for languages
+        self.lang_emb = Embedding(len(LANGUAGE_LIST), lang_emb_dim)  # 0-9 for languages
 
         self.feature_mlp = MLP(
             [tag_emb_dim + lang_emb_dim, *hidden_layer_sizes, item_emb_dim]
@@ -40,6 +51,8 @@ class ItemTower:
         return id_embs + feat_output
 
     def precompute_matrix(self, item_records):
+        from pprint import pprint
+        pprint(item_records)
         ids = [r["item_id"] for r in item_records]
         tags = [r["tag_ids"] for r in item_records]
         langs = [r["language_id"] for r in item_records]
