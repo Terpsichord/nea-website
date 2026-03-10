@@ -68,14 +68,15 @@ impl TokenHeaders {
 }
 
 pub trait ResponseTokenExt {
-    fn with_tokens(self, tokens: Option<TokenHeaders>) -> Self;
+    fn with_tokens(self, tokens: Option<Tokens>) -> Self;
 }
 
 impl<T> ResponseTokenExt for Response<T> {
-    fn with_tokens(mut self, tokens: Option<TokenHeaders>) -> Self {
+    fn with_tokens(mut self, tokens: Option<Tokens>) -> Self {
         if let Some(tokens) = tokens {
+            let headers = TokenHeaders::from(&tokens);
             self.headers_mut()
-                .extend([tokens.access_header, tokens.refresh_header]);
+                .extend([headers.access_header, headers.refresh_header]);
         }
         self
     }

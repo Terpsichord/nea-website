@@ -17,7 +17,7 @@ use walkdir::WalkDir;
 use crate::{
     AppState,
     api::{ProjectResponse, search},
-    auth::{middleware::{AuthUser, auth_middleware, optional_auth_middleware}, ResponseTokenExt},
+    auth::{ResponseTokenExt, TokenHeaders, middleware::{AuthUser, auth_middleware, optional_auth_middleware}},
     db::{DatabaseConnector, NewProject},
     editor::{session::EditorSessionManager, websocket::WebSocketHandler},
     error::AppError,
@@ -198,7 +198,7 @@ async fn new_project(
         lang,
         private,
     }): Json<NewProjectBody>,
-) -> Result<Json<NewProjectResponse>, AppError> {
+) -> Result<Response, AppError> {
     let mut access_token = &*access;
     let mut refresh_token = &*refresh;
 
@@ -400,7 +400,6 @@ async fn update_project(
 }
 
 #[instrument(skip(db, ws, session_mgr, access_token, refresh_token))]
-#[axum::debug_handler]
 async fn open_project(
     Path((username, repo_name)): Path<(String, String)>,
     State(AppState {

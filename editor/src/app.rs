@@ -13,8 +13,7 @@ use std::{
 
 use eframe::egui;
 use egui::{
-    Align, Button, CentralPanel, Color32, ComboBox, Grid, Id, Key, Layout, MenuBar, ScrollArea,
-    SidePanel, Style, TopBottomPanel, ViewportCommand, Visuals, containers::modal::Modal,
+    Align, Button, CentralPanel, Color32, ComboBox, Grid, Id, Key, KeyboardShortcut, Layout, MenuBar, Modifiers, RichText, ScrollArea, SidePanel, Style, TopBottomPanel, ViewportCommand, Visuals, containers::modal::Modal
 };
 use egui_extras::syntax_highlighting;
 #[cfg(not(target_arch = "wasm32"))]
@@ -108,6 +107,8 @@ pub struct App {
     settings_modal_state: Option<EditorSettings>,
     /// Current state of the modal for search and replace
     search_modal_state: Option<SearchModalState>,
+    /// Whether the help modal is currently shown
+    help_modal_shown: bool,
     /// Action to be completed once the current modal is closed.
     modal_action: Option<ModalAction>,
     /// Whether unsaved changes should be ignored when closing the editor
@@ -127,6 +128,8 @@ impl eframe::App for App {
             self.modal_action = Some(ModalAction::Close);
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
         }
+
+        self.handle_shortcuts(ctx);
 
         TopBottomPanel::top("top_menu_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -241,6 +244,10 @@ impl eframe::App for App {
             self.show_settings_modal(ctx);
         }
 
+        if self.help_modal_shown {
+            self.show_help_modal(ctx);
+        }
+
         #[cfg(not(target_arch = "wasm32"))]
         match self.save_modal_state {
             SaveModalState::SaveAllOpen => self.show_save_modal(ctx, true),
@@ -283,6 +290,118 @@ impl App {
             backend_handle,
             ..Self::default()
         }
+    }
+
+    fn handle_shortcuts(&mut self, ctx: &egui::Context) {
+        ctx.input_mut(|i| {
+            let allow_save = self.buffers.current_buffer().is_some();
+            // CTRL+SHIFT+S => Save as
+            if allow_save
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND | Modifiers::SHIFT,
+                    logical_key: Key::S,
+                })
+            {
+                let _ = self.save_as();
+            }
+            // CTRL+ALT+S => Save all
+            else if self.buffers.is_dirty()
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND | Modifiers::ALT,
+                    logical_key: Key::S,
+                })
+            {
+                self.save_all();
+            }
+            // CTRL+SHIFT+O => Open folder
+            else if i.consume_shortcut(&KeyboardShortcut {
+                modifiers: Modifiers::COMMAND | Modifiers::SHIFT,
+                logical_key: Key::O,
+            }) {
+                self.open_folder(ctx);
+            }
+            // CTRL+SHIFT+U => Toggle output
+            else if self.explorer.is_some()
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND | Modifiers::SHIFT,
+                    logical_key: Key::U,
+                })
+            {
+                self.bottom_panel_state = match self.bottom_panel_state {
+                    Some(BottomPanelState::Output) => None,
+                    _ => Some(BottomPanelState::Output),
+                };
+            }
+            // CTRL+S => Save file
+            else if allow_save
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND,
+                    logical_key: Key::S,
+                })
+            {
+                let _ = self.save_file();
+            }
+            // CTRL+O => Open file
+            else if i.consume_shortcut(&KeyboardShortcut {
+                modifiers: Modifiers::COMMAND,
+                logical_key: Key::O,
+            }) {
+                self.open_file_dialog();
+            }
+            // CTRL+N => New file
+            else if i.consume_shortcut(&KeyboardShortcut {
+                modifiers: Modifiers::COMMAND,
+                logical_key: Key::N,
+            }) {
+                self.buffers.add(Buffer::empty());
+            }
+            // CTRL+F => Search
+            else if self.project.is_some()
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND,
+                    logical_key: Key::F,
+                })
+            {
+                self.search_modal_state = Some(SearchModalState::default());
+            }
+            // CTRL+H => Replace
+            else if self.project.is_some()
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND,
+                    logical_key: Key::H,
+                })
+            {
+                self.search_modal_state = Some(SearchModalState {
+                    is_replace: true,
+                    ..Default::default()
+                });
+            }
+            // CTRL+, => Settings
+            else if i.consume_shortcut(&KeyboardShortcut {
+                modifiers: Modifiers::COMMAND,
+                logical_key: Key::Comma,
+            }) {
+                self.settings_modal_state = Some(EditorSettings::default());
+            }
+            // CTRL+` => Toggle terminal
+            else if self.explorer.is_some()
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND,
+                    logical_key: Key::Backtick,
+                })
+            {
+                self.bottom_panel_state = match self.bottom_panel_state {
+                    Some(BottomPanelState::Terminal) => None,
+                    _ => Some(BottomPanelState::Terminal),
+                };
+            }
+            // F5 => Run
+            else if i.consume_key(Modifiers::NONE, Key::F5)
+                && let Err(e) = self.run()
+            {
+                self.error_message = Some(e.to_string());
+            }
+        });
     }
 
     fn menu_bar(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
@@ -393,7 +512,11 @@ impl App {
                     }
                 }
             });
-            ui.menu_button("Help", |_ui| {});
+            ui.menu_button("Help", |ui| {
+                if ui.button("Help").clicked() {
+                    self.help_modal_shown = true;
+                }
+            });
 
             #[cfg(target_arch = "wasm32")]
             if ui.button("Quit").clicked() {
@@ -687,7 +810,7 @@ impl App {
             let settings_state = self.settings_modal_state.as_mut().unwrap();
 
             ui.label("Settings");
-            
+
             ui.checkbox(&mut settings_state.auto_save, "Auto-save");
             ui.checkbox(&mut settings_state.format_on_save, "Format on save");
 
@@ -814,6 +937,34 @@ impl App {
 
         if modal.should_close() {
             self.error_message = None;
+        }
+    }
+
+    fn show_help_modal(&mut self, ctx: &egui::Context) {
+        let modal = Modal::new(Id::new("help_modal")).show(ctx, |ui| {
+            ui.label("Help");
+
+            ui.separator();
+
+            ui.label(RichText::new("Keyboard shortcuts:").underline());
+            
+            ui.label("Ctrl + S: Save file\n\
+                Ctrl + Shift + S: Save as\n\
+                Ctrl + Alt + S: Save all\n\
+                Ctrl + N: New file\n\
+                Ctrl + O: Open file\n\
+                Ctrl + Shift + O: Open folder\n\
+                Ctrl + F: Search\n\
+                Ctrl + H: Replace\n\
+                Ctrl + ,: Settings\n\
+                Ctrl + `: Toggle terminal\n\
+                Ctrl + Shift + U: Toggle output\n\
+                F5: Run",
+            );
+        });
+
+        if modal.should_close() {
+            self.help_modal_shown = false;
         }
     }
 
