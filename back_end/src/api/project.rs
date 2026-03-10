@@ -205,10 +205,7 @@ async fn new_project(
     let mut access_token = &*access;
     let mut refresh_token = &*refresh;
 
-    let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE github_id = $1", github_id)
-        .fetch_one(&*db)
-        .await?;
-
+    let user_id = db.get_user_id(github_id).await?;
     if db.project_exists(user_id, &title).await? {
         return Err(AppError::ProjectExists);
     }
@@ -286,11 +283,9 @@ async fn remix_project(
     let project = db.get_project(&username, &repo_name, None, false).await?;
     info!("found project {}", project.info.title);
 
-    let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE github_id = $1", github_id)
-        .fetch_one(&*db)
-        .await?;
+    let user_id = db.get_user_id(github_id).await?;
     info!("user_id: {}", user_id);
-
+    
     if db.project_exists(user_id, &project.info.title).await? {
         return Err(AppError::ProjectExists);
     }
@@ -474,9 +469,7 @@ async fn github_save_project(
     }): Extension<AuthUser>,
 ) -> Result<(), AppError> {
     println!("saving project to github");
-    let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE github_id = $1", github_id)
-        .fetch_one(&*db)
-        .await?;
+    let user_id = db.get_user_id(github_id).await?;
     let session_handle = session_mgr.get_active_session(user_id).unwrap();
 
     let temp_dir = TempDir::new("ide-export").map_err(AppError::other)?;

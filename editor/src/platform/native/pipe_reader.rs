@@ -16,7 +16,6 @@ pub enum PipedLine {
     Eof,
 }
 
-// FIXME: output doesn't update after flush if the wasn't caused by a new line
 pub fn read_piped(
     mut stream: impl Read + Send + 'static,
 ) -> Receiver<Result<PipedLine, PipeError>> {

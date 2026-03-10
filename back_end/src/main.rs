@@ -35,8 +35,6 @@ mod lang;
 
 // Path to the compiled HTML/CSS/JS source files to serve when a request to the main front_end is receiveed
 const FRONT_PUBLIC: &str = "./front_end/dist";
-// todo: check where this used to be used (probs delete it)
-// const CLIENT_USER_AGENT: &str = "nea-website";
 // Registered name of the GitHub App for the website
 const GITHUB_APP_SLUG: &str = "nea-website";
 // Path to the compiled HTML/CSS/JS for the editor frontend
