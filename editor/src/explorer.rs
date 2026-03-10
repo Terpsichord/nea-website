@@ -8,8 +8,6 @@ use eyre::WrapErr;
 
 use crate::platform::{FileSystem, FileSystemTrait as _};
 
-// FIXME
-// #[derive(Serialize, Deserialize, Debug)]
 #[derive(Debug)]
 pub enum TreeNode {
     UnexploredDir {
@@ -22,9 +20,6 @@ pub enum TreeNode {
     File {
         path: PathBuf,
     },
-    // NewFile {
-    //     name: String,
-    // },
 }
 
 impl TreeNode {
@@ -34,7 +29,8 @@ impl TreeNode {
         Self::new_recursive(path, Self::INITIAL_DEPTH, fs)
     }
 
-    // TODO: post-order recursive tree traversal algorithm, i think
+    // performs a post-order recursive tree traversal over
+    // the directory to construct the Explorer view
     fn new_recursive(path: PathBuf, max_depth: usize, fs: &FileSystem) -> eyre::Result<Self> {
         Ok(if Self::path_is_file(&path) {
             TreeNode::File { path }
@@ -131,7 +127,7 @@ impl TreeNode {
     }
     fn explore(&mut self, fs: &FileSystem) -> eyre::Result<()> {
         if let TreeNode::UnexploredDir { path } = self {
-            // TODO: only read children when the header is clicked
+
             let children = TreeNode::read_children(path, 1, fs)?;
             *self = TreeNode::ExploredDir {
                 path: std::mem::take(path),
@@ -230,8 +226,6 @@ pub struct ExplorerResponse {
     pub action: Option<ExplorerAction>,
 }
 
-// #[derive(Serialize, Deserialize, Debug)]
-// FIXME
 #[derive(Debug)]
 pub struct Explorer {
     pub root_node: TreeNode,

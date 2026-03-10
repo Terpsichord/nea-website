@@ -14,7 +14,6 @@ use egui::{Response, RichText, ScrollArea, TextEdit, Ui};
 use egui_extras::syntax_highlighting::{self, CodeTheme};
 use eyre::{Context, eyre};
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use ws_messages::EditorSettings;
 
@@ -42,11 +41,10 @@ struct Rename {
     just_started: bool,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default)]
 pub struct Buffers {
     buffers: Vec<Buffer>,
     selected_id: Option<Uuid>,
-    #[serde(skip)]
     rename: Option<Rename>,
 }
 
@@ -240,14 +238,13 @@ impl Buffers {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 /// `Buffer` represents the data and operations of an individual buffer
 pub struct Buffer {
     /// A Universally Unique Identifier to identify each buffer
     id: Uuid,
     /// Text contents displayed to the user (including any unsaved changes)
     contents: String,
-    #[serde(skip)]
     /// Optional file data (`None` if the buffer is newly created, and not yet saved to a file)
     file_data: Option<FileData>,
 }

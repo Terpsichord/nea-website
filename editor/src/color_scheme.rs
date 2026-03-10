@@ -1,183 +1,118 @@
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-};
+use std::{fs::File, path::PathBuf};
+use itertools::Itertools;
+use ws_messages::ColorScheme;
 
 use egui::{
     Color32, Shadow, Stroke, Style, Visuals,
     style::{Selection, WidgetVisuals, Widgets},
 };
-use eyre::eyre;
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
 pub struct AvailableColorSchemes {
-    pub schemes: Vec<(ColorScheme, PathBuf)>,
+    pub schemes: Vec<ColorScheme>,
 }
 
 impl AvailableColorSchemes {
-    pub fn get_scheme(&self, name: &str) -> Option<&(ColorScheme, PathBuf)> {
+    pub fn get_scheme(&self, name: &str) -> Option<&ColorScheme> {
         // linear search through available color schemes
-        self.schemes.iter().find(|(scheme, _)| scheme.name == name)
-    }
-}
-
-impl Default for AvailableColorSchemes {
-    fn default() -> Self {
-        let mut schemes = Vec::new();
-
-        if let Ok(scheme_files) = std::fs::read_dir("color_schemes") {
-            schemes = scheme_files
-                .filter_map(|x| x.ok())
-                .map(|entry| {
-                    let path = entry.path();
-                    ColorScheme::read_from_yaml(&path).map(|s| (s, path))
-                })
-                .try_collect()
-                .unwrap_or_default();
-        }
-
-        Self { schemes }
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ColorScheme {
-    name: String,
-    // 16 24-bit colors
-    #[serde(skip)]
-    bases: [Color32; 16],
-}
-
-impl ColorScheme {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn read_from_yaml(path: &Path) -> eyre::Result<Self> {
-        let file = File::open(path)?;
-        let yaml: serde_yaml::Value = serde_yaml::from_reader(file)?;
-
-        let name = yaml["scheme"]
-            .as_str()
-            .ok_or(eyre!("invalid color scheme: missing name"))?
-            .to_string();
-
-        let mut scheme = Self {
-            name,
-            bases: [Color32::BLACK; 16],
-        };
-
-        for i in 0..16 {
-            let name = format!("base0{:X}", i);
-            let hex = yaml[name]
-                .as_str()
-                .ok_or(eyre!("invalid color scheme yaml"))?;
-
-            scheme.bases[i] = Color32::from_hex(&format!("#{hex}"))
-                .map_err(|_| eyre!("invalid color in yaml"))?;
-        }
-
-        Ok(scheme)
+       self.schemes.iter().find(|scheme| scheme.name() == name)
     }
 
     const SHADOW: Color32 = Color32::from_rgba_premultiplied(0, 0, 0, 96);
-
-    pub fn to_style(&self) -> Style {
+    
+    pub fn scheme_to_style(scheme: &ColorScheme) -> Style {
         let default = Visuals::default();
         Style {
             visuals: Visuals {
                 widgets: Widgets {
                     noninteractive: WidgetVisuals {
-                        bg_fill: self.bases[1],
-                        weak_bg_fill: self.bases[1],
+                        bg_fill: scheme.bases[1],
+                        weak_bg_fill: scheme.bases[1],
                         bg_stroke: Stroke {
-                            color: self.bases[2],
+                            color: scheme.bases[2],
                             ..default.widgets.noninteractive.bg_stroke
                         },
                         fg_stroke: Stroke {
-                            color: self.bases[5],
+                            color: scheme.bases[5],
                             ..default.widgets.noninteractive.fg_stroke
                         },
                         ..default.widgets.noninteractive
                     },
                     inactive: WidgetVisuals {
-                        bg_fill: self.bases[2],
-                        weak_bg_fill: self.bases[2],
+                        bg_fill: scheme.bases[2],
+                        weak_bg_fill: scheme.bases[2],
                         bg_stroke: Stroke {
                             color: Color32::TRANSPARENT,
                             ..default.widgets.inactive.bg_stroke
                         },
                         fg_stroke: Stroke {
-                            color: self.bases[5],
+                            color: scheme.bases[5],
                             ..default.widgets.inactive.fg_stroke
                         },
                         ..default.widgets.inactive
                     },
                     hovered: WidgetVisuals {
-                        bg_fill: self.bases[2],
-                        weak_bg_fill: self.bases[2],
+                        bg_fill: scheme.bases[2],
+                        weak_bg_fill: scheme.bases[2],
                         bg_stroke: Stroke {
-                            color: self.bases[3],
+                            color: scheme.bases[3],
                             ..default.widgets.hovered.bg_stroke
                         },
                         fg_stroke: Stroke {
-                            color: self.bases[6],
+                            color: scheme.bases[6],
                             ..default.widgets.hovered.fg_stroke
                         },
                         ..default.widgets.hovered
                     },
                     active: WidgetVisuals {
-                        bg_fill: self.bases[10],
-                        weak_bg_fill: self.bases[10],
+                        bg_fill: scheme.bases[10],
+                        weak_bg_fill: scheme.bases[10],
                         bg_stroke: Stroke {
-                            color: self.bases[7],
+                            color: scheme.bases[7],
                             ..default.widgets.active.bg_stroke
                         },
                         fg_stroke: Stroke {
-                            color: self.bases[7],
+                            color: scheme.bases[7],
                             ..default.widgets.active.fg_stroke
                         },
                         ..default.widgets.active
                     },
                     open: WidgetVisuals {
-                        bg_fill: self.bases[1],
-                        weak_bg_fill: self.bases[1],
+                        bg_fill: scheme.bases[1],
+                        weak_bg_fill: scheme.bases[1],
                         bg_stroke: Stroke {
-                            color: self.bases[2],
+                            color: scheme.bases[2],
                             ..default.widgets.open.bg_stroke
                         },
                         fg_stroke: Stroke {
-                            color: self.bases[6],
+                            color: scheme.bases[6],
                             ..default.widgets.open.fg_stroke
                         },
                         ..default.widgets.open
                     },
                 },
                 selection: Selection {
-                    bg_fill: self.bases[8],
+                    bg_fill: scheme.bases[8],
                     stroke: Stroke {
-                        color: self.bases[4],
+                        color: scheme.bases[4],
                         ..default.selection.stroke
                     },
                 },
-                hyperlink_color: self.bases[8],
+                hyperlink_color: scheme.bases[8],
                 faint_bg_color: Color32::TRANSPARENT,
-                extreme_bg_color: self.bases[0],
-                code_bg_color: self.bases[2],
-                warn_fg_color: self.bases[12],
-                error_fg_color: self.bases[11],
+                extreme_bg_color: scheme.bases[0],
+                code_bg_color: scheme.bases[2],
+                warn_fg_color: scheme.bases[12],
+                error_fg_color: scheme.bases[11],
                 window_shadow: Shadow {
                     color: Self::SHADOW,
                     ..default.window_shadow
                 },
-                window_fill: self.bases[1],
+                window_fill: scheme.bases[1],
                 window_stroke: Stroke {
-                    color: self.bases[2],
+                    color: scheme.bases[2],
                     ..default.window_stroke
                 },
-                panel_fill: self.bases[1],
+                panel_fill: scheme.bases[1],
                 popup_shadow: Shadow {
                     color: Self::SHADOW,
                     ..default.popup_shadow
@@ -186,5 +121,30 @@ impl ColorScheme {
             },
             ..Style::default()
         }
+    }
+}
+
+impl Default for AvailableColorSchemes {
+    #[cfg(not(target_arch = "wasm32"))]
+    fn default() -> Self {
+        let mut schemes = Vec::new();
+
+        if let Ok(scheme_files) = std::fs::read_dir("color_schemes") {
+            schemes = scheme_files
+                .filter_map(|x| x.ok())
+                .map(|entry| {
+                    let file = File::open(entry.path())?;
+                    ColorScheme::read_from_yaml(&file)
+                })
+                .try_collect()
+                .unwrap_or_default();
+        }
+
+        Self { schemes }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn default() -> Self {
+        Self { schemes: vec![] }
     }
 }

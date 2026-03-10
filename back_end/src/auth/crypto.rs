@@ -30,6 +30,7 @@ impl Default for Aes256Gcm {
 }
 
 impl Aes256Gcm {
+    // Encrypt the given 128-bit block using the AES cipher
     fn aes_encrypt(&self, block: u128) -> u128 {
         let cipher = Aes256::new(GenericArray::from_slice(&self.key));
         let mut bytes = GenericArray::clone_from_slice(&block.to_be_bytes());
@@ -39,11 +40,12 @@ impl Aes256Gcm {
         u128::from_be_bytes(bytes.into())
     }
 
+    // Returns the hash key, H = E_k(0)
     fn hash_key(&self) -> u128 {
         self.aes_encrypt(0)
     }
 
-    // increment only the lower 32 bits of a block (wrapping on overflow)
+    // Increment only the lower 32 bits of a block (wrapping on overflow)
     // ensures upper 96 bits (nonce) don't change
     const fn inc32(block: &mut u128) {
         let mut counter = (*block & 0xFFFF_FFFF) as u32;
@@ -57,10 +59,15 @@ impl Aes256Gcm {
         1u128 | (u128::from(iv) << 32)
     }
 
+    // Length of the number-used once in bytes
+    const NONCE_LEN: usize = 12;
+    // Length of the authentication tag in bytes
+    const TAG_LEN: usize = 16;
+    
     fn gctr(&self, mut counter: u128, plaintext: &[u8]) -> Vec<u8> {
         let mut output = Vec::with_capacity(plaintext.len());
 
-        for chunk in plaintext.chunks(16) {
+        for chunk in plaintext.chunks(Self::TAG_LEN) {
             Self::inc32(&mut counter);
 
             let key_stream = self.aes_encrypt(counter).to_be_bytes();
@@ -96,13 +103,13 @@ impl Aes256Gcm {
     // - XOR with data to be authenticated
     // - multiplication with hash key, H, in Galois Field, GF(2^128)
     //
-    // this ensures that all the data to be authenticated will contribute towards the final tag
+    // This ensures that all the data to be authenticated will contribute towards the final tag
     fn ghash(&self, ciphertext: &[u8]) -> u128 {
         let h = self.hash_key();
         let mut x = 0u128;
 
-        for chunk in ciphertext.chunks(16) {
-            let mut bytes = [0u8; 16];
+        for chunk in ciphertext.chunks(Self::TAG_LEN) {
+            let mut bytes = [0u8; Self::TAG_LEN];
             bytes[..chunk.len()].copy_from_slice(chunk);
             let block = u128::from_be_bytes(bytes);
 
@@ -115,6 +122,8 @@ impl Aes256Gcm {
         x
     }
 
+    // Encrypt plaintext, with the IV passed in separately,
+    // and return both the cipertext and authentication tag explicitly 
     fn encrypt_detached(&self, iv: U96, plaintext: &[u8]) -> (Vec<u8>, u128) {
         let j0 = Self::pre_counter_block(iv);
 
@@ -124,23 +133,25 @@ impl Aes256Gcm {
         // encrypt plaintext using AES in Counter Mode
         let ciphertext = self.gctr(counter, plaintext);
 
+        // compute the authneticationt tag
         let s = self.ghash(&ciphertext);
         let tag = s ^ self.aes_encrypt(j0);
 
         (ciphertext, tag)
     }
 
-    fn generate_nonce() -> U96 {
-        let mut bytes = [0u8; 12];
+    // Generate a random 96-bit integer for the nonce,
+    // using the cryptographically-secure RNG provided by the OS
+    fn generate_nonce() -> U96 {        
+        let mut bytes = [0u8; Self::NONCE_LEN];
         OsRng.try_fill_bytes(&mut bytes).unwrap();
 
         U96::from_be_bytes(bytes)
     }
 
-    const NONCE_LEN: usize = 12;
-    const TAG_LEN: usize = 16;
-
+    // Encrypt the plaintext into ciphertext, both as a string of bytes
     pub fn encrypt(plaintext: &[u8]) -> Vec<u8> {
+        // create a single buffer of bytes split into nonce, ciphertext, and tag
         let mut out = vec![0u8; Self::NONCE_LEN + plaintext.len() + Self::TAG_LEN];
 
         let (nonce_slice, remains) = out.split_at_mut(Self::NONCE_LEN);
@@ -157,10 +168,12 @@ impl Aes256Gcm {
         out
     }
 
+    // Encrypt the plaintext, outputting the ciphertext using Base64 encoding
     pub fn encrypt_base64(plaintext: &[u8]) -> String {
         BASE64_STANDARD.encode(Self::encrypt(plaintext))
     }
 
+    // Decrypt the ciphertext with the IV an tag passed in separately
     fn decrypt_detached(
         &self,
         iv: U96,
@@ -169,9 +182,12 @@ impl Aes256Gcm {
     ) -> Result<Vec<u8>, DecryptError> {
         let j0 = Self::pre_counter_block(iv);
 
+        // calculate the expected tag
         let s = self.ghash(ciphertext);
         let expected_tag = s ^ self.aes_encrypt(j0);
 
+        // If the actual tag doesn't match the calculated expected tag,
+        // then the data has been corrupted during transmission
         if expected_tag != tag {
             return Err(DecryptError::InvalidTag);
         }
@@ -184,7 +200,9 @@ impl Aes256Gcm {
         Ok(plaintext)
     }
 
+    // Decrypt the ciphertext bytes (incl. IV and tag) into plaintext
     pub fn decrypt(value: &[u8]) -> Result<Vec<u8>, DecryptError> {
+        // split the inputted bytes into IV, ciphertext, and tag
         let (nonce, remaining) = value
             .split_at_checked(Self::NONCE_LEN)
             .ok_or(DecryptError::InvalidMessage)?;

@@ -1,11 +1,8 @@
 use super::{BackendHandle, ProjectSettings, ProjectSettingsError};
 use eyre::WrapErr as _;
-use serde::{Deserialize, Serialize};
 use web_sys::WebSocket;
 use ws_messages::Command;
 
-// #[derive(Debug, Serialize, Deserialize)]
-// FIXME
 #[derive(Debug)]
 pub struct Project {
     username: String,
@@ -15,7 +12,7 @@ pub struct Project {
 }
 
 // TODO: i think remove this unless its used anywhere
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 struct ProjectInfo {
     github_url: String,
 }
@@ -29,6 +26,9 @@ impl Project {
             .wrap_err("failed to create websocket")?;
 
         handle.send(Command::OpenProject);
+        
+        // load available color schemes from server
+        handle.send(Command::ColorSchemes);
 
         Ok(Self {
             username,

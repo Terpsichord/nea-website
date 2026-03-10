@@ -5,10 +5,6 @@ use tokio::sync::Mutex;
 
 use crate::github::GithubUser;
 
-/// Period of time after which the access token expires
-//pub const ACCESS_EXPIRY: Duration = Duration::hours(8);
-// TODO: i think this was safe to remove (double check tho)
-
 #[derive(Clone, Debug)]
 struct Node<K, V> {
     key: Option<K>,

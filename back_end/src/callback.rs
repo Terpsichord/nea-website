@@ -31,8 +31,6 @@ pub async fn github_callback(
         .get_tokens(TokenRequestType::Callback { code })
         .await?;
 
-    // TODO: cache each refresh token's `expires_in` to avoid making a request with an already expired refresh token
-
     // get information about the user's GitHub account using the access token
     // (we don't pass a refresh token as the access token can't have already expired)
     let WithTokens(user, _) = client.get_user(&tokens.access_unencrypted, None).await?;

@@ -1,12 +1,33 @@
+import { useAuth } from '../auth';
 import { useNavigate } from "react-router";
 import { ProjectInfo } from "../types";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import Tag from "./Tag";
+import { fetchApi } from "../utils";
 
 function ProjectCard({ project }: { project: ProjectInfo }) {
+    const { isAuth } = useAuth();
     const navigate = useNavigate();
-    const goToProject = () => navigate(`/project/${project.username}/${project.repoName}`)
+    
+    async function goToProject() {
+        if (isAuth) {
+            // record a "click" interaction on the project
+            fetchApi("/interaction", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    project_user: project.username,
+                    project_repo: project.repoName,
+                    type: "click"
+                }),
+            });
+        }
+
+        navigate(`/project/${project.username}/${project.repoName}`);
+    }
 
     const readmeHtml = DOMPurify.sanitize(marked.parse(project.readme, { async: false }));
     return (
