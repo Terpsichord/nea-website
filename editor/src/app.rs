@@ -360,15 +360,6 @@ impl App {
                 }
             });
             ui.menu_button("Edit", |ui| {
-                if ui.button("Undo").clicked() {
-                    todo!("undo");
-                }
-                if ui.button("Redo").clicked() {
-                    todo!("redo");
-                }
-
-                ui.separator();
-
                 if ui.button("Settings").clicked() {
                     self.settings_modal_state = Some(EditorSettings::default());
                 }
@@ -696,6 +687,10 @@ impl App {
             let settings_state = self.settings_modal_state.as_mut().unwrap();
 
             ui.label("Settings");
+            
+            ui.checkbox(&mut settings_state.auto_save, "Auto-save");
+            ui.checkbox(&mut settings_state.format_on_save, "Format on save");
+
             ComboBox::from_label("Color Scheme")
                 .selected_text(settings_state.color_scheme.clone().unwrap_or_default())
                 .show_ui(ui, |ui| {
