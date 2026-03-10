@@ -118,16 +118,21 @@ pub struct App {
 }
 
 impl eframe::App for App {
+    // perform all the editor logic by updating it each frame
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // check whether the user has requested to close
+        // the window while they have unsaved changes
         if ctx.input(|i| i.viewport().close_requested())
             && !self.ignore_dirty
             && self.buffers.is_dirty()
         {
+            // show the modal for unsaved changes, and cancel the window closing
             self.save_modal_state = SaveModalState::SaveAllOpen;
             self.modal_action = Some(ModalAction::Close);
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
         }
 
+        // display menu bar
         TopBottomPanel::top("top_menu_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.visuals_mut().button_frame = false;
@@ -135,6 +140,7 @@ impl eframe::App for App {
             });
         });
 
+        // display side panel showing the file tree Explorer 
         let max_left_panel_width = 0.8;
         if let Some(explorer) = self.explorer.as_mut() {
             let response = SidePanel::left("explorer_panel")
@@ -151,6 +157,7 @@ impl eframe::App for App {
                     if let Some(action) = explorer_response.action {
                         match action {
                             ExplorerAction::OpenFile(path) => self.open_file(path),
+                            // TODO: the 2 below
                             ExplorerAction::NewFolder(path) => todo!(), //self.new_folder(path),
                             ExplorerAction::Delete(path) => todo!(),    // self.delete_file(path),
                         }
@@ -160,6 +167,7 @@ impl eframe::App for App {
             }
         }
 
+        // if Delete key pressed while selecting a file in the explorer, then delete the file
         if let Some(path) = self.explorer.as_ref().and_then(|e| e.highlighted.clone())
             && ctx.input(|i| i.key_pressed(Key::Delete))
         {
@@ -285,6 +293,7 @@ impl App {
         }
     }
 
+    // displays the menu bar at the top of the screen
     fn menu_bar(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
@@ -305,6 +314,7 @@ impl App {
                     {
                         ui.separator();
 
+                        // Enable search and replace if there is a currently open project
                         if ui
                             .add_enabled(self.project.is_some(), Button::new("Search"))
                             .clicked()
@@ -324,6 +334,7 @@ impl App {
 
                     ui.separator();
 
+                    // only show "Save file"/"Save as..." if there is a currently selected buffer
                     let show_save = self.buffers.current_buffer().is_some();
                     if ui
                         .add_enabled(show_save, Button::new("Save file"))
@@ -344,6 +355,7 @@ impl App {
                             unreachable!()
                         }
                     }
+                    // only show Save all if any of the buffers are have unsaved changes
                     let show_save_all = self.buffers.is_dirty();
                     if ui
                         .add_enabled(show_save_all, Button::new("Save all changes"))
@@ -352,6 +364,7 @@ impl App {
                         self.save_all();
                     }
                 }
+                // Save to GitHub is only available on the web
                 #[cfg(target_arch = "wasm32")]
                 {
                     if ui.button("Save to GitHub").clicked() {
@@ -360,11 +373,14 @@ impl App {
                 }
             });
             ui.menu_button("Edit", |ui| {
-                if ui.button("Settings").clicked() {
+              // open the settings modal if Settings is clicked
+              if ui.button("Settings").clicked() {
                     self.settings_modal_state = Some(EditorSettings::default());
                 }
             });
             ui.menu_button("View", |ui| {
+                // add toggle buttons for Output and Terminal panels
+                
                 if ui
                     .add_enabled(self.explorer.is_some(), Button::new("Show output"))
                     .clicked()
@@ -386,6 +402,7 @@ impl App {
                     }
                 }
             });
+
             ui.menu_button("Run", |ui| {
                 if ui.button("Run").clicked() {
                     if let Err(e) = self.run() {
@@ -406,6 +423,7 @@ impl App {
         });
     }
 
+    // Display Stop button to stop execution if the project is currently running 
     fn running_buttons(&mut self, ui: &mut egui::Ui) {
         ui.scope(|ui| {
             ui.style_mut().visuals.button_frame = true;
@@ -415,6 +433,7 @@ impl App {
         });
     }
 
+    // display program output in a scrollable monospaced text box
     fn output(&self, ui: &mut egui::Ui, size: egui::Vec2) {
         ScrollArea::vertical().show(ui, |ui| {
             ui.add_sized(
@@ -428,6 +447,7 @@ impl App {
         });
     }
 
+    // display terminal panel
     fn terminal(&mut self, ui: &mut egui::Ui, size: egui::Vec2) {
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(terminal) = &mut self.terminal {
@@ -436,14 +456,14 @@ impl App {
         }
     }
 
-    /// Saves the current contents of the code buffer to a file.
-    ///
-    /// If no file is currently associated with the `App`, it prompts the user
-    /// to select a save location. Once a file is chosen or if a file already
-    /// exists, it writes the contents of the code buffer to the file.
-    /// It updates the `file` field with the latest contents after saving.
-    ///
-    /// Returns `true` if the save was completed.
+    // Saves the current contents of the code buffer to a file.
+    //
+    // If no file is currently associated with the `App`, it prompts the user
+    // to select a save location. Once a file is chosen or if a file already
+    // exists, it writes the contents of the code buffer to the file.
+    // It updates the `file` field with the latest contents after saving.
+    //
+    // Returns `true` if the save was completed.
     #[cfg(not(target_arch = "wasm32"))]
     fn save_file(&mut self) -> Result<(), SaveError> {
         match self.buffers.current_buffer_mut() {
@@ -455,9 +475,10 @@ impl App {
         }
     }
 
-    // ODO: doc commentT
-    ///
-    /// Returns `true` if the save was completed.
+    // Saves the selected buffer into a new file.
+    // Prompts the user to select the new location of the file.
+    //
+    // Returns `true` if the save was completed.
     #[cfg(not(target_arch = "wasm32"))]
     fn save_as(&mut self) -> Result<(), SaveError> {
         let Some(buffer) = self.buffers.current_buffer() else {
@@ -497,16 +518,18 @@ impl App {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn save_all(&mut self) {
+        // collect list of buffers with unsaved changes
         let dirty_buffers: Vec<_> = self
             .buffers
             .iter()
             .filter_map(|buf| buf.is_dirty().then_some(buf.id()))
             .collect();
 
+        // loop through unsaved buffers, and prompt the user to save each one
         for id in dirty_buffers {
             // unwrap is safe here as `id` is guaranteed to be associated with a buffer
-
             let buffer = self.buffers.get_mut_by_id(id).unwrap();
+            
             if let Err(BufferError::NoAssociatedFile) = buffer.save(&self.fs) {
                 self.buffers.select(id);
                 // if no file is selected, ignore it and continue saving all
@@ -515,6 +538,8 @@ impl App {
         }
     }
 
+    // send a request to the backend API at /project/github_save
+    // to commit the contents of the project to GitHub
     #[cfg(target_arch = "wasm32")]
     fn save_to_github(&mut self) {
         wasm_bindgen_futures::spawn_local(async move {
@@ -525,6 +550,7 @@ impl App {
         });
     }
 
+    // open OS-provided dialog to select a file to open
     #[cfg(not(target_arch = "wasm32"))]
     fn open_file_dialog(&mut self) {
         let Some(path) = rfd::FileDialog::new().pick_file() else {
@@ -535,6 +561,7 @@ impl App {
         self.open_file(path);
     }
 
+    // open a new buffer for the file at the provided path
     fn open_file(&mut self, path: PathBuf) {
         // Don't open a new tab if the file is already open
         if let Some(buffer) = self.buffers.get_by_path(&path) {
@@ -555,6 +582,7 @@ impl App {
         }
     }
 
+    // choose a new folder to open as the current project
     #[cfg(not(target_arch = "wasm32"))]
     fn open_folder(&mut self, ctx: &egui::Context) {
         if !self.ignore_dirty && self.buffers.is_dirty() {
@@ -571,16 +599,19 @@ impl App {
         self.open_project(ctx, path);
     }
 
+    // setup a new project, rooted at the provided directory path
     #[cfg(not(target_arch = "wasm32"))]
     fn open_project(&mut self, ctx: &egui::Context, path: PathBuf) {
         use egui_term::{BackendSettings, TerminalBackend};
 
         use crate::platform::{Project, ProjectSettings};
 
+        // verify that the path is a directory
         if !path.is_dir() {
             panic!("path must be a dir");
         }
 
+        // load the project settings from the .ide directory
         let settings = match ProjectSettings::read_from(&path) {
             Ok(settings) => settings,
             Err(err) => {
@@ -589,8 +620,12 @@ impl App {
             }
         };
 
+        // instantiate a new `Project` object
         self.project = Some(Project::new(path.clone(), settings));
 
+        // initialise the interactive terminal backend
+        // requires using an MPSC (Multiple Producer, Single Consumer) channel to send data between
+        // the process running the terminal shell and the widget displaying the terminal in the UI
         let (sender, receiver) = std::sync::mpsc::channel();
         let shell = if cfg!(target_os = "windows") {
             "cmd.exe".to_string()
@@ -609,17 +644,21 @@ impl App {
             )
             .expect("failed to create terminal"),
         );
+        // FIXME: this might be to do with why terminal won't work (should this receiver be used somewhere?)
         Box::leak(Box::new(receiver));
 
+        // create a new Explorer side panel
         match Explorer::new(path, &self.fs) {
             Ok(explorer) => {
                 self.explorer = Some(explorer);
                 self.buffers = Buffers::default();
             }
+            // display error message to user if loading file tree failed
             Err(err) => self.error_message = Some(err.to_string()),
         }
     }
 
+    // delete the file for the path, and remove the buffer in the UI
     fn delete(&mut self, path: &Path) {
         if let Some(buffer) = self.buffers.get_by_path(path) {
             self.buffers.delete_buffer(buffer.id());
@@ -630,10 +669,15 @@ impl App {
         }
     }
 
+    // sets the color scheme of the editor
     fn set_color_scheme(&mut self, ctx: &egui::Context, scheme: &ColorScheme) {
         ctx.set_style(AvailableColorSchemes::scheme_to_style(scheme));
     }
 
+    // Resume the action that was being performed before a modal was displayed
+    //
+    // E.g. if the user tries to open a new project when they have unsaved changes,
+    // then, once the user closes the modal, this method will be called `ModalAction::OpenFolder`
     fn modal_action(&mut self, action: ModalAction, ctx: &egui::Context) {
         self.ignore_dirty = false;
         self.modal_action = None;
@@ -650,9 +694,9 @@ impl App {
         }
     }
 
-    /// Shows a modal prompting the user to save any unsaved changes.
-    ///
-    /// If an action was taking place before the modal was opened (`self.modal_action` is `Some`), it is executed after the modal is closed.
+    // Shows a modal prompting the user to save any unsaved changes.
+    //
+    // If an action was taking place before the modal was opened (`self.modal_action` is `Some`), it is executed after the modal is closed.
     #[cfg(not(target_arch = "wasm32"))]
     fn show_save_modal(&mut self, ctx: &egui::Context, save_all: bool) {
         Modal::new(Id::new("confirm_unsaved_changes")).show(ctx, |ui| {
@@ -681,16 +725,19 @@ impl App {
         });
     }
 
+    // Show a modal displaying editable drop downs and toggles for adjusting the editor settings
     fn show_settings_modal(&mut self, ctx: &egui::Context) {
         let mut updated = false;
         Modal::new(Id::new("settings_modal")).show(ctx, |ui| {
             let settings_state = self.settings_modal_state.as_mut().unwrap();
 
             ui.label("Settings");
+
             
             ui.checkbox(&mut settings_state.auto_save, "Auto-save");
             ui.checkbox(&mut settings_state.format_on_save, "Format on save");
-
+            
+            // color schemes
             ComboBox::from_label("Color Scheme")
                 .selected_text(settings_state.color_scheme.clone().unwrap_or_default())
                 .show_ui(ui, |ui| {
@@ -703,6 +750,8 @@ impl App {
                     }
                 });
 
+            // TODO: add options for other settings
+            
             ui.horizontal(|ui| {
                 if ui.button("Done").clicked() {
                     updated = true;
@@ -732,6 +781,7 @@ impl App {
         self.editor_settings = settings;
     }
 
+    // show modal which allows the user to perform search and replace
     fn show_search_modal(
         ctx: &egui::Context,
         search_state: &mut SearchModalState,
@@ -742,14 +792,17 @@ impl App {
     ) {
         Modal::new(Id::new("search_modal")).show(ctx, |ui| {
             ui.label("Search");
+            // text prompt for search query
             if ui
                 .text_edit_singleline(&mut search_state.search_text)
                 .changed()
             {
                 *changed = true;
             }
+            // toggle for replace mode
             ui.checkbox(&mut search_state.is_replace, "Replace");
             if search_state.is_replace {
+                // text prompt for replace string
                 ui.text_edit_singleline(&mut search_state.replace_text);
                 ui.horizontal(|ui| {
                     if ui.button("Replace all").clicked() {
@@ -771,6 +824,7 @@ impl App {
 
             ui.separator();
 
+            // display search results in rows, which can be clicked to open the file
             Grid::new("search_results")
                 .striped(true)
                 .num_columns(1)
@@ -802,10 +856,12 @@ impl App {
         }
     }
 
+    // display an error message to the user
     fn show_error_modal(&mut self, ctx: &egui::Context) {
         let modal = Modal::new(Id::new("error_modal")).show(ctx, |ui| {
             ui.label(self.error_message.as_deref().unwrap_or("An error occurred"));
             ui.with_layout(Layout::default().with_cross_align(Align::Max), |ui| {
+                // clicking the OK button closes the modal
                 if ui.button("OK").clicked() {
                     self.error_message = None;
                 }
@@ -817,7 +873,8 @@ impl App {
         }
     }
 
-    // TODO: error/test cases in the NEA write-up should include all of the `ok_or_eyre` and `bail!` errors in this function
+    // Stop the current program if running and start a new execution 
+            // TODO: error/test cases in the NEA write-up should include all of the `ok_or_eyre` and `bail!` errors in this function
     fn run(&mut self) -> eyre::Result<()> {
         self.runner.stop();
 
@@ -831,15 +888,21 @@ impl App {
         Ok(())
     }
 
+    // update editor based on messages received from server over websocket
     #[cfg(target_arch = "wasm32")]
     fn handle_pending(&mut self) {
         use ws_messages::{Command::*, ProjectTree, Response::*, RunAction};
 
+        // TODO: document what this call does (rn i cba checking the platform/ dir)
         self.backend_handle.update();
-
+                
+        // iterate through all received websocket messages
         for resp in self.backend_handle.responses() {
             use std::io::Read;
 
+            // TODO: maybe explain what each and every of these commands do
+            
+            // pattern match agaisnt possible sent commands and their received response
             match resp.expect("FIXME: proper error handling") {
                 (OpenProject, Project { contents, settings }) => {
                     self.editor_settings = settings;
@@ -883,6 +946,7 @@ impl App {
                     self.output.lock().unwrap().push_str(&output);
                 }
                 (_, Success) => {}
+                // the server sent an invalid response to the RPC call
                 _ => {
                     panic!("FIXME: error handle here or something")
                 }
