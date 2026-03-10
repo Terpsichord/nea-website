@@ -29,7 +29,8 @@ impl TreeNode {
         Self::new_recursive(path, Self::INITIAL_DEPTH, fs)
     }
 
-    // TODO: post-order recursive tree traversal algorithm, i think
+    // performs a post-order recursive tree traversal over
+    // the directory to construct the Explorer view
     fn new_recursive(path: PathBuf, max_depth: usize, fs: &FileSystem) -> eyre::Result<Self> {
         Ok(if Self::path_is_file(&path) {
             TreeNode::File { path }
