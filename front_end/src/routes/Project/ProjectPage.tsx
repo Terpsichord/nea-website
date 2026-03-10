@@ -106,8 +106,6 @@ function ProjectPage() {
     const readmeHtml = DOMPurify.sanitize(marked.parse(project.readme, { async: false }));
     const uploadDate = formatDate(new Date(project.uploadTime));
 
-    // TODO: show tags
-
     return (
         <div className="px-24">
             <h2 className="text-4xl font-medium mb-3">{project.title}</h2>

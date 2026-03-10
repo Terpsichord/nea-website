@@ -28,8 +28,6 @@ function Dashboard() {
         if (response.ok) {
             const { username, repoName } = await response.json();
             window.location.href = `/editor/${username}/${repoName}`
-        } else {
-            // TODO: error handling
         }
     };
     

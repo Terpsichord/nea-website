@@ -19,7 +19,7 @@ mod web;
 #[derive(Default, Debug, Deserialize)]
 pub struct ProjectSettings {
     pub run_command: String,
-    // TODO: add format_command: Option<String>
+    // FIXME: add format_command: Option<String>
 }
 
 impl ProjectSettings {

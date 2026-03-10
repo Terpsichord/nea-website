@@ -397,6 +397,7 @@ impl App {
             }
             // F5 => Run
             else if i.consume_key(Modifiers::NONE, Key::F5)
+                && self.project.is_some()
                 && let Err(e) = self.run()
             {
                 self.error_message = Some(e.to_string());
@@ -506,7 +507,8 @@ impl App {
                 }
             });
             ui.menu_button("Run", |ui| {
-                if ui.button("Run").clicked() {
+                let show_run = self.project.is_some();
+                if ui.add_enabled(show_run, Button::new("Run")).clicked() {
                     if let Err(e) = self.run() {
                         self.error_message = Some(e.to_string());
                     }
@@ -520,7 +522,7 @@ impl App {
 
             #[cfg(target_arch = "wasm32")]
             if ui.button("Quit").clicked() {
-                // TODO: confirmation (also for when tab is closed)
+                // FIXME: confirmation (also for when tab is closed)
                 // suggest git committing
                 web_sys::window().unwrap().location().set_href("/").unwrap();
             }
@@ -974,7 +976,6 @@ impl App {
 
         self.bottom_panel_state = Some(BottomPanelState::Output);
 
-        // TODO: maybe gray out the run button if this is the case
         let project = self.project.as_mut().ok_or_eyre("No project open")?;
 
         self.runner.run(project, self.output.clone())?;

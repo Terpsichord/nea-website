@@ -94,7 +94,7 @@ impl WebSocketHandler {
             Command::ReadFile { path }              => self.read_file(&path).await?,
             Command::ReadDir { path }               => self.read_dir(&path).await?,
             Command::WriteFile { path, contents }   => self.write_file(&path, &contents).await?,
-            _ => todo!(),
+            _ => todo!(), //FIXME
         })
     }
 

@@ -325,7 +325,7 @@ impl EditorSessionManager {
 
 
     async fn get_image(&self, lang: ProjectLang) -> Result<String, AppError> {
-        // TODO: change this to actually get the right image, depending on the language used by the project
+        // FIXME: change this to actually get the right image, depending on the language used by the project
         // you should build the image from the languages dockerfile first, as such: https://users.rust-lang.org/t/docker-image-not-being-build-with-bollard/129631/3
         let image = "python:3".to_string();
 

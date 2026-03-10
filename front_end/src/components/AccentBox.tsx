@@ -1,7 +1,8 @@
 import { PropsWithChildren } from "react";
 
 function AccentBox({ size = "md", children }: PropsWithChildren<{ size: "md" | "lg" }>) {
-    // TODO: change these to be appropriate responsive sizes
+    // FIXME: change these to be appropriate responsive sizes
+    // FIXME: just in general make sure all the project views are displaying properly
     const width = size === "md" ? "max-w-xl" : "container";
 
     return (
