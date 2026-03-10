@@ -45,7 +45,6 @@ struct Rename {
 pub struct Buffers {
     buffers: Vec<Buffer>,
     selected_id: Option<Uuid>,
-    #[serde(skip)]
     rename: Option<Rename>,
 }
 
@@ -246,7 +245,6 @@ pub struct Buffer {
     id: Uuid,
     /// Text contents displayed to the user (including any unsaved changes)
     contents: String,
-    #[serde(skip)]
     /// Optional file data (`None` if the buffer is newly created, and not yet saved to a file)
     file_data: Option<FileData>,
 }

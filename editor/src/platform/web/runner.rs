@@ -1,3 +1,4 @@
+use crate::platform::RunnerTrait;
 use super::{BackendHandle, Project, ProjectSettings};
 use std::sync::{Arc, Mutex};
 use ws_messages::{Command, RunAction};
@@ -31,7 +32,7 @@ impl Runner {
 }
 
 impl RunnerTrait for Runner {
-    pub fn run(&mut self, _project: &mut Project, output: Arc<Mutex<String>>) -> eyre::Result<()> {
+    fn run(&mut self, _project: &mut Project, output: Arc<Mutex<String>>) -> eyre::Result<()> {
         output.lock().unwrap().clear();
 
         self.is_running = true;
@@ -42,15 +43,15 @@ impl RunnerTrait for Runner {
         Ok(())
     }
 
-    pub fn update(&mut self) {
+    fn update(&mut self) {
         // TODO
     }
 
-    pub fn is_running(&self) -> bool {
+    fn is_running(&self) -> bool {
         self.is_running
     }
 
-    pub fn stop(&mut self) {
+    fn stop(&mut self) {
         // TODO
     }
 }

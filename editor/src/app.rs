@@ -1,6 +1,6 @@
 use crate::{
     buffer::{Buffer, BufferError, Buffers, FileData},
-    color_scheme::{AvailableColorSchemes, ColorScheme},
+    color_scheme::AvailableColorSchemes,
     explorer::{Explorer, ExplorerAction},
     platform::{self, FileSystemTrait as _, RunnerTrait as _, SearchResult},
 };
@@ -21,7 +21,7 @@ use egui_extras::syntax_highlighting;
 use egui_term::{TerminalBackend, TerminalView};
 use eyre::OptionExt;
 use uuid::Uuid;
-use ws_messages::EditorSettings;
+use ws_messages::{ColorScheme, EditorSettings};
 
 #[macro_export]
 macro_rules! dbg_frame {
@@ -300,6 +300,28 @@ impl App {
                     if ui.button("Open folder").clicked() {
                         self.open_folder(ctx);
                     }
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        ui.separator();
+
+                        if ui
+                            .add_enabled(self.project.is_some(), Button::new("Search"))
+                            .clicked()
+                        {
+                            self.search_modal_state = Some(SearchModalState::default());
+                        }
+                        if ui
+                            .add_enabled(self.project.is_some(), Button::new("Replace"))
+                            .clicked()
+                        {
+                            self.search_modal_state = Some(SearchModalState {
+                                is_replace: true,
+                                ..Default::default()
+                            });
+                        }
+                    }
+
                     ui.separator();
 
                     let show_save = self.buffers.current_buffer().is_some();
@@ -308,7 +330,9 @@ impl App {
                         .clicked()
                     {
                         match self.save_file() {
-                            Err(SaveError::NoBufferSelected) => self.error_message = Some("Failed to save file".into()),
+                            Err(SaveError::NoBufferSelected) => {
+                                self.error_message = Some("Failed to save file".into())
+                            }
                             Ok(_) | Err(SaveError::NoFileSelected) => {} // do nothing if the user doesn't selected a file to save to
                         }
                     }
@@ -342,23 +366,7 @@ impl App {
                 if ui.button("Redo").clicked() {
                     todo!("redo");
                 }
-                ui.separator();
 
-                if ui
-                    .add_enabled(self.project.is_some(), Button::new("Search"))
-                    .clicked()
-                {
-                    self.search_modal_state = Some(SearchModalState::default());
-                }
-                if ui
-                    .add_enabled(self.project.is_some(), Button::new("Replace"))
-                    .clicked()
-                {
-                    self.search_modal_state = Some(SearchModalState {
-                        is_replace: true,
-                        ..Default::default()
-                    });
-                }
                 ui.separator();
 
                 if ui.button("Settings").clicked() {
@@ -395,16 +403,12 @@ impl App {
                 }
             });
             ui.menu_button("Help", |_ui| {});
-            
+
             #[cfg(target_arch = "wasm32")]
             if ui.button("Quit").clicked() {
                 // TODO: confirmation (also for when tab is closed)
                 // suggest git committing
-                web_sys::window()
-                    .unwrap()
-                    .location()
-                    .set_href("/")
-                    .unwrap();
+                web_sys::window().unwrap().location().set_href("/").unwrap();
             }
 
             self.running_buttons(ui);
@@ -519,7 +523,7 @@ impl App {
             }
         }
     }
-   
+
     #[cfg(target_arch = "wasm32")]
     fn save_to_github(&mut self) {
         wasm_bindgen_futures::spawn_local(async move {
@@ -635,10 +639,8 @@ impl App {
         }
     }
 
-    fn set_color_scheme(&mut self, ctx: &egui::Context, scheme_path: &Path) {
-        if let Ok(scheme) = ColorScheme::read_from_yaml(scheme_path) {
-            ctx.set_style(scheme.to_style());
-        }
+    fn set_color_scheme(&mut self, ctx: &egui::Context, scheme: &ColorScheme) {
+        ctx.set_style(AvailableColorSchemes::scheme_to_style(scheme));
     }
 
     fn modal_action(&mut self, action: ModalAction, ctx: &egui::Context) {
@@ -697,7 +699,7 @@ impl App {
             ComboBox::from_label("Color Scheme")
                 .selected_text(settings_state.color_scheme.clone().unwrap_or_default())
                 .show_ui(ui, |ui| {
-                    for (scheme, _) in self.available_color_schemes.schemes.iter() {
+                    for scheme in self.available_color_schemes.schemes.iter() {
                         ui.selectable_value(
                             &mut settings_state.color_scheme,
                             Some(scheme.name().to_string()),
@@ -714,15 +716,25 @@ impl App {
         });
 
         if updated {
-            if let Some(scheme) = &self.settings_modal_state.as_ref().unwrap().color_scheme {
-                let (_, path) = self.available_color_schemes.get_scheme(scheme).unwrap();
-                self.set_color_scheme(ctx, &path.clone());
-            }
-
-            // TODO: update other settings i think
-
-            self.settings_modal_state = None;
+            self.update_settings(ctx);
         }
+    }
+
+    fn update_settings(&mut self, ctx: &egui::Context) {
+        let settings = self.settings_modal_state.take().unwrap();
+
+        if let Some(scheme) = &settings.color_scheme {
+            let scheme = self.available_color_schemes.get_scheme(scheme).unwrap();
+            self.set_color_scheme(ctx, &scheme.clone());
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        self.backend_handle
+            .send(ws_messages::Command::UpdateSettings {
+                settings: settings.clone(),
+            });
+
+        self.editor_settings = settings;
     }
 
     fn show_search_modal(
@@ -858,6 +870,11 @@ impl App {
                     self.runner.run_action(&settings, action);
                     self.project.as_mut().unwrap().set_settings(settings);
                 }
+                (ColorSchemes, AvailableSchemes { color_schemes }) => {
+                    self.available_color_schemes = AvailableColorSchemes {
+                        schemes: color_schemes,
+                    };
+                }
                 (ReadFile { path }, FileContents { contents }) => self.buffers.add(Buffer::new(
                     contents.clone(),
                     Some(FileData {
@@ -866,14 +883,11 @@ impl App {
                     }),
                 )),
                 (ReadDir { path }, DirContents { contents_paths }) => {}
-                (Rename { from, to }, Success) => {}
-                (WriteFile { path, contents }, Success) => {}
-                (Delete { path }, Success) => {}
                 (Run { .. }, Output { output }) => {
                     self.runner.set_finished();
                     self.output.lock().unwrap().push_str(&output);
                 }
-                (StopRunning, Success) => {}
+                (_, Success) => {}
                 _ => {
                     panic!("FIXME: error handle here or something")
                 }

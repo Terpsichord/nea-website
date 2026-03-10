@@ -26,6 +26,9 @@ impl Project {
             .wrap_err("failed to create websocket")?;
 
         handle.send(Command::OpenProject);
+        
+        // load available color schemes from server
+        handle.send(Command::ColorSchemes);
 
         Ok(Self {
             username,

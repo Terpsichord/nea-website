@@ -67,6 +67,7 @@ GROUP BY p.id, u.username, u.github_id, u.picture_url;
 CREATE TABLE color_schemes (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
+    palette VARCHAR(512) NOT NULL,
 );
 
 CREATE TABLE editor_settings (

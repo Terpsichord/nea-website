@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-use ws_messages::EditorSettings;
+use ws_messages::{ColorScheme, EditorSettings};
 
 use crate::{api::ProjectInfo, error::AppError, github::GithubUser, lang::ProjectLang};
 
@@ -217,5 +217,16 @@ impl DatabaseConnector {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn get_color_schemes(&self) -> anyhow::Result<Vec<ColorScheme>> {
+        let color_schemes = sqlx::query!("SELECT name, palette FROM color_schemes")
+            .fetch_all(&self.0)
+            .await?;
+
+        Ok(color_schemes
+            .into_iter()
+            .filter_map(|scheme| ColorScheme::read_from_yaml(scheme.palette.as_bytes()).ok())
+            .collect())
     }
 }

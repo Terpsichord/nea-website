@@ -67,7 +67,7 @@ impl Aes256Gcm {
     fn gctr(&self, mut counter: u128, plaintext: &[u8]) -> Vec<u8> {
         let mut output = Vec::with_capacity(plaintext.len());
 
-        for chunk in plaintext.chunks(TAG_LEN) {
+        for chunk in plaintext.chunks(Self::TAG_LEN) {
             Self::inc32(&mut counter);
 
             let key_stream = self.aes_encrypt(counter).to_be_bytes();
@@ -108,8 +108,8 @@ impl Aes256Gcm {
         let h = self.hash_key();
         let mut x = 0u128;
 
-        for chunk in ciphertext.chunks(TAG_LEN) {
-            let mut bytes = [0u8; TAG_LEN];
+        for chunk in ciphertext.chunks(Self::TAG_LEN) {
+            let mut bytes = [0u8; Self::TAG_LEN];
             bytes[..chunk.len()].copy_from_slice(chunk);
             let block = u128::from_be_bytes(bytes);
 
@@ -143,7 +143,7 @@ impl Aes256Gcm {
     // Generate a random 96-bit integer for the nonce,
     // using the cryptographically-secure RNG provided by the OS
     fn generate_nonce() -> U96 {        
-        let mut bytes = [0u8; NONCE_LEN];
+        let mut bytes = [0u8; Self::NONCE_LEN];
         OsRng.try_fill_bytes(&mut bytes).unwrap();
 
         U96::from_be_bytes(bytes)

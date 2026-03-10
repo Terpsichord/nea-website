@@ -3,6 +3,7 @@ use std::{
     io,
     sync::{Arc, Mutex},
 };
+use serde::Deserialize;
 use thiserror::Error;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -15,7 +16,7 @@ mod native;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Deserialize)]
 pub struct ProjectSettings {
     pub run_command: String,
     // TODO: add format_command: Option<String>
