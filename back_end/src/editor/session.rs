@@ -228,8 +228,10 @@ impl EditorSessionManager {
 
         let mount = Mount {
             target: Some(Self::WORKSPACE_PATH.into()),
+            // no source as the volume is anonymous
             source: None,
             typ: Some(MountTypeEnum::VOLUME),
+            // the volume needs to be writable to let users edit files
             read_only: Some(false),
             ..Default::default()
         };
@@ -238,13 +240,13 @@ impl EditorSessionManager {
             image: Some(image),
             // enable tty to allow an interactive terminal on the frontend
             tty: Some(true),
-            // TODO: docs
             host_config: Some(HostConfig {
                 // ensures that the root fs cannot be modified
                 readonly_rootfs: Some(true),
                 network_mode: Some("none".into()),
                 // runsc is the runtime needed to use gVisor
                 runtime: Some("runsc".into()),
+                // container is automatically deleted
                 auto_remove: Some(true),
                 mounts: Some(vec![mount]),
                 ..Default::default()

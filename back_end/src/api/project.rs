@@ -1,26 +1,23 @@
-use std::{fs, io, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 use anyhow::anyhow;
-use async_tar::Archive;
 use axum::{
     Extension, Json, Router,
     extract::{Path, State, WebSocketUpgrade, ws::WebSocket},
     middleware,
-    response::Response,
+    response::{IntoResponse as _, Response},
     routing::{get, post, put},
 };
-use futures::{AsyncReadExt as _, StreamExt as _, TryStreamExt as _};
 use serde::{Deserialize, Serialize};
 use tempdir::TempDir;
 use tokio::process::Command;
-use tokio_util::{compat::TokioAsyncReadCompatExt as _, io::StreamReader};
 use tracing::{info, instrument};
 use walkdir::WalkDir;
 
 use crate::{
     AppState,
     api::{ProjectResponse, search},
-    auth::{TokenCache, crypto::Aes256Gcm, middleware::{AuthUser, auth_middleware, optional_auth_middleware}},
+    auth::{middleware::{AuthUser, auth_middleware, optional_auth_middleware}, ResponseTokenExt},
     db::{DatabaseConnector, NewProject},
     editor::{session::EditorSessionManager, websocket::WebSocketHandler},
     error::AppError,
@@ -240,7 +237,6 @@ async fn new_project(
             .await?;
 
         tokens = new_tokens.or(tokens);
-        update_tokens!(access_token, refresh_token, tokens);
 
         Some(readme)
     } else {
@@ -261,12 +257,10 @@ async fn new_project(
     // add a record to the database for the new project
     db.add_project(&new_project).await?;
 
-    // FIXME: this function should return the token cookie headers
-    // i'm not sure what the return type should be
     Ok(Json(NewProjectResponse {
         username,
         repo_name: new_project.repo_name,
-    }))
+    }).into_response().with_tokens(tokens))
 }
 
 #[instrument(skip(db, client, access_token, refresh_token))]
@@ -406,6 +400,7 @@ async fn update_project(
 }
 
 #[instrument(skip(db, ws, session_mgr, access_token, refresh_token))]
+#[axum::debug_handler]
 async fn open_project(
     Path((username, repo_name)): Path<(String, String)>,
     State(AppState {
@@ -422,8 +417,7 @@ async fn open_project(
         .get_project(&username, &repo_name, Some(github_id), true)
         .await?;
 
-    // todo: return these tokens
-    let WithTokens(container_id, _) = session_mgr
+    let WithTokens(container_id, tokens) = session_mgr
         .open(
             project.user_id,
             project.id,
@@ -443,7 +437,7 @@ async fn open_project(
             container_id,
             project.user_id,
         )
-    }))
+    }).with_tokens(tokens))
 }
 
 async fn handle_editor_ws(

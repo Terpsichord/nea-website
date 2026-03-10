@@ -1,5 +1,5 @@
 use axum::{
-    http::{HeaderName, HeaderValue},
+    http::{HeaderName, HeaderValue, Response},
     response::{IntoResponseParts, ResponseParts},
 };
 use chrono::{DateTime, Utc};
@@ -47,7 +47,7 @@ impl From<&Tokens> for TokenHeaders {
 }
 
 impl TokenHeaders {
-    // Creates HTTP headers that will set the provided 
+    // Creates HTTP headers that will set the provided
     // access and refresh token in the user's cookies
     pub fn new(
         access_token: &str,
@@ -64,5 +64,19 @@ impl TokenHeaders {
                 HeaderValue::from_str(&format!("{REFRESH_COOKIE}={refresh_token}; Secure; HttpOnly; SameSite=Strict; Path=/; Expires={}", refresh_expiry_date.to_rfc2822())).unwrap()
             ),
         }
+    }
+}
+
+pub trait ResponseTokenExt {
+    fn with_tokens(self, tokens: Option<TokenHeaders>) -> Self;
+}
+
+impl<T> ResponseTokenExt for Response<T> {
+    fn with_tokens(mut self, tokens: Option<TokenHeaders>) -> Self {
+        if let Some(tokens) = tokens {
+            self.headers_mut()
+                .extend([tokens.access_header, tokens.refresh_header]);
+        }
+        self
     }
 }
