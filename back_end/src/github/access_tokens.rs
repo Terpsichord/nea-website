@@ -104,6 +104,16 @@ impl Tokens {
     }
 }
 
+macro_rules! update_tokens {
+    ($access:ident, $refresh:ident, $tokens:expr) => {
+            let _tokens: &Option<$crate::github::access_tokens::Tokens> = &$tokens;
+            if let Some(ref tokens) = $tokens {
+                ($access, $refresh) = tokens.unencrypted();
+            }
+    };
+}
+pub(crate) use update_tokens;
+
 impl GithubClient {
     /// Fetches the access token and refresh token from Github, and encrypts them so they can be stored in cookies
     ///

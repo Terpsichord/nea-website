@@ -4,10 +4,8 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
 use sqlx::prelude::FromRow;
 
-use crate::auth::ACCESS_COOKIE;
 use crate::{AppState, db::Project};
 
 mod comment;

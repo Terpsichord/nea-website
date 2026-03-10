@@ -67,6 +67,7 @@ GROUP BY p.id, u.username, u.github_id, u.picture_url;
 CREATE TABLE color_schemes (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
+    palette VARCHAR(512) NOT NULL,
 );
 
 CREATE TABLE editor_settings (
@@ -81,7 +82,7 @@ CREATE TABLE interactions (
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     project_id INT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     type VARCHAR(16),
-    time TIMESTAMPTZ
+    time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE rec_categories (

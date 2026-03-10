@@ -1,24 +1,26 @@
-use std::
-    path::{Path, PathBuf}
-;
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
+use async_tar::Archive;
 use axum::extract::ws::{Message, WebSocket};
+use base64::{Engine as _, prelude::BASE64_STANDARD};
 use bollard::{
-    Docker,
     exec::{CreateExecOptions, StartExecResults},
     secret::ExecInspectResponse,
 };
-use futures::TryStreamExt as _;
+use futures::{AsyncReadExt as _, TryStreamExt as _, StreamExt as _};
 use serde::Serialize;
 use tokio::io::AsyncWriteExt as _;
+use tokio_util::{io::StreamReader, compat::TokioAsyncReadCompatExt};
 use tracing::{info, warn};
 use ws_messages::{ClientMessage, Command, EditorSettings, ProjectTree, ServerMessage};
 
-use crate::{DatabaseConnector, editor::session::EditorSessionManager};
+use crate::{DatabaseConnector, auth::crypto::Aes256Gcm, editor::session::EditorSessionManager};
 
-// Class that 
+// TODO(document this): Class that
 pub struct WebSocketHandler {
-    docker: Docker,
     db: DatabaseConnector,
     session_mgr: EditorSessionManager,
     container_id: String,
@@ -28,24 +30,22 @@ pub struct WebSocketHandler {
 }
 
 impl WebSocketHandler {
-    pub fn new(
+    pub const fn new(
         container_id: String,
         user_id: i32,
         db: DatabaseConnector,
         session_mgr: EditorSessionManager,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            docker: Docker::connect_with_local_defaults()?,
+    ) -> Self {
+        Self {
             db,
             session_mgr,
             container_id,
             user_id,
             running_pid: None,
             project_dir: None,
-        })
+        }
     }
 
-    // TODO: error handling
     pub async fn handle(&mut self, mut ws: WebSocket) {
         while let Some(recv) = ws.recv().await {
             match recv {
@@ -53,26 +53,25 @@ impl WebSocketHandler {
                     let msg = match self.create_response(&msg).await {
                         Ok(msg) => msg,
                         Err(err) => {
-                            warn!("failed to execute command on websocket: {}", err);
+                            eprintln!("failed to execute command on websocket: {err:#?}");
                             continue;
                         }
                     };
 
                     let _ = ws
-                        .send(Message::Binary(msg.encode().expect("TODO").into()))
+                        .send(Message::Binary(msg.encode().expect("failed to the encode the ws message").into()))
                         .await;
                 }
                 Ok(Message::Text(_)) => warn!("received text on websocket"),
                 Ok(Message::Close(_)) => {
                     info!("idling container {:?}", &self.container_id);
 
-                    self.session_mgr.idle_session(self.user_id); 
-                } 
+                    self.session_mgr.idle_session(self.user_id);
+                }
                 Ok(_) => {}
                 Err(err) => warn!("failed to receive message on websocket: {}", err),
             }
         }
-
     }
 
     async fn create_response(&mut self, msg: &[u8]) -> anyhow::Result<ServerMessage> {
@@ -85,15 +84,16 @@ impl WebSocketHandler {
 
     #[rustfmt::skip]
     async fn execute_cmd(&mut self, cmd: Command) -> anyhow::Result<ws_messages::Response> {
-        info!("executing command: {:?}", cmd);
+        println!("executing command: {cmd:?}");
         Ok(match cmd {
-            Command::OpenProject                  => self.open_project().await?,
-            Command::UpdateSettings { settings }  => self.update_settings(settings).await?,
-            Command::ReadSettings { .. }      => self.read_settings().await?,
-            Command::Run { command }              => self.run(&command).await?,
-            Command::ReadFile { path }            => self.read_file(&path).await?,
-            Command::ReadDir { path }             => self.read_dir(&path).await?,
-            Command::WriteFile { path, contents } => self.write_file(&path, &contents).await?,
+            Command::OpenProject                    => self.open_project().await?,
+            Command::UpdateSettings { settings }    => self.update_settings(settings).await?,
+            Command::ReadSettings { .. }            => self.read_settings().await?,
+            Command::ColorSchemes                   => self.color_schemes().await?,
+            Command::Run { command }                => self.run(&command).await?,
+            Command::ReadFile { path }              => self.read_file(&path).await?,
+            Command::ReadDir { path }               => self.read_dir(&path).await?,
+            Command::WriteFile { path, contents }   => self.write_file(&path, &contents).await?,
             _ => todo!(),
         })
     }
@@ -118,7 +118,8 @@ impl WebSocketHandler {
     {
         let cmd = cmd.into_iter().map(Into::into).collect();
         let msg = self
-            .docker
+            .session_mgr
+            .docker()
             .create_exec(
                 &self.container_id,
                 CreateExecOptions::<String> {
@@ -138,12 +139,13 @@ impl WebSocketHandler {
             .await?;
 
         let StartExecResults::Attached { mut input, output } =
-            self.docker.start_exec(&msg.id, None).await?
+            self.session_mgr.docker().start_exec(&msg.id, None).await?
         else {
             unreachable!()
         };
 
-        let ExecInspectResponse { pid, .. } = self.docker.inspect_exec(&msg.id).await?;
+        let ExecInspectResponse { pid, .. } =
+            self.session_mgr.docker().inspect_exec(&msg.id).await?;
 
         if let Some(stdin) = stdin {
             input.write_all(stdin.as_bytes()).await?;
@@ -163,6 +165,7 @@ impl WebSocketHandler {
                 EditorSessionManager::WORKSPACE_PATH,
             ])
             .await?;
+        println!("output: {output}");
 
         let project_dir = output.lines().next().expect("missing project dir");
 
@@ -183,6 +186,7 @@ impl WebSocketHandler {
                 .into()
             })
             .collect();
+        println!("top_dir: {:?}", top_dir);
 
         if self
             .exec_docker(vec![
@@ -205,7 +209,7 @@ impl WebSocketHandler {
             );
         }
 
-        info!("top_dir: {:?}", top_dir);
+        println!("top_dir: {:?}", top_dir);
 
         self.project_dir = Some(project_dir.to_string());
 
@@ -214,7 +218,8 @@ impl WebSocketHandler {
                 path: format!("{}/{}/", EditorSessionManager::WORKSPACE_PATH, project_dir).into(),
                 children: top_dir,
             },
-            settings: self.db.get_editor_settings(self.user_id).await?,
+            settings: EditorSettings::default(),
+            // FIXME: self.db.get_editor_settings(self.user_id).await?,
         })
     }
 
@@ -237,6 +242,12 @@ impl WebSocketHandler {
         Ok(ws_messages::Response::ProjectSettings { contents })
     }
 
+    async fn color_schemes(&self) -> anyhow::Result<ws_messages::Response> {
+        let color_schemes = self.db.get_color_schemes().await?;
+        
+        Ok(ws_messages::Response::AvailableSchemes { color_schemes })
+    }
+   
     async fn run(&mut self, cmd: &str) -> Result<ws_messages::Response, bollard::errors::Error> {
         let (output, pid) = self
             .exec_docker_with(vec!["sh", "-c", cmd], None, true)

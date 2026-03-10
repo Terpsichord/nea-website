@@ -12,9 +12,12 @@ interface AuthContextType {
 const AuthContext: Context<AuthContextType> = createContext({} as AuthContextType);
 
 function AuthProvider({ children }: PropsWithChildren) {
-    const [isAuth, setIsAuth] = useState(false);
     const location = useLocation();
+    
+    // state representing whether the user is authenticated
+    const [isAuth, setIsAuth] = useState(false);
 
+    // when a page is reloaded, check and update whether the user is still authenticated or not
     useEffect(() => {
         fetchApi("/profile/auth")
             .then(resp => resp.json())
@@ -33,9 +36,12 @@ function AuthProvider({ children }: PropsWithChildren) {
     // needed to ensure redirect to / on sign-out (and not to /signin)
     const [signedOut, setSignedOut] = useState(false);
 
+    // on signing-out
     async function signOut() {
+        // send request to API to remoke authentication tokens
         await fetchApi("/profile/signout", { method: "POST" });
 
+        // return to the landing page
         navigate("/");
         setSignedOut(true);
         setIsAuth(false);

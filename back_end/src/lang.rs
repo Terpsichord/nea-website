@@ -4,6 +4,7 @@ use anyhow::bail;
 use serde::{Deserialize, Serialize};
 use sqlx::{Decode, Postgres, error::BoxDynError, postgres::PgValueRef};
 
+// an enum representing all the available languages for projects
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum ProjectLang {
     #[serde(rename = "py")]
@@ -25,6 +26,8 @@ pub enum ProjectLang {
     #[serde(rename = "java")]
     Java,
 }
+
+// Implementation of interfaces that allow conversion between the `ProjectLang` enum and their string representation
 
 impl Display for ProjectLang {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -69,12 +72,16 @@ impl<'r> Decode<'r, Postgres> for ProjectLang {
 }
 
 impl ProjectLang {
+    // File path of where configuration files are stored for all of the languages 
     const LANG_PATH: &'static str = "./back_end/languages";
 
+    // Get the project.toml file for a given language
+    // Stores the default run/format commands
     pub fn get_project_toml(self) -> io::Result<String> {
         fs::read_to_string(format!("{}/{}/project.toml", Self::LANG_PATH, self))
     }
 
+    // Get the name and contents of the initial starting file for the project
     pub fn get_initial_file(self) -> io::Result<(&'static str, String)> {
         let name = match self {
             Self::Python => "main.py",

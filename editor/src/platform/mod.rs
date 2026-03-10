@@ -1,9 +1,9 @@
-use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::{
     io,
     sync::{Arc, Mutex},
 };
+use serde::Deserialize;
 use thiserror::Error;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -16,10 +16,10 @@ mod native;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Deserialize)]
 pub struct ProjectSettings {
     pub run_command: String,
-    // TODO: add format_command: Option<String> and debug_command: Option<String>
+    // TODO: add format_command: Option<String>
 }
 
 impl ProjectSettings {
@@ -34,10 +34,7 @@ pub enum ProjectSettingsError {
     Format(#[from] toml::de::Error),
 }
 
-// TODO: implement this trait for the web and native structs
 pub trait RunnerTrait {
-    // TODO: should this just require &ProjectSettings (maybe with &mut Project in update() instead?)
-    // actually maybe for the best to just leave it how it is now
     fn run(&mut self, project: &mut Project, output: Arc<Mutex<String>>) -> eyre::Result<()>;
     fn stop(&mut self);
     fn update(&mut self);

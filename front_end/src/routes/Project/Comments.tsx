@@ -28,6 +28,16 @@ function Comments({ project }: { project: { username: string, id: string } }) {
             body: JSON.stringify({ contents, parent_id: replyingTo?.id ?? null })
         });
 
+        // record a "comment" interaction
+        fetchApi("/interaction", {
+            method: "POST",
+            body: JSON.stringify({
+                project_user: project.username,
+                project_repo: project.id,
+                type: "comment"
+            }),
+        });
+
         refreshComments();
     }
 

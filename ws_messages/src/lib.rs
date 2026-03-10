@@ -1,6 +1,12 @@
-use std::{fmt::Display, path::PathBuf};
+use std::{
+    fmt::Display,
+    fs::File,
+    path::{Path, PathBuf},
+};
 
 use bincode::config;
+use ecolor::Color32;
+use eyre::eyre;
 use serde_derive::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -36,7 +42,6 @@ impl ClientMessage {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum RunAction {
     Run,
-    Debug,
     Format,
 }
 
@@ -61,6 +66,7 @@ impl Default for EditorSettings {
 pub enum Command {
     OpenProject,
     ReadSettings { action: RunAction },
+    ColorSchemes,
     UpdateSettings { settings: EditorSettings },
     ReadFile { path: PathBuf },
     ReadDir { path: PathBuf },
@@ -123,27 +129,55 @@ impl ProjectTree {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ColorScheme {
+    pub name: String,
+    // 16 24-bit colors
+    pub bases: [Color32; 16],
+}
+
+impl ColorScheme {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn read_from_yaml(reader: impl std::io::Read) -> eyre::Result<Self> {
+        let yaml: serde_yaml::Value = serde_yaml::from_reader(reader)?;
+
+        let name = yaml["scheme"]
+            .as_str()
+            .ok_or(eyre!("invalid color scheme: missing name"))?
+            .to_string();
+
+        let mut scheme = Self {
+            name,
+            bases: [Color32::BLACK; 16],
+        };
+
+        for i in 0..16 {
+            let name = format!("base0{:X}", i);
+            let hex = yaml[name]
+                .as_str()
+                .ok_or(eyre!("invalid color scheme yaml"))?;
+
+            scheme.bases[i] = Color32::from_hex(&format!("#{hex}"))
+                .map_err(|_| eyre!("invalid color in yaml"))?;
+        }
+
+        Ok(scheme)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[rustfmt::skip]
 pub enum Response {
-    Project {
-        contents: ProjectTree,
-        settings: EditorSettings,
-    },
-    ProjectSettings {
-        contents: String,
-    },
-    FileContents {
-        contents: String,
-    },
-    DirContents {
-        contents_paths: Vec<PathBuf>,
-    },
-    Output {
-        output: String,
-    },
+    Project { contents: ProjectTree, settings: EditorSettings },
+    ProjectSettings { contents: String },
+    AvailableSchemes { color_schemes: Vec<ColorScheme> },
+    FileContents { contents: String },
+    DirContents { contents_paths: Vec<PathBuf> },
+    Output { output: String },
     Success,
-    Error {
-        msg: String,
-    },
+    Error { msg: String },
 }
 
 impl<E: Display> From<Result<Response, E>> for Response {

@@ -4,12 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-rand = "0.9.2"
-
 # web server
 axum = { version = "0.8.3", features = ["macros", "ws"] }
 axum-extra = { version = "0.10.1", features = ["cookie", "query"] }
 tokio = { version = "1.44.2", features = ["full"] }
+tokio-util = { version = "0.7.18", features = ["compat"] }
 futures = "0.3.31"
 tower = "0.5.2"
 tower-http = { version = "0.6.2", features = ["full"] }
@@ -44,9 +43,15 @@ aes = "0.8.4"
 base64 = "0.22.1"
 cipher = "0.4.4"
 intx = "0.1.0"
+rand = "0.9.2"
 
 # docker
 bollard = { version = "0.19.3" }
+async-tar = "0.6.0"
 
 # websocket
 ws_messages = { path = "../ws_messages" }
+tempdir = "0.3.7"
+tar = "0.4.44"
+flate2 = "1.1.9"
+walkdir = "2.5.0"

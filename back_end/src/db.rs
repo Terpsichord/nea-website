@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-use ws_messages::EditorSettings;
+use ws_messages::{ColorScheme, EditorSettings};
 
 use crate::{api::ProjectInfo, error::AppError, github::GithubUser, lang::ProjectLang};
 
@@ -78,6 +78,12 @@ impl DatabaseConnector {
         }
 
         Ok(())
+    }
+
+    pub async fn get_user_id(&self, github_id: i32) -> sqlx::Result<i32> {
+        sqlx::query_scalar!("SELECT id FROM users WHERE github_id = $1", github_id)
+            .fetch_one(&self.0)
+            .await
     }
 
     pub async fn add_project(&self, project: &NewProject) -> sqlx::Result<()> {
@@ -211,5 +217,16 @@ impl DatabaseConnector {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn get_color_schemes(&self) -> anyhow::Result<Vec<ColorScheme>> {
+        let color_schemes = sqlx::query!("SELECT name, palette FROM color_schemes")
+            .fetch_all(&self.0)
+            .await?;
+
+        Ok(color_schemes
+            .into_iter()
+            .filter_map(|scheme| ColorScheme::read_from_yaml(scheme.palette.as_bytes()).ok())
+            .collect())
     }
 }

@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use anyhow::anyhow;
 use bollard::{
     Docker, body_full,
     query_parameters::{
@@ -13,6 +14,8 @@ use bollard::{
     },
     secret::{ContainerCreateBody, HostConfig, Mount, MountTypeEnum},
 };
+use bytes::Bytes;
+use flate2::read::GzDecoder;
 use futures::executor::block_on;
 use futures_util::StreamExt as _;
 use tokio::task::JoinHandle;
@@ -26,10 +29,11 @@ use crate::{
 
 // `SessionHandle` stores needed information about a
 // session in the online editor for a single user
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SessionHandle {
-    project_id: i32,
-    container_id: String,
+    pub project_id: i32,
+    pub container_id: String,
+    pub directory: String,
     // code: Option<(String, DateTime<Utc>)>,
     // path: String,
 }
@@ -41,7 +45,7 @@ struct WaitingHandle {
 }
 
 impl WaitingHandle {
-    const DELAY: Duration = Duration::from_secs(30); // TODO: change to 5 minutes
+    const DELAY: Duration = Duration::from_mins(5);
 
     // Starts a new task when constructed which stops the container running after DELAY, unless aborted (see below) 
     fn new(session_mgr: EditorSessionManager, user_id: i32) -> Self {
@@ -136,6 +140,15 @@ impl Default for EditorSessionManager {
 }
 
 impl EditorSessionManager {
+    pub const fn docker(&self) -> &Docker {
+        &self.docker
+    }
+
+    pub const fn client(&self) -> &GithubClient {
+        &self.client
+    }
+
+    // FIXME: remove(?) probably
     // const CODE_LEN: usize = 16;
 
     // pub fn create_code(&self, user_id: i32) -> String {
@@ -186,13 +199,16 @@ impl EditorSessionManager {
         }
 
         if reactivate {
-            // update the table to set the session to active and return
-            self.table
-                .write()
-                .unwrap()
+            // update the table to set the session to active and return the container id          
+            let mut table = self.table.write().unwrap();
+
+            table
                 .entry(user_id)
                 .and_modify(|state| state.mode = SessionMode::Active);
-            return Ok(WithTokens::default());
+
+            let container_id = table.get(&user_id).unwrap().handle.container_id.clone();
+
+            return Ok(WithTokens(container_id, None));
         }
 
         if close {
@@ -203,7 +219,7 @@ impl EditorSessionManager {
         info!("creating session");
 
         // create a new session (only called if `reactivate` was false)
-        self.create_session(
+        let res = self.create_session(
             user_id,
             project_id,
             username,
@@ -212,7 +228,13 @@ impl EditorSessionManager {
             access_token,
             refresh_token,
         )
-        .await
+        .await;
+    
+        if let Err(ref e) = res {
+            println!("failed to create session: {e:?}");
+        }
+
+        res
     }
 
     pub const WORKSPACE_PATH: &'static str = "/home/workspace";
@@ -247,7 +269,11 @@ impl EditorSessionManager {
             image: Some(image),
             // enable tty to allow an interactive terminal on the frontend
             tty: Some(true),
+            // TODO: docs
             host_config: Some(HostConfig {
+                // ensures that the root fs cannot be modified
+                readonly_rootfs: Some(true),
+                network_mode: Some("none".into()),
                 // runsc is the runtime needed to use gVisor
                 runtime: Some("runsc".into()),
                 // docker container is automatically destroyed when stopped
@@ -276,7 +302,7 @@ impl EditorSessionManager {
 
         // retrieve the files for the project from the GitHub repository
         debug!("fetching files");
-        let WithTokens(tarball, headers) = self
+        let WithTokens((dir_name, tarball), headers) = self
             .client
             .get_project_tarball(access_token, refresh_token, username, repo_name)
             .await?;
@@ -290,7 +316,7 @@ impl EditorSessionManager {
                     path: Self::WORKSPACE_PATH.into(),
                     ..Default::default()
                 }),
-                body_full(tarball),
+                body_full(tarball.clone()),
             )
             .await
             .map_err(AppError::other)?;
@@ -302,6 +328,7 @@ impl EditorSessionManager {
                 handle: SessionHandle {
                     project_id,
                     container_id: container_id.clone(),
+                    directory: format!("{dir_name}/"),
                 },
                 mode: SessionMode::Active,
             },
@@ -310,8 +337,31 @@ impl EditorSessionManager {
         Ok(WithTokens(container_id, headers))
     }
 
+    // pub fn get_tarball_dir(tar_gz: &Bytes) -> Result<String, AppError> {
+    //     let tarball = GzDecoder::new(tar_gz.as_ref());
+    //     let mut archive = tar::Archive::new(tarball);
+    //     let mut entries = archive.entries().map_err(AppError::other)?;
+    //     let entry = entries
+    //         .next()
+    //         .ok_or(AppError::Other(anyhow!("no entry in tarball")))?
+    //         .map_err(AppError::other)?;
+
+    //     let path = entry.path().map_err(AppError::other)?;
+
+    //     path
+    //         .components()
+    //         .next()
+    //         .ok_or(AppError::Other(anyhow!("no dir in tarball")))?
+    //         .as_os_str()
+    //         .to_str()
+    //         .ok_or(AppError::Other(anyhow!("invalid dir name")))
+    //         .map(String::from)
+    // }
+
+
     async fn get_image(&self, lang: ProjectLang) -> Result<String, AppError> {
         // TODO: change this to actually get the right image, depending on the language used by the project
+        // you should build the image from the languages dockerfile first, as such: https://users.rust-lang.org/t/docker-image-not-being-build-with-bollard/129631/3
         let image = "python:3".to_string();
 
         // this ensures that the image is present on the host system
@@ -356,5 +406,20 @@ impl EditorSessionManager {
         }
 
         Ok(())
+    }
+
+    pub fn get_active_session(&self, user_id: i32) -> Option<SessionHandle> {
+        let table = self.table.read().unwrap();
+        let maybe_session = table.get(&user_id);
+
+        if let Some(SessionState {
+            handle,
+            mode: SessionMode::Active,
+        }) = maybe_session
+        {
+            Some(handle.clone())
+        } else {
+            None
+        }
     }
 }
