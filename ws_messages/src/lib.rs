@@ -36,7 +36,6 @@ impl ClientMessage {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum RunAction {
     Run,
-    Debug,
     Format,
 }
 
