@@ -44,7 +44,7 @@ impl RunnerTrait for Runner {
     }
 
     fn update(&mut self) {
-        // TODO
+        // TODO: i think? this can be removed
     }
 
     fn is_running(&self) -> bool {
@@ -52,6 +52,6 @@ impl RunnerTrait for Runner {
     }
 
     fn stop(&mut self) {
-        // TODO
+        // FIXME: send StopRunnning command
     }
 }
