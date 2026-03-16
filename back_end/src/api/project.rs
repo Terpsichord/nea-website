@@ -27,7 +27,7 @@ use crate::{
 
 pub fn project_router(state: AppState) -> Router<AppState> {
     let auth = Router::new()
-        .route("/project/{username}/{repo_name}/open", get(open_project))
+        .route("/project/{username}/{repo_name}/open", get(open_project)) // FIXME: fuck this should be post probably (definitely not get)
         .route("/project/new", post(new_project))
         .route("/project/{username}/{repo_name}/remix", post(remix_project))
         .route("/project/{username}/{repo_name}", put(update_project))
