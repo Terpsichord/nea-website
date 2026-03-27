@@ -22,7 +22,7 @@ function Explore() {
                             recCategories.map(cat => 
                                 <div>
                                     <h3>{cat.name}</h3>
-                                    <ProjectView projects={cat.projects} error={error} className="lg:grid-cols-2 grid-cols-1 gap-x-20 gap-y-14" />
+                                    <ProjectView projects={cat.projects} error={error} horizontal />
                                 </div>
                             )
                         }</div>

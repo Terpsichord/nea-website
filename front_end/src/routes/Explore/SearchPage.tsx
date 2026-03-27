@@ -30,7 +30,7 @@ function SearchPage() {
             <div className="ml-auto mb-10">
                 <FilterMenu />
             </div>
-            {projects && <ProjectView projects={projects} error={error} className="lg:grid-cols-2 grid-cols-1 gap-x-20 gap-y-14" />}
+            {projects && <ProjectView projects={projects} error={error} />}
         </div>
     )
 }

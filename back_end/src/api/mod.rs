@@ -16,7 +16,7 @@ mod recs;
 mod search;
 mod user;
 
-// This module contains all of code to create the API routes as described in the Design section.
+// This module (back_end/src/api/) contains all of code to create the API routes as described in the Design section.
 
 pub fn api_router(state: AppState) -> Router<AppState> {
     Router::new()

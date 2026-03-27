@@ -42,7 +42,7 @@ function Dashboard() {
                 </button>
             </div>
             <h2 className="text-4xl mb-5">Your projects</h2>
-            <ProjectView projects={projects} error={error} className="grid grid-flow-row gap-x-10" />
+            <ProjectView projects={projects} error={error} horizontal />
         </div>
         {
             showModal &&

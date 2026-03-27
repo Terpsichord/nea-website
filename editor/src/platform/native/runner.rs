@@ -1,6 +1,7 @@
 use crossbeam_channel as crossbeam;
 use eyre::OptionExt;
 use eyre::bail;
+use std::path::Path;
 use std::{
     process::{Child, Stdio},
     sync::{Arc, Mutex},
@@ -8,6 +9,7 @@ use std::{
 };
 
 use crate::platform::RunnerTrait;
+use crate::platform::native::project;
 
 use super::{
     Project, ProjectSettings,
@@ -25,6 +27,26 @@ struct RunningCommand {
     thread: JoinHandle<()>,
 }
 
+impl Runner {
+    fn execute(&mut self, shell_command: &str, path: &Path) -> eyre::Result<Child> {
+        let mut words = match shell_words::split(shell_command) {
+            Ok(words) => words.into_iter(),
+            Err(_) => bail!("Invalid command"),
+        };
+        let command = words.next().ok_or_eyre("Command is empty")?;
+
+        let args = words.collect::<Vec<String>>();
+
+        Ok(std::process::Command::new(command)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .current_dir(path)
+            .args(args)
+            .spawn()
+            .expect("failed to start subprocess"))
+    }
+}
+
 impl RunnerTrait for Runner {
     fn run(&mut self, project: &mut Project, output: Arc<Mutex<String>>) -> eyre::Result<()> {
         // update project settings
@@ -38,22 +60,7 @@ impl RunnerTrait for Runner {
             .as_ref()
             .ok_or_eyre("No run command set\n\nA project.toml file is needed to set it")?;
 
-        let mut words = match shell_words::split(&settings.run_command) {
-            Ok(words) => words.into_iter(),
-            Err(_) => bail!("Invalid run command"),
-        };
-        let command = words.next().ok_or_eyre("Run command is empty")?;
-
-        let args = words.collect::<Vec<String>>();
-
-        // TODO: error handling for this should include handling "program not found" and "invalid input"
-        let mut child = std::process::Command::new(command)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(&project.path)
-            .args(args)
-            .spawn()
-            .expect("failed to start subprocess");
+        let mut child = self.execute(&settings.run_command, &project.path)?;
 
         output.lock().expect("failed to lock output").clear();
 
@@ -87,6 +94,27 @@ impl RunnerTrait for Runner {
             process: child,
             thread,
         });
+
+        Ok(())
+    }
+
+    fn format(&mut self, project: &mut Project) -> eyre::Result<()> {
+        // update project settings
+        match ProjectSettings::read_from(&project.path) {
+            Ok(settings) => project.settings = settings,
+            Err(err) => Err(err)?,
+        }
+
+        let settings = project
+            .settings
+            .as_ref()
+            .ok_or_eyre("No format command set\n\nA project.toml file is needed to set it")?;
+
+        if let Some(cmd) = &settings.format_command {
+            let mut child = self.execute(cmd, &project.path)?;
+
+            child.wait().expect("failed to wait for subprocess");
+        }
 
         Ok(())
     }

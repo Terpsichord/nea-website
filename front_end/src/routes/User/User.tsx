@@ -41,7 +41,7 @@ function UserPage() {
             <p className="pl-4 my-6 text-gray text-2xl">{user.bio}</p>
             <h2 className="text-4xl">Projects</h2>
             <div className="mt-5">
-                <ProjectView projects={projects} error={projectError} className="lg:grid-cols-2 grid-cols-1 gap-x-20 gap-y-14" />
+                <ProjectView projects={projects} error={projectError} />
             </div>
         </div>
     )

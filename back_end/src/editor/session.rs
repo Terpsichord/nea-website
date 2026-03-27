@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
@@ -148,21 +150,8 @@ impl EditorSessionManager {
         &self.client
     }
 
-    // FIXME: remove(?) probably
-    // const CODE_LEN: usize = 16;
-
-    // pub fn create_code(&self, user_id: i32) -> String {
-    //     let code = BASE64_STANDARD.encode(rand::random::<[u8; Self::CODE_LEN]>());
-    //     let expiry = Utc::now() + Duration::minutes(5);
-
-    //     self.table.write().unwrap().entry(user_id).and_modify(|state| state.handle.code = Some((code.clone(), expiry)));
-
-    //     code
-    // }
-
     // called when the server receives a HTTP request to open a new session
     // may either start a new container or re-activate an already running one, depending on the state of SessionTable 
-    #[allow(clippy::too_many_arguments)] // FIXME
     pub async fn open(
         &self,
         user_id: i32,
@@ -241,7 +230,6 @@ impl EditorSessionManager {
 
     // create a new container via the Docker API and update the session table
     #[instrument(skip(self, access_token, refresh_token))]
-    #[allow(clippy::too_many_arguments)] // FIXME
     async fn create_session(
         &self,
         user_id: i32,
@@ -361,26 +349,12 @@ impl EditorSessionManager {
 
 
     async fn get_image(&self, lang: ProjectLang) -> Result<String, AppError> {
-        // FIXME: change this to actually get the right image, depending on the language used by the project
-        // you should build the image from the languages dockerfile first, as such: https://users.rust-lang.org/t/docker-image-not-being-build-with-bollard/129631/3
-        let image = "python:3".to_string();
+        const IMAGE_NAMESPACE: &str = "nea";
 
-        // this ensures that the image is present on the host system
-        // TODO: probably get rid of this if i end up using custom dockerfile images
-        self.docker
-            .create_image(
-                Some(
-                    CreateImageOptionsBuilder::default()
-                        .from_image(&image)
-                        .build(),
-                ),
-                None,
-                None,
-            )
-            .next()
-            .await
-            .unwrap()
-            .map_err(AppError::other)?;
+        let image = format!("{IMAGE_NAMESPACE}/{lang}");
+
+        // this ensures that the image is present on the host system, and returns an error if not
+        self.docker.inspect_image(&image).await.map_err(AppError::other)?;
 
         Ok(image)
     }

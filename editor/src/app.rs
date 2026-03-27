@@ -13,7 +13,7 @@ use std::{
 
 use eframe::egui;
 use egui::{
-    Align, Button, CentralPanel, Color32, ComboBox, Grid, Id, Key, KeyboardShortcut, Layout, MenuBar, Modifiers, RichText, ScrollArea, SidePanel, Style, TopBottomPanel, ViewportCommand, Visuals, containers::modal::Modal
+    Align, Button, CentralPanel, ComboBox, Grid, Id, Key, KeyboardShortcut, Layout, MenuBar, Modifiers, RichText, ScrollArea, SidePanel, Style, TopBottomPanel, ViewportCommand, containers::modal::Modal
 };
 use egui_extras::syntax_highlighting;
 #[cfg(not(target_arch = "wasm32"))]
@@ -382,7 +382,7 @@ impl App {
             ui.menu_button("Edit", |ui| {
               // open the settings modal if Settings is clicked
               if ui.button("Settings").clicked() {
-                    self.settings_modal_state = Some(EditorSettings::default());
+                    self.settings_modal_state = Some(self.editor_settings.clone());
                 }
             });
             ui.menu_button("View", |ui| {
@@ -426,8 +426,6 @@ impl App {
 
             #[cfg(target_arch = "wasm32")]
             if ui.button("Quit").clicked() {
-                // FIXME: confirmation (also for when tab is closed)
-                // suggest git committing
                 web_sys::window().unwrap().location().set_href("/").unwrap();
             }
 
@@ -468,6 +466,119 @@ impl App {
         }
     }
 
+    fn handle_shortcuts(&mut self, ctx: &egui::Context) {
+        ctx.input_mut(|i| {
+            let allow_save = self.buffers.current_buffer().is_some();
+            // CTRL+SHIFT+S => Save as
+            if allow_save
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND | Modifiers::SHIFT,
+                    logical_key: Key::S,
+                })
+            {
+                let _ = self.save_as();
+            }
+            // CTRL+ALT+S => Save all
+            else if self.buffers.is_dirty()
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND | Modifiers::ALT,
+                    logical_key: Key::S,
+                })
+            {
+                self.save_all();
+            }
+            // CTRL+SHIFT+O => Open folder
+            else if i.consume_shortcut(&KeyboardShortcut {
+                modifiers: Modifiers::COMMAND | Modifiers::SHIFT,
+                logical_key: Key::O,
+            }) {
+                self.open_folder(ctx);
+            }
+            // CTRL+SHIFT+U => Toggle output
+            else if self.explorer.is_some()
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND | Modifiers::SHIFT,
+                    logical_key: Key::U,
+                })
+            {
+                self.bottom_panel_state = match self.bottom_panel_state {
+                    Some(BottomPanelState::Output) => None,
+                    _ => Some(BottomPanelState::Output),
+                };
+            }
+            // CTRL+S => Save file
+            else if allow_save
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND,
+                    logical_key: Key::S,
+                })
+            {
+                let _ = self.save_file();
+            }
+            // CTRL+O => Open file
+            else if i.consume_shortcut(&KeyboardShortcut {
+                modifiers: Modifiers::COMMAND,
+                logical_key: Key::O,
+            }) {
+                self.open_file_dialog();
+            }
+            // CTRL+N => New file
+            else if i.consume_shortcut(&KeyboardShortcut {
+                modifiers: Modifiers::COMMAND,
+                logical_key: Key::N,
+            }) {
+                self.buffers.add(Buffer::empty());
+            }
+            // CTRL+F => Search
+            else if self.project.is_some()
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND,
+                    logical_key: Key::F,
+                })
+            {
+                self.search_modal_state = Some(SearchModalState::default());
+            }
+            // CTRL+H => Replace
+            else if self.project.is_some()
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND,
+                    logical_key: Key::H,
+                })
+            {
+                self.search_modal_state = Some(SearchModalState {
+                    is_replace: true,
+                    ..Default::default()
+                });
+            }
+            // CTRL+, => Settings
+            else if i.consume_shortcut(&KeyboardShortcut {
+                modifiers: Modifiers::COMMAND,
+                logical_key: Key::Comma,
+            }) {
+                self.settings_modal_state = Some(self.editor_settings.clone());
+            }
+            // CTRL+` => Toggle terminal
+            else if self.explorer.is_some()
+                && i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND,
+                    logical_key: Key::Backtick,
+                })
+            {
+                self.bottom_panel_state = match self.bottom_panel_state {
+                    Some(BottomPanelState::Terminal) => None,
+                    _ => Some(BottomPanelState::Terminal),
+                };
+            }
+            // F5 => Run
+            else if i.consume_key(Modifiers::NONE, Key::F5)
+                && self.project.is_some()
+                && let Err(e) = self.run()
+            {
+                self.error_message = Some(e.to_string());
+            }
+        });
+    }
+
     // Saves the current contents of the code buffer to a file.
     //
     // If no file is currently associated with the `App`, it prompts the user
@@ -478,6 +589,10 @@ impl App {
     // Returns `true` if the save was completed.
     #[cfg(not(target_arch = "wasm32"))]
     fn save_file(&mut self) -> Result<(), SaveError> {
+        if let Some(project) = &mut self.project {
+            let _ = self.runner.format(project);
+        }
+
         match self.buffers.current_buffer_mut() {
             Some(buffer) => match buffer.save(&self.fs) {
                 Ok(_) => Ok(()),
@@ -530,6 +645,10 @@ impl App {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn save_all(&mut self) {
+        if let Some(project) = &mut self.project {
+            let _ = self.runner.format(project);
+        }
+
         // collect list of buffers with unsaved changes
         let dirty_buffers: Vec<_> = self
             .buffers
@@ -547,6 +666,12 @@ impl App {
                 // if no file is selected, ignore it and continue saving all
                 let _ = self.save_as();
             }
+        }
+    }
+
+    fn format_files(&self) {
+        if self.editor_settings.format_on_save && let Some(project) = &self.project {
+
         }
     }
 
@@ -656,7 +781,7 @@ impl App {
             )
             .expect("failed to create terminal"),
         );
-        // FIXME: this might be to do with why terminal won't work (should this receiver be used somewhere?)
+        
         Box::leak(Box::new(receiver));
 
         // create a new Explorer side panel
@@ -912,34 +1037,6 @@ impl App {
         }
     }
 
-    fn show_help_modal(&mut self, ctx: &egui::Context) {
-        let modal = Modal::new(Id::new("help_modal")).show(ctx, |ui| {
-            ui.label("Help");
-
-            ui.separator();
-
-            ui.label(RichText::new("Keyboard shortcuts:").underline());
-            
-            ui.label("Ctrl + S: Save file\n\
-                Ctrl + Shift + S: Save as\n\
-                Ctrl + Alt + S: Save all\n\
-                Ctrl + N: New file\n\
-                Ctrl + O: Open file\n\
-                Ctrl + Shift + O: Open folder\n\
-                Ctrl + F: Search\n\
-                Ctrl + H: Replace\n\
-                Ctrl + ,: Settings\n\
-                Ctrl + `: Toggle terminal\n\
-                Ctrl + Shift + U: Toggle output\n\
-                F5: Run",
-            );
-        });
-
-        if modal.should_close() {
-            self.help_modal_shown = false;
-        }
-    }
-
     // Stop the current program if running and start a new execution 
             // TODO: error/test cases in the NEA write-up should include all of the `ok_or_eyre` and `bail!` errors in this function
     fn run(&mut self) -> eyre::Result<()> {
@@ -966,10 +1063,16 @@ impl App {
         for resp in self.backend_handle.responses() {
             use std::io::Read;
 
+            let Ok(resp) = resp else { 
+                eprintln!("failed to receive message from backend: {resp:#?}");
+                continue;
+            };
+
+
             // TODO: maybe explain what each and every of these commands do
             
             // pattern match agaisnt possible sent commands and their received response
-            match resp.expect("FIXME: proper error handling") {
+            match resp {
                 (OpenProject, Project { contents, settings }) => {
                     self.editor_settings = settings;
 
@@ -1013,8 +1116,8 @@ impl App {
                 }
                 (_, Success) => {}
                 // the server sent an invalid response to the RPC call
-                _ => {
-                    panic!("FIXME: error handle here or something")
+                resp => {
+                    eprintln!("received invalid RPC response from server: {resp:#?}");
                 }
             }
         }

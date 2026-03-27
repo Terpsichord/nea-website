@@ -18,11 +18,12 @@ const root = document.getElementById('root')!;
 ReactDOM.createRoot(root).render(
   <StrictMode>
     <BrowserRouter>
+      {/* wrap with AuthProvider to allow all components to access the authentication state */}
       <AuthProvider>
-        // always display the navbar at the top of the page for navigation
+        {/* always display the navbar at the top of the page for navigation */}
         <Navbar />
 
-        // maps each available route to the corresponding component
+        {/* maps each available route to the corresponding component */}
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/explore" element={<Explore />} />

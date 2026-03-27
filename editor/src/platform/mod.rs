@@ -19,7 +19,7 @@ mod web;
 #[derive(Default, Debug, Deserialize)]
 pub struct ProjectSettings {
     pub run_command: String,
-    // FIXME: add format_command: Option<String>
+    pub format_command: Option<String>
 }
 
 impl ProjectSettings {
@@ -36,6 +36,7 @@ pub enum ProjectSettingsError {
 
 pub trait RunnerTrait {
     fn run(&mut self, project: &mut Project, output: Arc<Mutex<String>>) -> eyre::Result<()>;
+    fn format(&mut self, project: &mut Project) -> eyre::Result<()>;
     fn stop(&mut self);
     fn update(&mut self);
     fn is_running(&self) -> bool;

@@ -218,7 +218,6 @@ impl GithubClient {
 
         if let Some(new_tokens) = new_tokens {
             tokens = Some(new_tokens);
-            // FIXME: it's so stupid that this works
             (access_token, refresh_token) = tokens.as_ref().unwrap().unencrypted();
         }
 

@@ -73,6 +73,7 @@ pub enum Command {
     Rename { from: PathBuf, to: PathBuf },
     WriteFile { path: PathBuf, contents: String },
     Delete { path: PathBuf },
+    Format { command: String },
     Run { command: String },
     StopRunning,
 }

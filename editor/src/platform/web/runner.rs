@@ -22,7 +22,9 @@ impl Runner {
             RunAction::Run => self.handle.send(Command::Run {
                 command: settings.run_command.to_string(),
             }),
-            _ => todo!(),
+            RunAction::Format => self.handle.send(Command::Format {
+                command: settings.format_command.to_string(),
+            }),
         }
     }
 
@@ -40,6 +42,14 @@ impl RunnerTrait for Runner {
         self.handle.send(Command::ReadSettings {
             action: RunAction::Run,
         });
+        Ok(())
+    }
+
+    fn format(&mut self, project: &mut Project) -> eyre::Result<()> {
+        self.handle.send(Command::ReadSettings {
+            action: RunAction::Format,
+        });
+
         Ok(())
     }
 

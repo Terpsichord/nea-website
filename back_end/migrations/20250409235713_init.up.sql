@@ -1,3 +1,5 @@
+/* DDL scripts to initialise the database */
+
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     github_id INT NOT NULL UNIQUE,

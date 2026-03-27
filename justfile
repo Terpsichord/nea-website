@@ -15,3 +15,8 @@ full-run: build-npm build-editor run
 
 editor:
     cd editor && cargo run --target x86_64-pc-windows-gnu --features native --release
+
+docker-build:
+    for lang in c cpp cs java js py rs sh ts; do \
+        docker build -t nea/$lang -f back_end/languages/$lang/$lang.dockerfile back_end/languages/$lang & \
+    done

@@ -230,7 +230,6 @@ pub struct ExplorerResponse {
 pub struct Explorer {
     pub root_node: TreeNode,
     pub highlighted: Option<PathBuf>,
-    pub new_item: Option<(PathBuf, String)>,
 }
 
 impl Explorer {
@@ -238,7 +237,6 @@ impl Explorer {
         Ok(Self {
             root_node: TreeNode::new(path, fs)?,
             highlighted: None,
-            new_item: None,
         })
     }
 
@@ -257,26 +255,6 @@ impl Explorer {
             })
             .inner?;
 
-        // FIXME
-        // if explorer.response.clicked_elsewhere() {
-        //     self.highlighted = None;
-        // }
-
         Ok(explorer)
     }
-
-    // fn new_file_ui(&mut self, path: &Path, name: &mut String, ui: &mut egui::Ui, fs: &FileSystem) -> ExplorerResponse {
-    //     let response = ui.text_edit_singleline(name);
-
-    //     if response.lost_focus() {
-    //         let new_path = path.join(name);
-    //         fs.new_file(&new_path);
-
-    //     }
-
-    //     ExplorerResponse {
-    //         action: None,
-    //         response,
-    //     }
-    // }
 }

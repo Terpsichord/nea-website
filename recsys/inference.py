@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 load_dotenv()
 DB_URL = os.getenv("DATABASE_URL")
 
-CATEGORY_ID = 1  # e.g., 'AI_TWIN_TOWER' in rec_category table
+CATEGORY_ID = 1  # 'Recommended for you'
 
 
 def run_recommendations(user_id, top_k):

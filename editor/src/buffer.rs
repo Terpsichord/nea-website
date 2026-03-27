@@ -351,7 +351,6 @@ impl Buffer {
             .ok_or(BufferError::NoAssociatedFile)?;
         let mut new_path = file.path.clone();
 
-        // FIXME: santise the new name and check for errors
         new_path.set_file_name(new_name);
 
         fs.rename(&file.path, &new_path)
