@@ -135,11 +135,10 @@ impl Buffers {
                     }
                 } else {
                     ui.scope(|ui| {
-                        if let Some(selected_id) = self.selected_id {
-                            if buffer.id == selected_id {
+                        if let Some(selected_id) = self.selected_id
+                            && buffer.id == selected_id {
                                 ui.visuals_mut().button_frame = true;
                             }
-                        }
 
                         let tab = ui.button(buffer.file_display_name());
 
@@ -230,7 +229,7 @@ impl Buffers {
     pub fn get_by_path(&self, path: &Path) -> Option<&Buffer> {
         self.buffers
             .iter()
-            .find(|buf| buf.file_data.as_ref().map(|f| &*f.path.deref()) == Some(path))
+            .find(|buf| buf.file_data.as_ref().map(|f| f.path.deref()) == Some(path))
     }
 
     pub fn is_dirty(&self) -> bool {

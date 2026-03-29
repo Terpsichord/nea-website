@@ -1,4 +1,4 @@
-use std::{fs::File, path::PathBuf};
+use std::fs::File;
 use itertools::Itertools;
 use ws_messages::ColorScheme;
 

@@ -22,9 +22,11 @@ impl Runner {
             RunAction::Run => self.handle.send(Command::Run {
                 command: settings.run_command.to_string(),
             }),
-            RunAction::Format => self.handle.send(Command::Format {
-                command: settings.format_command.to_string(),
-            }),
+            RunAction::Format => if let Some(cmd) = &settings.format_command {
+                self.handle.send(Command::Format {
+                    command: cmd.to_string(),
+                })
+            },
         }
     }
 

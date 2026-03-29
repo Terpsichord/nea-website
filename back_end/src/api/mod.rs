@@ -1,7 +1,6 @@
 use axum::{
-    Json, Router, http::{HeaderName, header, StatusCode}, routing::{get, post} 
+    Router, http::StatusCode 
 };
-use axum_extra::extract::CookieJar;
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;

@@ -8,7 +8,7 @@ use axum_extra::extract::cookie::CookieJar;
 use tracing::instrument;
 
 use crate::{
-    auth::{ACCESS_COOKIE, TokenCache, TokenHeaders, get_auth_user},
+    auth::{TokenCache, TokenHeaders, get_auth_user},
     error::AppError,
     github::{
         GithubClient,

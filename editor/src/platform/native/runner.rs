@@ -9,7 +9,6 @@ use std::{
 };
 
 use crate::platform::RunnerTrait;
-use crate::platform::native::project;
 
 use super::{
     Project, ProjectSettings,

@@ -145,13 +145,23 @@ impl GithubClient {
             .await?;
 
         // get the name of the tarball
-        let disposition_header = resp.headers().get("content-disposition").expect("missing content-disposition").to_str().unwrap();
+        let disposition_header = resp
+            .headers()
+            .get("content-disposition")
+            .expect("missing content-disposition")
+            .to_str()
+            .unwrap();
         let tarball_name = disposition_header
-            .split(";")
+            .split(';')
             .find_map(|s| {
                 let s = s.trim();
                 if s.starts_with("filename=") {
-                    Some(s.trim_start_matches("filename=").trim_matches('"').split('.').next().unwrap())
+                    Some(s
+                        .trim_start_matches("filename=")
+                        .trim_matches('"')
+                        .split('.')
+                        .next()
+                        .unwrap())
                 } else {
                     None
                 }
@@ -534,7 +544,7 @@ impl GithubClient {
 
     // Check whether a user has the GitHub App for this app installed to their account or not
     pub async fn user_installed(&self, access_token: &str) -> Result<bool, AppError> {
-        let WithTokens(resp, tokens) = self
+        let WithTokens(resp, _tokens) = self
             .send_authenticated(
                 self.client.get(Self::api_url("/user/installations")),
                 access_token,

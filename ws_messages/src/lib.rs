@@ -1,7 +1,6 @@
 use std::{
     fmt::Display,
-    fs::File,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 use bincode::config;

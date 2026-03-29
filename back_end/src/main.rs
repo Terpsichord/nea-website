@@ -3,9 +3,6 @@
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
 
-// TODO: do this, and for the editor crate as well
-// #![deny(warnings)]
-
 use std::sync::LazyLock;
 
 use anyhow::Context;

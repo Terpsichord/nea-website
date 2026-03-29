@@ -215,7 +215,6 @@ impl TreeNode {
 
 pub enum ExplorerAction {
     OpenFile(PathBuf),
-    // NewFile(PathBuf),
     NewFolder(PathBuf),
     Delete(PathBuf),
 }

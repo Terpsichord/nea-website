@@ -1,23 +1,18 @@
-use std::{
-    io,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
-use async_tar::Archive;
 use axum::extract::ws::{Message, WebSocket};
-use base64::{Engine as _, prelude::BASE64_STANDARD};
+use base64::Engine as _;
 use bollard::{
     exec::{CreateExecOptions, StartExecResults},
     secret::ExecInspectResponse,
 };
-use futures::{AsyncReadExt as _, StreamExt as _, TryStreamExt as _};
+use futures::{StreamExt as _, TryStreamExt as _};
 use serde::Serialize;
 use tokio::io::AsyncWriteExt as _;
-use tokio_util::{compat::TokioAsyncReadCompatExt, io::StreamReader};
 use tracing::{info, warn};
 use ws_messages::{ClientMessage, Command, EditorSettings, ProjectTree, Response, ServerMessage};
 
-use crate::{DatabaseConnector, auth::crypto::Aes256Gcm, editor::session::EditorSessionManager};
+use crate::{DatabaseConnector, editor::session::EditorSessionManager};
 
 // Class that handles incoming WebSocket messages for a single user session
 pub struct WebSocketHandler {
@@ -197,7 +192,7 @@ impl WebSocketHandler {
                 .into()
             })
             .collect();
-        println!("top_dir: {:?}", top_dir);
+        println!("top_dir: {top_dir:?}");
 
         if self
             .exec_docker(vec![
@@ -220,7 +215,7 @@ impl WebSocketHandler {
             );
         }
 
-        println!("top_dir: {:?}", top_dir);
+        println!("top_dir: {top_dir:?}");
 
         self.project_dir = Some(project_dir.to_string());
 
@@ -321,8 +316,7 @@ impl WebSocketHandler {
             .await?
             .lines()
             .next()
-            .map(|line| line.starts_with("total"))
-            .unwrap_or_default()
+            .is_some_and(|line| line.starts_with("total"))
         {
             // remove dir
             self.exec_docker(vec!["rm", "-rf", &path.to_string_lossy()])

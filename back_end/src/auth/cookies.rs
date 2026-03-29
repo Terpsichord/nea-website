@@ -1,6 +1,6 @@
 use axum::{
-    http::{HeaderName, HeaderValue, Response},
-    response::{IntoResponseParts, ResponseParts},
+    http::{HeaderName, HeaderValue},
+    response::{IntoResponse, IntoResponseParts, ResponseParts, Response},
 };
 use chrono::{DateTime, Utc};
 use reqwest::header::SET_COOKIE;
@@ -68,16 +68,17 @@ impl TokenHeaders {
 }
 
 pub trait ResponseTokenExt {
-    fn with_tokens(self, tokens: Option<Tokens>) -> Self;
+    fn with_tokens(self, tokens: Option<Tokens>) -> Response;
 }
 
-impl<T> ResponseTokenExt for Response<T> {
-    fn with_tokens(mut self, tokens: Option<Tokens>) -> Self {
+impl<R: IntoResponse> ResponseTokenExt for R {
+    fn with_tokens(self, tokens: Option<Tokens>) -> Response {
+        let mut res = self.into_response();
         if let Some(tokens) = tokens {
             let headers = TokenHeaders::from(&tokens);
-            self.headers_mut()
+            res.headers_mut()
                 .extend([headers.access_header, headers.refresh_header]);
         }
-        self
+        res
     }
 }

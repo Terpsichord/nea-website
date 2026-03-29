@@ -74,6 +74,12 @@ pub struct Vec<T> {
     len: usize,
 }
 
+impl<T> Default for Vec<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> Vec<T> {
     fn ptr(&self) -> *mut T {
         self.buf.ptr.as_ptr()

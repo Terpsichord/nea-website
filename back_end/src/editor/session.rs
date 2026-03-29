@@ -7,19 +7,15 @@ use std::{
     time::Duration,
 };
 
-use anyhow::anyhow;
 use bollard::{
     Docker, body_full,
     query_parameters::{
-        CreateContainerOptions, CreateImageOptionsBuilder, StartContainerOptions,
+        CreateContainerOptions, StartContainerOptions,
         StopContainerOptions, UploadToContainerOptions,
     },
     secret::{ContainerCreateBody, HostConfig, Mount, MountTypeEnum},
 };
-use bytes::Bytes;
-use flate2::read::GzDecoder;
 use futures::executor::block_on;
-use futures_util::StreamExt as _;
 use tokio::task::JoinHandle;
 use tracing::{debug, info, instrument, warn};
 

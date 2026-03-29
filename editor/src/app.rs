@@ -157,15 +157,12 @@ impl eframe::App for App {
 
             match response.inner {
                 Ok(explorer_response) => {
-                    if let Some(action) = explorer_response.action {
-                        match action {
-                            ExplorerAction::OpenFile(path) => self.open_file(path),
-                            // TODO: the 2 below
-                            ExplorerAction::NewFolder(path) => todo!(), //self.new_folder(path),
-                            ExplorerAction::Delete(path) => todo!(),    // self.delete_file(path),
-                        }
+                    // if the user double-clicked an explorer item, then open the file
+                    if let Some(ExplorerAction::OpenFile(path)) = explorer_response.action {
+                        self.open_file(path);
                     }
                 }
+                // display any error from rendering the explorer panel
                 Err(err) => self.error_message = Some(err.to_string()),
             }
         }
@@ -191,12 +188,15 @@ impl eframe::App for App {
                 });
         }
 
+        // render buffers to center of the window
         let buffers_response = CentralPanel::default()
             .show(ctx, |ui| {
                 self.buffers
                     .show(&self.editor_settings, ui, &self.code_theme, &self.fs)
             })
             .inner;
+
+        // display any unsaved changes or error modals returned from the buffers
         if let Some(action) = buffers_response.save_modal_action {
             self.save_modal_state = SaveModalState::SaveFileOpen;
             self.modal_action = Some(action);
@@ -209,6 +209,8 @@ impl eframe::App for App {
         let mut replaced = false;
         let mut done = false;
         let mut opened = None;
+        
+        // render the search modal if necessary
         if let Some(search_state) = &mut self.search_modal_state {
             Self::show_search_modal(
                 ctx,
@@ -357,11 +359,9 @@ impl App {
                     if ui
                         .add_enabled(show_save, Button::new("Save as..."))
                         .clicked()
-                    {
-                        if let Err(SaveError::NoBufferSelected) = self.save_as() {
+                        && let Err(SaveError::NoBufferSelected) = self.save_as() {
                             unreachable!()
                         }
-                    }
                     // only show Save all if any of the buffers are have unsaved changes
                     let show_save_all = self.buffers.is_dirty();
                     if ui
@@ -412,11 +412,10 @@ impl App {
 
             ui.menu_button("Run", |ui| {
                 let show_run = self.project.is_some();
-                if ui.add_enabled(show_run, Button::new("Run")).clicked() {
-                    if let Err(e) = self.run() {
+                if ui.add_enabled(show_run, Button::new("Run")).clicked()
+                    && let Err(e) = self.run() {
                         self.error_message = Some(e.to_string());
                     }
-                }
             });
             ui.menu_button("Help", |ui| {
                 if ui.button("Help").clicked() {
@@ -469,33 +468,53 @@ impl App {
     fn handle_shortcuts(&mut self, ctx: &egui::Context) {
         ctx.input_mut(|i| {
             let allow_save = self.buffers.current_buffer().is_some();
-            // CTRL+SHIFT+S => Save as
-            if allow_save
-                && i.consume_shortcut(&KeyboardShortcut {
+            
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                // CTRL+SHIFT+S => Save as
+                if allow_save
+                    && i.consume_shortcut(&KeyboardShortcut {
+                        modifiers: Modifiers::COMMAND | Modifiers::SHIFT,
+                        logical_key: Key::S,
+                    })
+                {
+                    let _ = self.save_as();
+                }
+                // CTRL+ALT+S => Save all
+                else if self.buffers.is_dirty()
+                    && i.consume_shortcut(&KeyboardShortcut {
+                        modifiers: Modifiers::COMMAND | Modifiers::ALT,
+                        logical_key: Key::S,
+                    })
+                {
+                    self.save_all();
+                }
+                // CTRL+SHIFT+O => Open folder
+                else if i.consume_shortcut(&KeyboardShortcut {
                     modifiers: Modifiers::COMMAND | Modifiers::SHIFT,
-                    logical_key: Key::S,
-                })
-            {
-                let _ = self.save_as();
-            }
-            // CTRL+ALT+S => Save all
-            else if self.buffers.is_dirty()
-                && i.consume_shortcut(&KeyboardShortcut {
-                    modifiers: Modifiers::COMMAND | Modifiers::ALT,
-                    logical_key: Key::S,
-                })
-            {
-                self.save_all();
-            }
-            // CTRL+SHIFT+O => Open folder
-            else if i.consume_shortcut(&KeyboardShortcut {
-                modifiers: Modifiers::COMMAND | Modifiers::SHIFT,
-                logical_key: Key::O,
-            }) {
-                self.open_folder(ctx);
+                    logical_key: Key::O,
+                }) {
+                    self.open_folder(ctx);
+                }
+                // CTRL+S => Save file
+                else if allow_save
+                    && i.consume_shortcut(&KeyboardShortcut {
+                        modifiers: Modifiers::COMMAND,
+                        logical_key: Key::S,
+                    })
+                {
+                    let _ = self.save_file();
+                }
+                // CTRL+O => Open file
+                else if i.consume_shortcut(&KeyboardShortcut {
+                    modifiers: Modifiers::COMMAND,
+                    logical_key: Key::O,
+                }) {
+                    self.open_file_dialog();
+                }
             }
             // CTRL+SHIFT+U => Toggle output
-            else if self.explorer.is_some()
+            if self.explorer.is_some()
                 && i.consume_shortcut(&KeyboardShortcut {
                     modifiers: Modifiers::COMMAND | Modifiers::SHIFT,
                     logical_key: Key::U,
@@ -505,22 +524,6 @@ impl App {
                     Some(BottomPanelState::Output) => None,
                     _ => Some(BottomPanelState::Output),
                 };
-            }
-            // CTRL+S => Save file
-            else if allow_save
-                && i.consume_shortcut(&KeyboardShortcut {
-                    modifiers: Modifiers::COMMAND,
-                    logical_key: Key::S,
-                })
-            {
-                let _ = self.save_file();
-            }
-            // CTRL+O => Open file
-            else if i.consume_shortcut(&KeyboardShortcut {
-                modifiers: Modifiers::COMMAND,
-                logical_key: Key::O,
-            }) {
-                self.open_file_dialog();
             }
             // CTRL+N => New file
             else if i.consume_shortcut(&KeyboardShortcut {
@@ -670,7 +673,7 @@ impl App {
     }
 
     fn format_files(&self) {
-        if self.editor_settings.format_on_save && let Some(project) = &self.project {
+        if self.editor_settings.format_on_save && let Some(_project) = &self.project {
 
         }
     }
@@ -886,8 +889,6 @@ impl App {
                     }
                 });
 
-            // TODO: add options for other settings
-            
             ui.horizontal(|ui| {
                 if ui.button("Done").clicked() {
                     updated = true;
@@ -1038,7 +1039,6 @@ impl App {
     }
 
     // Stop the current program if running and start a new execution 
-            // TODO: error/test cases in the NEA write-up should include all of the `ok_or_eyre` and `bail!` errors in this function
     fn run(&mut self) -> eyre::Result<()> {
         self.runner.stop();
 
@@ -1056,10 +1056,10 @@ impl App {
     fn handle_pending(&mut self) {
         use ws_messages::{Command::*, ProjectTree, Response::*, RunAction};
 
-        // TODO: document what this call does (rn i cba checking the platform/ dir)
+        // check for any incoming messages on the websocket and update the pending responses table as appropriate 
         self.backend_handle.update();
                 
-        // iterate through all received websocket messages
+        // iterate through all received responses on the websocket
         for resp in self.backend_handle.responses() {
             use std::io::Read;
 
@@ -1068,9 +1068,6 @@ impl App {
                 continue;
             };
 
-
-            // TODO: maybe explain what each and every of these commands do
-            
             // pattern match agaisnt possible sent commands and their received response
             match resp {
                 (OpenProject, Project { contents, settings }) => {

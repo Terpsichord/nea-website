@@ -49,7 +49,8 @@ impl SearchQuery {
         "ORDER BY ".to_string()
             + match sort {
                 SortOrder::Relevant => return String::new(),
-                SortOrder::Title => "p.title",
+                // LOWER(...) is required to sort case-insensitively
+                SortOrder::Title => "LOWER(p.title)",
                 SortOrder::Likes => "pi.like_count",
                 SortOrder::UploadTime => "p.upload_time",
             }

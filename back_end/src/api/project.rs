@@ -17,7 +17,7 @@ use walkdir::WalkDir;
 use crate::{
     AppState,
     api::{ProjectResponse, search},
-    auth::{ResponseTokenExt, TokenHeaders, middleware::{AuthUser, auth_middleware, optional_auth_middleware}},
+    auth::{ResponseTokenExt, middleware::{AuthUser, auth_middleware, optional_auth_middleware}},
     db::{DatabaseConnector, NewProject},
     editor::{session::EditorSessionManager, websocket::WebSocketHandler},
     error::AppError,
@@ -260,7 +260,7 @@ async fn new_project(
     Ok(Json(NewProjectResponse {
         username,
         repo_name: new_project.repo_name,
-    }).into_response().with_tokens(tokens))
+    }).with_tokens(tokens))
 }
 
 #[instrument(skip(db, client, access_token, refresh_token))]
@@ -272,7 +272,7 @@ async fn remix_project(
         access_token,
         refresh_token,
     }): Extension<AuthUser>,
-) -> Result<Json<NewProjectResponse>, AppError> {
+) -> Result<Response, AppError> {
     info!("remixing");
     let project = db.get_project(&username, &repo_name, None, false).await?;
     info!("found project {}", project.info.title);
@@ -320,7 +320,7 @@ async fn remix_project(
     Ok(Json(NewProjectResponse {
         username: new_username,
         repo_name: new_project.repo_name,
-    }))
+    }).with_tokens(tokens))
 }
 
 #[derive(Deserialize)]
