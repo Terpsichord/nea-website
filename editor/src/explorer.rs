@@ -167,18 +167,6 @@ impl TreeNode {
             return Err(err);
         }
 
-        Popup::context_menu(&response.header_response).show(|ui| {
-            // if ui.button("New file").clicked() {
-            //     action = Some(ExplorerAction::NewFile(path.to_owned()));
-            // }
-            if ui.button("Rename").clicked() {
-                todo!();
-            }
-            if ui.button("Delete").clicked() {
-                action = Some(ExplorerAction::Delete(path.to_owned()));
-            }
-        });
-
         Ok(ExplorerResponse {
             action,
             response: response.header_response,

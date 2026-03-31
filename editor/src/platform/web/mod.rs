@@ -65,12 +65,9 @@ impl BackendHandle {
 
     pub fn update(&mut self) {
         while let Some(msg) = self.ws.next_ready() {
-            match msg {
-                WsMessage::Binary(bytes) => {
-                    let resp = ServerMessage::decode(&bytes).expect("failed to decode");
-                    self.pending.add_resp(resp);
-                }
-                WsMessage::Text(_text) => todo!(),
+            if let WsMessage::Binary(bytes) = msg {
+                let resp = ServerMessage::decode(&bytes).expect("failed to decode");
+                self.pending.add_resp(resp);
             }
         }
     }
@@ -97,7 +94,6 @@ impl WebSocketHandle {
         let url = url.to_string();
         let ws = WsMeta::connect(url.clone(), None).await?;
 
-        // TODO: remove this (and all other `console::log`s)
         web_sys::console::log_1(&format!("connected to {url}: {ws:?}").into());
 
         Ok(Self(Some(Rc::new(RefCell::new(ws)))))

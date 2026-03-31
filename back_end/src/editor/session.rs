@@ -322,28 +322,6 @@ impl EditorSessionManager {
         Ok(WithTokens(container_id, headers))
     }
 
-    // pub fn get_tarball_dir(tar_gz: &Bytes) -> Result<String, AppError> {
-    //     let tarball = GzDecoder::new(tar_gz.as_ref());
-    //     let mut archive = tar::Archive::new(tarball);
-    //     let mut entries = archive.entries().map_err(AppError::other)?;
-    //     let entry = entries
-    //         .next()
-    //         .ok_or(AppError::Other(anyhow!("no entry in tarball")))?
-    //         .map_err(AppError::other)?;
-
-    //     let path = entry.path().map_err(AppError::other)?;
-
-    //     path
-    //         .components()
-    //         .next()
-    //         .ok_or(AppError::Other(anyhow!("no dir in tarball")))?
-    //         .as_os_str()
-    //         .to_str()
-    //         .ok_or(AppError::Other(anyhow!("invalid dir name")))
-    //         .map(String::from)
-    // }
-
-
     async fn get_image(&self, lang: ProjectLang) -> Result<String, AppError> {
         const IMAGE_NAMESPACE: &str = "nea";
 

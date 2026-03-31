@@ -77,7 +77,6 @@ impl RunnerTrait for Runner {
                             output.lock().expect("failed to lock output").push_str(&(line));
                         }
                         Ok(Ok(PipedLine::Eof)) | Err(_) => break,
-                        // TODO: handle this error
                         Ok(Err(err)) => eprintln!("Error: {:?}", err),
                     },
                     recv(err) -> msg => match msg {

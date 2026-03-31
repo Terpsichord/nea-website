@@ -12,7 +12,6 @@ function Navbar() {
             <div className="space-x-10">
                 <NavLink className={activeStyle} to="/">{auth.isAuth ? "Dashboard" : "Home"}</NavLink>
                 <NavLink className={activeStyle} to="/explore">Explore</NavLink>
-                <NavLink className={activeStyle} to="/about">About</NavLink>
             </div>
             <div className="ml-auto">
                 {auth.isAuth ?

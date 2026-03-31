@@ -55,7 +55,7 @@ pub trait FileSystemTrait {
     // fn new_file(&self, path: &Path) -> io::Result<()>;
     fn read_file(&self, path: &Path) -> io::Result<String>;
     fn read_dir(&self, path: &Path) -> io::Result<Self::ReadDir>;
-    fn search_project(&self, project: &Project, pattern: &str) -> Vec<SearchResult>;
+    fn search_project(&self, project: &Project, pattern: &str) -> io::Result<Vec<SearchResult>>;
     fn replace(&self, paths: &[&Path], pattern: &str, replace: &str) -> io::Result<()>;
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()>;
     fn write(&self, path: &Path, contents: &str) -> io::Result<()>;

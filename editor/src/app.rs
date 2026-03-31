@@ -6,18 +6,23 @@ use crate::{
 };
 
 use core::f32;
+#[cfg(not(target_arch = "wasm32"))]
+use std::sync::mpsc::Receiver;
 use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 
 use eframe::egui;
+#[cfg(not(target_arch = "wasm32"))]
 use egui::{
-    Align, Button, CentralPanel, ComboBox, Grid, Id, Key, KeyboardShortcut, Layout, MenuBar, Modifiers, RichText, ScrollArea, SidePanel, Style, TopBottomPanel, ViewportCommand, containers::modal::Modal
+    Align, Button, CentralPanel, ComboBox, Grid, Id, Key, KeyboardShortcut, Layout, MenuBar,
+    Modifiers, RichText, ScrollArea, SidePanel, Style, TopBottomPanel, ViewportCommand,
+    containers::modal::Modal,
 };
 use egui_extras::syntax_highlighting;
 #[cfg(not(target_arch = "wasm32"))]
-use egui_term::{TerminalBackend, TerminalView};
+use egui_term::{PtyEvent, TerminalBackend, TerminalView};
 use eyre::OptionExt;
 use uuid::Uuid;
 use ws_messages::{ColorScheme, EditorSettings};
@@ -99,7 +104,7 @@ pub struct App {
     /// This must be wrapped in an `Arc<Mutex<_>>` so that it can be shared to and modified across threads, including the `running_command` thread.
     output: Arc<Mutex<String>>,
     #[cfg(not(target_arch = "wasm32"))]
-    terminal: Option<TerminalBackend>,
+    terminal: Option<(TerminalBackend, Receiver<(u64, PtyEvent)>)>,
     error_message: Option<String>,
     /// Current state of the save modal, as described in [`SaveModalState`]
     save_modal_state: SaveModalState,
@@ -143,7 +148,7 @@ impl eframe::App for App {
             });
         });
 
-        // display side panel showing the file tree Explorer 
+        // display side panel showing the file tree Explorer
         let max_left_panel_width = 0.8;
         if let Some(explorer) = self.explorer.as_mut() {
             let response = SidePanel::left("explorer_panel")
@@ -172,6 +177,10 @@ impl eframe::App for App {
             && ctx.input(|i| i.key_pressed(Key::Delete))
         {
             self.delete(path.as_path());
+        }
+
+        if let Some((_, receiver)) = &self.terminal {
+            receiver.try_recv().ok();
         }
 
         if let Some(bottom_panel_state) = self.bottom_panel_state {
@@ -209,7 +218,7 @@ impl eframe::App for App {
         let mut replaced = false;
         let mut done = false;
         let mut opened = None;
-        
+
         // render the search modal if necessary
         if let Some(search_state) = &mut self.search_modal_state {
             Self::show_search_modal(
@@ -359,9 +368,10 @@ impl App {
                     if ui
                         .add_enabled(show_save, Button::new("Save as..."))
                         .clicked()
-                        && let Err(SaveError::NoBufferSelected) = self.save_as() {
-                            unreachable!()
-                        }
+                        && let Err(SaveError::NoBufferSelected) = self.save_as()
+                    {
+                        unreachable!()
+                    }
                     // only show Save all if any of the buffers are have unsaved changes
                     let show_save_all = self.buffers.is_dirty();
                     if ui
@@ -380,14 +390,14 @@ impl App {
                 }
             });
             ui.menu_button("Edit", |ui| {
-              // open the settings modal if Settings is clicked
-              if ui.button("Settings").clicked() {
+                // open the settings modal if Settings is clicked
+                if ui.button("Settings").clicked() {
                     self.settings_modal_state = Some(self.editor_settings.clone());
                 }
             });
             ui.menu_button("View", |ui| {
                 // add toggle buttons for Output and Terminal panels
-                
+
                 if ui
                     .add_enabled(self.explorer.is_some(), Button::new("Show output"))
                     .clicked()
@@ -413,9 +423,10 @@ impl App {
             ui.menu_button("Run", |ui| {
                 let show_run = self.project.is_some();
                 if ui.add_enabled(show_run, Button::new("Run")).clicked()
-                    && let Err(e) = self.run() {
-                        self.error_message = Some(e.to_string());
-                    }
+                    && let Err(e) = self.run()
+                {
+                    self.error_message = Some(e.to_string());
+                }
             });
             ui.menu_button("Help", |ui| {
                 if ui.button("Help").clicked() {
@@ -432,7 +443,7 @@ impl App {
         });
     }
 
-    // Display Stop button to stop execution if the project is currently running 
+    // Display Stop button to stop execution if the project is currently running
     fn running_buttons(&mut self, ui: &mut egui::Ui) {
         ui.scope(|ui| {
             ui.style_mut().visuals.button_frame = true;
@@ -459,8 +470,10 @@ impl App {
     // display terminal panel
     fn terminal(&mut self, ui: &mut egui::Ui, size: egui::Vec2) {
         #[cfg(not(target_arch = "wasm32"))]
-        if let Some(terminal) = &mut self.terminal {
-            let view = TerminalView::new(ui, terminal).set_size(size);
+        if let Some((terminal, _)) = &mut self.terminal {
+            let view = TerminalView::new(ui, terminal)
+                .set_focus(true)
+                .set_size(size);
             ui.add(view);
         }
     }
@@ -468,7 +481,7 @@ impl App {
     fn handle_shortcuts(&mut self, ctx: &egui::Context) {
         ctx.input_mut(|i| {
             let allow_save = self.buffers.current_buffer().is_some();
-            
+
             #[cfg(not(target_arch = "wasm32"))]
             {
                 // CTRL+SHIFT+S => Save as
@@ -663,7 +676,7 @@ impl App {
         for id in dirty_buffers {
             // unwrap is safe here as `id` is guaranteed to be associated with a buffer
             let buffer = self.buffers.get_mut_by_id(id).unwrap();
-            
+
             if let Err(BufferError::NoAssociatedFile) = buffer.save(&self.fs) {
                 self.buffers.select(id);
                 // if no file is selected, ignore it and continue saving all
@@ -673,9 +686,9 @@ impl App {
     }
 
     fn format_files(&self) {
-        if self.editor_settings.format_on_save && let Some(_project) = &self.project {
-
-        }
+        if self.editor_settings.format_on_save
+            && let Some(_project) = &self.project
+        {}
     }
 
     // send a request to the backend API at /project/github_save
@@ -772,7 +785,7 @@ impl App {
         } else {
             std::env::var("SHELL").expect("SHELL is not defined")
         };
-        self.terminal = Some(
+        self.terminal = Some((
             TerminalBackend::new(
                 0,
                 ctx.clone(),
@@ -783,9 +796,8 @@ impl App {
                 },
             )
             .expect("failed to create terminal"),
-        );
-        
-        Box::leak(Box::new(receiver));
+            receiver,
+        ));
 
         // create a new Explorer side panel
         match Explorer::new(path, &self.fs) {
@@ -875,7 +887,7 @@ impl App {
 
             ui.checkbox(&mut settings_state.auto_save, "Auto-save");
             ui.checkbox(&mut settings_state.format_on_save, "Format on save");
-            
+
             // color schemes
             ComboBox::from_label("Color Scheme")
                 .selected_text(settings_state.color_scheme.clone().unwrap_or_default())
@@ -988,8 +1000,9 @@ impl App {
         if let Some(project) = &self.project
             && let Some(search_state) = &mut self.search_modal_state
         {
-            let results = self.fs.search_project(project, search);
-            search_state.search_results = results;
+            if let Ok(results) = self.fs.search_project(project, search) {
+                search_state.search_results = results;
+            }
         }
     }
 
@@ -1017,8 +1030,9 @@ impl App {
             ui.separator();
 
             ui.label(RichText::new("Keyboard shortcuts:").underline());
-            
-            ui.label("Ctrl + S: Save file\n\
+
+            ui.label(
+                "Ctrl + S: Save file\n\
                 Ctrl + Shift + S: Save as\n\
                 Ctrl + Alt + S: Save all\n\
                 Ctrl + N: New file\n\
@@ -1038,7 +1052,7 @@ impl App {
         }
     }
 
-    // Stop the current program if running and start a new execution 
+    // Stop the current program if running and start a new execution
     fn run(&mut self) -> eyre::Result<()> {
         self.runner.stop();
 
@@ -1056,14 +1070,14 @@ impl App {
     fn handle_pending(&mut self) {
         use ws_messages::{Command::*, ProjectTree, Response::*, RunAction};
 
-        // check for any incoming messages on the websocket and update the pending responses table as appropriate 
+        // check for any incoming messages on the websocket and update the pending responses table as appropriate
         self.backend_handle.update();
-                
+
         // iterate through all received responses on the websocket
         for resp in self.backend_handle.responses() {
             use std::io::Read;
 
-            let Ok(resp) = resp else { 
+            let Ok(resp) = resp else {
                 eprintln!("failed to receive message from backend: {resp:#?}");
                 continue;
             };

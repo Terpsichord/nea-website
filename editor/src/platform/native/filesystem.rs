@@ -1,6 +1,6 @@
 use std::{
     fs,
-    io::Result,
+    io::{self, Result},
     path::{Path, PathBuf},
 };
 
@@ -31,7 +31,7 @@ impl FileSystemTrait for FileSystem {
         fs::read_dir(path).map(ReadDir)
     }
 
-    fn search_project(&self, project: &Project, pattern: &str) -> Vec<SearchResult> {
+    fn search_project(&self, project: &Project, pattern: &str) -> io::Result<Vec<SearchResult>> {
         let mut results = Vec::new();
         for entry in WalkDir::new(&project.path)
             .into_iter()
@@ -53,7 +53,7 @@ impl FileSystemTrait for FileSystem {
                 }
             }
         }
-        results
+        Ok(results)
     }
 
     fn replace(&self, paths: &[&Path], pattern: &str, replace: &str) -> Result<()> {

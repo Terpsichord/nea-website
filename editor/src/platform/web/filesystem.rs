@@ -84,12 +84,12 @@ impl FileSystemTrait for FileSystem {
         Err(ErrorKind::WouldBlock)?
     }
 
-    fn search_project(&self, project: &Project, pattern: &str) -> Vec<SearchResult> {
-        todo!()
+    fn search_project(&self, project: &Project, pattern: &str) -> io::Result<Vec<SearchResult>> {
+        Err(ErrorKind::WouldBlock)?
     }
 
     fn replace(&self, paths: &[&Path], pattern: &str, replace: &str) -> io::Result<()> {
-        todo!()
+        Err(ErrorKind::WouldBlock)?
     }
 }
 

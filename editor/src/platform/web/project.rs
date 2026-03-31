@@ -11,12 +11,6 @@ pub struct Project {
     settings: Option<ProjectSettings>,
 }
 
-// TODO: i think remove this unless its used anywhere
-#[derive(Debug)]
-struct ProjectInfo {
-    github_url: String,
-}
-
 impl Project {
     pub async fn new(username: String, repo_name: String) -> eyre::Result<Self> {
         web_sys::console::log_1(&format!("opening project {username}/{repo_name}").into());

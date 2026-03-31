@@ -167,7 +167,7 @@ impl WebSocketHandler {
         let output = self
             .exec_docker(vec![
                 "ls",
-                "--indicator-style=slash",
+                "-p",
                 EditorSessionManager::WORKSPACE_PATH,
             ])
             .await?;
@@ -197,8 +197,7 @@ impl WebSocketHandler {
         if self
             .exec_docker(vec![
                 "ls",
-                "--indicator-style=slash",
-                "-a",
+                "-pa",
                 &format!("{}/{}", EditorSessionManager::WORKSPACE_PATH, project_dir),
             ])
             .await?

@@ -55,15 +55,11 @@ impl RunnerTrait for Runner {
         Ok(())
     }
 
-    fn update(&mut self) {
-        // TODO
-    }
+    fn update(&mut self) {}
 
     fn is_running(&self) -> bool {
         self.is_running
     }
 
-    fn stop(&mut self) {
-        // TODO
-    }
+    fn stop(&mut self) {}
 }

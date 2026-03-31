@@ -11,7 +11,6 @@ import User from './routes/User/User.tsx';
 import ProjectPage from './routes/Project/ProjectPage.tsx';
 import ProjectSettings from './routes/Settings/ProjectSettings.tsx';
 import Explore from './routes/Explore/Explore.tsx';
-import About from './routes/About.tsx';
 
 const root = document.getElementById('root')!;
 
@@ -27,7 +26,6 @@ ReactDOM.createRoot(root).render(
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/explore" element={<Explore />} />
-          <Route path="/about" element={<About />} />
           <Route path="/signin" element={<SignIn />} />
           <Route path="/profile" element={ <Profile /> } />
           <Route path="/user/:username" element={<User />} />
