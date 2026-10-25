@@ -50,7 +50,7 @@ impl WebSocketHandler {
                     let msg = match self.create_response(&msg).await {
                         Ok(msg) => msg,
                         Err(err) => {
-                            eprintln!("failed to execute command on websocket: {err:#?}");
+                            eprintln!("failed to execute command on websocket: {err}");
                             continue;
                         }
                     };

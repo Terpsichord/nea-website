@@ -10,8 +10,8 @@ use std::{
 use bollard::{
     Docker, body_full,
     query_parameters::{
-        CreateContainerOptions, StartContainerOptions,
-        StopContainerOptions, UploadToContainerOptions,
+        CreateContainerOptions, StartContainerOptions, StopContainerOptions,
+        UploadToContainerOptions,
     },
     secret::{ContainerCreateBody, HostConfig, Mount, MountTypeEnum},
 };
@@ -36,7 +36,7 @@ pub struct SessionHandle {
     // path: String,
 }
 
-// Implements wait logic as described in 'Container Lifecycle'   
+// Implements wait logic as described in 'Container Lifecycle'
 #[derive(Debug)]
 struct WaitingHandle {
     handle: JoinHandle<()>,
@@ -45,7 +45,7 @@ struct WaitingHandle {
 impl WaitingHandle {
     const DELAY: Duration = Duration::from_mins(5);
 
-    // Starts a new task when constructed which stops the container running after DELAY, unless aborted (see below) 
+    // Starts a new task when constructed which stops the container running after DELAY, unless aborted (see below)
     fn new(session_mgr: EditorSessionManager, user_id: i32) -> Self {
         let handle = tokio::spawn(async move {
             tokio::time::sleep(Self::DELAY).await;
@@ -75,7 +75,6 @@ enum SessionMode {
     Active,
     Waiting(WaitingHandle),
 }
-
 
 // Encapsulates entire state of a session, aggregating both the handle and current mode
 #[derive(Debug)]
@@ -147,7 +146,7 @@ impl EditorSessionManager {
     }
 
     // called when the server receives a HTTP request to open a new session
-    // may either start a new container or re-activate an already running one, depending on the state of SessionTable 
+    // may either start a new container or re-activate an already running one, depending on the state of SessionTable
     pub async fn open(
         &self,
         user_id: i32,
@@ -160,7 +159,7 @@ impl EditorSessionManager {
     ) -> Result<WithTokens<String>, AppError> {
         // does an already running container need to be reactivated?
         let mut reactivate = false;
-        // does an already running container need to closed? 
+        // does an already running container need to closed?
         let mut close = false;
 
         // If there is already a running container for the user:
@@ -184,7 +183,7 @@ impl EditorSessionManager {
         }
 
         if reactivate {
-            // update the table to set the session to active and return the container id          
+            // update the table to set the session to active and return the container id
             let mut table = self.table.write().unwrap();
 
             table
@@ -204,17 +203,18 @@ impl EditorSessionManager {
         info!("creating session");
 
         // create a new session (only called if `reactivate` was false)
-        let res = self.create_session(
-            user_id,
-            project_id,
-            username,
-            repo_name,
-            lang,
-            access_token,
-            refresh_token,
-        )
-        .await;
-    
+        let res = self
+            .create_session(
+                user_id,
+                project_id,
+                username,
+                repo_name,
+                lang,
+                access_token,
+                refresh_token,
+            )
+            .await;
+
         if let Err(ref e) = res {
             println!("failed to create session: {e:?}");
         }
@@ -238,7 +238,7 @@ impl EditorSessionManager {
     ) -> Result<WithTokens<String>, AppError> {
         let image = self.get_image(lang).await?;
 
-        // defines configuration for an anonymous mount 
+        // defines configuration for an anonymous mount
         // this describes how Docker will store the filesystem of the container
         let mount = Mount {
             target: Some(Self::WORKSPACE_PATH.into()),
@@ -270,7 +270,7 @@ impl EditorSessionManager {
         };
 
         // creating and starting the container
-        
+
         debug!("creating container");
         let container_id = self
             .docker
@@ -323,12 +323,16 @@ impl EditorSessionManager {
     }
 
     async fn get_image(&self, lang: ProjectLang) -> Result<String, AppError> {
+        return Ok("python:3".into());
         const IMAGE_NAMESPACE: &str = "nea";
 
         let image = format!("{IMAGE_NAMESPACE}/{lang}");
 
         // this ensures that the image is present on the host system, and returns an error if not
-        self.docker.inspect_image(&image).await.map_err(AppError::other)?;
+        self.docker
+            .inspect_image(&image)
+            .await
+            .map_err(AppError::other)?;
 
         Ok(image)
     }

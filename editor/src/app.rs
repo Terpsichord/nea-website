@@ -14,7 +14,6 @@ use std::{
 };
 
 use eframe::egui;
-#[cfg(not(target_arch = "wasm32"))]
 use egui::{
     Align, Button, CentralPanel, ComboBox, Grid, Id, Key, KeyboardShortcut, Layout, MenuBar,
     Modifiers, RichText, ScrollArea, SidePanel, Style, TopBottomPanel, ViewportCommand,
@@ -179,6 +178,7 @@ impl eframe::App for App {
             self.delete(path.as_path());
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
         if let Some((_, receiver)) = &self.terminal {
             receiver.try_recv().ok();
         }
